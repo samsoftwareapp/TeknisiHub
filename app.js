@@ -7,9 +7,12 @@ const joinChannelHint = document.getElementById("joinChannelHint");
 const joinChannelLink = document.getElementById("joinChannelLink");
 const phoneForm = document.getElementById("phoneForm");
 const phoneNumberInput = document.getElementById("phoneNumber");
+const phoneSubmitButton = document.getElementById("phoneSubmitButton");
 const rememberPhoneCheckbox = document.getElementById("rememberPhoneCheckbox");
 const codeForm = document.getElementById("codeForm");
+const codeSubmitButton = document.getElementById("codeSubmitButton");
 const passwordForm = document.getElementById("passwordForm");
+const passwordSubmitButton = document.getElementById("passwordSubmitButton");
 const agreementPanel = document.getElementById("agreementPanel");
 const dashboardPanel = document.getElementById("dashboardPanel");
 const refreshButton = document.getElementById("refreshButton");
@@ -68,6 +71,7 @@ let biosLoadingMore = false;
 let catalogEditorMode = "upload";
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
+const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
 
 const boardviewChannelLink = "https://t.me/+0oa9XOhoXZExNDNl";
 
@@ -260,7 +264,12 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         <span>${escapeHtml(item.postedAt || "-")}</span>
       </div>
       <div class="catalog-card-actions">
-        <button type="button" class="catalog-download-button" data-title="${escapeHtml(item.title)}">
+        <button
+          type="button"
+          class="catalog-download-button"
+          data-title="${escapeHtml(item.title)}"
+          data-category="${escapeHtml(item.category)}"
+          data-message-id="${item.messageId || ""}">
           <span class="material-symbols-outlined">download</span>
           <span>Download</span>
         </button>
@@ -460,6 +469,23 @@ function setText(element, value) {
   if (element) {
     element.textContent = value;
   }
+}
+
+function setButtonLoading(button, loading, defaultIcon, defaultLabel, loadingLabel) {
+  if (!button) {
+    return;
+  }
+
+  button.disabled = loading;
+  button.innerHTML = loading
+    ? `
+      <span class="material-symbols-outlined is-spinning">progress_activity</span>
+      <span>${escapeHtml(loadingLabel)}</span>
+    `
+    : `
+      <span class="material-symbols-outlined">${escapeHtml(defaultIcon)}</span>
+      <span>${escapeHtml(defaultLabel)}</span>
+    `;
 }
 
 function normalizeLocalPhoneNumber(value) {
@@ -770,8 +796,15 @@ async function submitCatalogEditor() {
     throw new Error("Pilih file BIOS dulu sebelum upload.");
   }
 
+  const selectedFile = catalogEditorFile.files[0];
+  const lowerFileName = selectedFile.name.toLowerCase();
+  const hasAllowedExtension = allowedBiosExtensions.some((extension) => lowerFileName.endsWith(extension));
+  if (!hasAllowedExtension) {
+    throw new Error("Format file BIOS harus salah satu dari: .bin, .rom, .cap, .img, .fd, .bio, .wph, .efi, .hdr.");
+  }
+
   const formData = new FormData();
-  formData.set("file", catalogEditorFile.files[0]);
+  formData.set("file", selectedFile);
   formData.set("deviceModel", payload.deviceModel);
   formData.set("serialNumber", payload.serialNumber);
   formData.set("boardCode", payload.boardCode);
@@ -795,9 +828,18 @@ async function deleteCatalogItem(messageId) {
   await loadCatalog();
 }
 
+async function downloadCatalogItem(messageId) {
+  const result = await fetchJson(`/catalog/bios/${messageId}/download`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  setNotice(result.message);
+}
+
 phoneForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const phoneNumber = buildInternationalPhoneNumber(phoneNumberInput?.value || "");
+  setButtonLoading(phoneSubmitButton, true, "send_to_mobile", "Minta kode login", "Meminta kode...");
 
   try {
     const result = await fetchJson("/auth/start", {
@@ -809,12 +851,15 @@ phoneForm.addEventListener("submit", async (event) => {
     await refreshStatus();
   } catch (error) {
     setNotice(error.message, true);
+  } finally {
+    setButtonLoading(phoneSubmitButton, false, "send_to_mobile", "Minta kode login", "Meminta kode...");
   }
 });
 
 codeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const verificationCode = document.getElementById("verificationCode").value.trim();
+  setButtonLoading(codeSubmitButton, true, "password", "Kirim kode", "Mengirim kode...");
 
   try {
     const result = await fetchJson("/auth/code", {
@@ -825,12 +870,15 @@ codeForm.addEventListener("submit", async (event) => {
     await refreshStatus();
   } catch (error) {
     setNotice(error.message, true);
+  } finally {
+    setButtonLoading(codeSubmitButton, false, "password", "Kirim kode", "Mengirim kode...");
   }
 });
 
 passwordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const password = document.getElementById("password").value.trim();
+  setButtonLoading(passwordSubmitButton, true, "lock_open_right", "Selesaikan login", "Memverifikasi...");
 
   try {
     const result = await fetchJson("/auth/password", {
@@ -841,6 +889,8 @@ passwordForm.addEventListener("submit", async (event) => {
     await refreshStatus();
   } catch (error) {
     setNotice(error.message, true);
+  } finally {
+    setButtonLoading(passwordSubmitButton, false, "lock_open_right", "Selesaikan login", "Memverifikasi...");
   }
 });
 
@@ -926,6 +976,28 @@ if (catalogList) {
     const button = event.target.closest(".catalog-download-button");
     if (button) {
       const title = button.getAttribute("data-title") || "item dummy";
+      const category = button.getAttribute("data-category") || "";
+      const messageId = Number(button.getAttribute("data-message-id") || 0);
+      if (category === "BIOS" && messageId > 0) {
+        const previousMarkup = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = `
+          <span class="material-symbols-outlined is-spinning">progress_activity</span>
+          <span>Downloading...</span>
+        `;
+        setNotice("Pilih folder tujuan di dialog Windows yang muncul, lalu tunggu proses download dan extract selesai.");
+
+        try {
+          await downloadCatalogItem(messageId);
+        } catch (error) {
+          setNotice(error.message, true);
+        } finally {
+          button.disabled = false;
+          button.innerHTML = previousMarkup;
+        }
+        return;
+      }
+
       setNotice(`Download dummy untuk ${title} belum diimplementasikan. Tahap ini baru validasi dashboard.`, true);
       return;
     }

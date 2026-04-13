@@ -280,6 +280,20 @@ h1 {
     "opsz" 24;
 }
 
+.is-spinning {
+  animation: material-spin 0.9s linear infinite;
+}
+
+@keyframes material-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .form,
 .agreement {
   display: grid;

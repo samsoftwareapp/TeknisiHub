@@ -46,7 +46,7 @@
           <input id="rememberPhoneCheckbox" type="checkbox">
           <span>Ingat nomor ini di browser ini</span>
         </label>
-        <button type="submit">
+        <button id="phoneSubmitButton" type="submit">
           <span class="material-symbols-outlined">send_to_mobile</span>
           <span>Minta kode login</span>
         </button>
@@ -55,7 +55,7 @@
       <form id="codeForm" class="form hidden">
         <label for="verificationCode">Kode verifikasi</label>
         <input id="verificationCode" name="verificationCode" type="text" placeholder="12345">
-        <button type="submit">
+        <button id="codeSubmitButton" type="submit">
           <span class="material-symbols-outlined">password</span>
           <span>Kirim kode</span>
         </button>
@@ -64,7 +64,7 @@
       <form id="passwordForm" class="form hidden">
         <label for="password">Password 2FA Telegram</label>
         <input id="password" name="password" type="password" placeholder="Password Telegram">
-        <button type="submit">
+        <button id="passwordSubmitButton" type="submit">
           <span class="material-symbols-outlined">lock_open_right</span>
           <span>Selesaikan login</span>
         </button>
@@ -256,7 +256,7 @@
         <input id="catalogEditorMessageId" type="hidden">
 
         <label for="catalogEditorFile">File BIOS</label>
-        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.rar,.zip,.7z,.fd,.cap,.exe,.iso,.txt,.md">
+        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr">
 
         <label for="catalogEditorDeviceModel">Model Device</label>
         <input id="catalogEditorDeviceModel" name="deviceModel" type="text" placeholder="Contoh: Lenovo ThinkPad T14" required>
