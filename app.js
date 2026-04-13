@@ -1,7 +1,7 @@
 const serviceBaseUrl = "http://127.0.0.1:48721";
 
 const serviceStatus = document.getElementById("serviceStatus");
-const notice = document.getElementById("notice");
+const toastContainer = document.getElementById("toastContainer");
 const errorMessage = document.getElementById("errorMessage");
 const joinChannelHint = document.getElementById("joinChannelHint");
 const joinChannelLink = document.getElementById("joinChannelLink");
@@ -35,6 +35,20 @@ const catalogTitle = document.getElementById("catalogTitle");
 const catalogSubtitle = document.getElementById("catalogSubtitle");
 const catalogSearchInput = document.getElementById("catalogSearchInput");
 const catalogChannelLink = document.getElementById("catalogChannelLink");
+const catalogUploadButton = document.getElementById("catalogUploadButton");
+const catalogPagination = document.getElementById("catalogPagination");
+const catalogLoadMoreButton = document.getElementById("catalogLoadMoreButton");
+const catalogEditorModal = document.getElementById("catalogEditorModal");
+const catalogEditorTitle = document.getElementById("catalogEditorTitle");
+const catalogEditorCloseButton = document.getElementById("catalogEditorCloseButton");
+const catalogEditorForm = document.getElementById("catalogEditorForm");
+const catalogEditorMessageId = document.getElementById("catalogEditorMessageId");
+const catalogEditorFile = document.getElementById("catalogEditorFile");
+const catalogEditorDeviceModel = document.getElementById("catalogEditorDeviceModel");
+const catalogEditorSerialNumber = document.getElementById("catalogEditorSerialNumber");
+const catalogEditorBoardCode = document.getElementById("catalogEditorBoardCode");
+const catalogEditorNote = document.getElementById("catalogEditorNote");
+const catalogEditorSubmitButton = document.getElementById("catalogEditorSubmitButton");
 const navBios = document.getElementById("navBios");
 const navBoardview = document.getElementById("navBoardview");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
@@ -43,7 +57,15 @@ const toolOther = document.getElementById("toolOther");
 
 let catalogLoaded = false;
 let catalogItems = [];
+let catalogCache = [];
 let currentCatalogView = "BIOS";
+let currentChannelRole = "";
+let catalogSearchDebounceId = 0;
+let latestBiosRequestToken = 0;
+let biosHasMore = false;
+let biosNextOffset = 0;
+let biosLoadingMore = false;
+let catalogEditorMode = "upload";
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
 
@@ -82,6 +104,17 @@ function escapeHtml(value) {
 function resetCatalog() {
   catalogLoaded = false;
   catalogItems = [];
+  catalogCache = [];
+  currentChannelRole = "";
+  latestBiosRequestToken = 0;
+  biosHasMore = false;
+  biosNextOffset = 0;
+  biosLoadingMore = false;
+  catalogEditorMode = "upload";
+  if (catalogSearchDebounceId) {
+    clearTimeout(catalogSearchDebounceId);
+    catalogSearchDebounceId = 0;
+  }
   if (catalogCount) {
     catalogCount.textContent = "0 item";
   }
@@ -90,11 +123,28 @@ function resetCatalog() {
     catalogList.innerHTML = "";
   }
 
+  toggleElement(catalogPagination, false);
+
   if (catalogSearchInput) {
     catalogSearchInput.value = "";
   }
 
   toggleElement(catalogSection, false);
+  toggleElement(catalogUploadButton, false);
+  toggleElement(catalogEditorModal, false);
+}
+
+function isOwnerRole() {
+  return currentChannelRole.toLowerCase() === "owner";
+}
+
+function canManageBiosCatalog() {
+  const normalizedRole = currentChannelRole.toLowerCase();
+  return normalizedRole === "owner" || normalizedRole === "admin";
+}
+
+function updateCatalogToolbar(viewKey = currentCatalogView) {
+  toggleElement(catalogUploadButton, viewKey === "BIOS" && canManageBiosCatalog());
 }
 
 function setActiveNav(targetKey) {
@@ -121,10 +171,11 @@ function updateCatalogHeader(viewKey) {
   }
 
   if (viewKey === "BIOS") {
-    setText(catalogEyebrow, "BIOS Dummy");
+    setText(catalogEyebrow, "BIOS Telegram");
     setText(catalogTitle, "File BIOS");
-    setText(catalogSubtitle, "Daftar dummy file BIOS dengan tombol download untuk validasi alur dashboard.");
+    setText(catalogSubtitle, "");
     toggleElement(catalogChannelLink, false);
+    updateCatalogToolbar(viewKey);
     return;
   }
 
@@ -134,6 +185,7 @@ function updateCatalogHeader(viewKey) {
     setText(catalogSubtitle, "Daftar dummy boardview. Kategori ini memakai channel khusus boardview.");
     catalogChannelLink.href = boardviewChannelLink;
     toggleElement(catalogChannelLink, true);
+    updateCatalogToolbar(viewKey);
     return;
   }
 
@@ -142,6 +194,7 @@ function updateCatalogHeader(viewKey) {
   setText(catalogTitle, toolConfig.title);
   setText(catalogSubtitle, toolConfig.subtitle);
   toggleElement(catalogChannelLink, false);
+  updateCatalogToolbar(viewKey);
 }
 
 function renderCatalog(items, viewKey = currentCatalogView) {
@@ -152,6 +205,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
   updateCatalogHeader(viewKey);
   setActiveNav(viewKey);
   catalogCount.textContent = `${items.length} item`;
+  toggleElement(catalogPagination, viewKey === "BIOS" && biosHasMore && items.length > 0);
 
   if (items.length === 0) {
     catalogList.innerHTML = `
@@ -169,11 +223,11 @@ function renderCatalog(items, viewKey = currentCatalogView) {
     <article class="catalog-card">
       <div class="catalog-card-top">
         <span class="catalog-category">${escapeHtml(item.category)}</span>
-        <span class="catalog-access">${escapeHtml(item.accessLevel)}</span>
+        <span class="catalog-access">${escapeHtml(currentChannelRole || item.accessLevel)}</span>
       </div>
       <h4>${escapeHtml(item.title)}</h4>
-      <p class="catalog-model">${escapeHtml(item.deviceModel)}</p>
-      <p class="catalog-description">${escapeHtml(item.description)}</p>
+     
+      ${item.description ? `<p class="catalog-description">${escapeHtml(item.description)}</p>` : ""}
       <dl class="catalog-meta-grid">
         <div>
           <dt>MODEL</dt>
@@ -196,27 +250,88 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         <span class="material-symbols-outlined">description</span>
         <span>${escapeHtml(item.fileName || item.title)}</span>
       </div>
+      ${item.uploadedBy ? `
       <div class="catalog-file-row">
         <span class="material-symbols-outlined">person</span>
-        <span>Upload: ${escapeHtml(item.uploadedBy || "Channel")}</span>
-      </div>
+        <span>${escapeHtml(item.uploadedBy)}</span>
+      </div>` : ""}
       <div class="catalog-file-row">
         <span class="material-symbols-outlined">schedule</span>
         <span>${escapeHtml(item.postedAt || "-")}</span>
       </div>
-      <button type="button" class="catalog-download-button" data-title="${escapeHtml(item.title)}">
-        <span class="material-symbols-outlined">download</span>
-        <span>Download</span>
-      </button>
+      <div class="catalog-card-actions">
+        <button type="button" class="catalog-download-button" data-title="${escapeHtml(item.title)}">
+          <span class="material-symbols-outlined">download</span>
+          <span>Download</span>
+        </button>
+        ${viewKey === "BIOS" && canManageBiosCatalog() && item.messageId ? `
+        <button
+          type="button"
+          class="catalog-action-button ghost catalog-edit-button"
+          data-message-id="${item.messageId}">
+          <span class="material-symbols-outlined">edit</span>
+          <span>Edit</span>
+        </button>` : ""}
+        ${viewKey === "BIOS" && isOwnerRole() && item.messageId ? `
+        <button
+          type="button"
+          class="catalog-action-button ghost catalog-delete-button"
+          data-message-id="${item.messageId}">
+          <span class="material-symbols-outlined">delete</span>
+          <span>Hapus</span>
+        </button>` : ""}
+      </div>
     </article>
   `).join("");
 
   toggleElement(catalogSection, true);
 }
 
+function findCatalogItemByMessageId(messageId) {
+  return catalogItems.find((item) => Number(item.messageId) === Number(messageId));
+}
+
+function openCatalogEditor(mode, item = null) {
+  catalogEditorMode = mode;
+  toggleElement(catalogEditorModal, true);
+  if (!catalogEditorTitle || !catalogEditorSubmitButton) {
+    return;
+  }
+
+  const isEditMode = mode === "edit";
+  setText(catalogEditorTitle, isEditMode ? "Edit Metadata BIOS" : "Upload BIOS");
+  catalogEditorMessageId.value = isEditMode && item ? String(item.messageId || "") : "";
+  catalogEditorDeviceModel.value = item?.deviceModel === "-" ? "" : (item?.deviceModel || "");
+  catalogEditorSerialNumber.value = item?.serialNumber === "-" ? "" : (item?.serialNumber || "");
+  catalogEditorBoardCode.value = item?.boardCode === "-" ? "" : (item?.boardCode || "");
+  catalogEditorNote.value = item?.note === "-" ? "" : (item?.note || "");
+  if (catalogEditorFile) {
+    catalogEditorFile.value = "";
+    catalogEditorFile.disabled = isEditMode;
+    catalogEditorFile.required = !isEditMode;
+  }
+
+  catalogEditorSubmitButton.innerHTML = isEditMode
+    ? `<span class="material-symbols-outlined">save</span><span>Simpan Perubahan</span>`
+    : `<span class="material-symbols-outlined">upload_file</span><span>Upload BIOS</span>`;
+}
+
+function closeCatalogEditor() {
+  toggleElement(catalogEditorModal, false);
+  catalogEditorMode = "upload";
+  if (catalogEditorForm) {
+    catalogEditorForm.reset();
+  }
+  if (catalogEditorFile) {
+    catalogEditorFile.disabled = false;
+    catalogEditorFile.required = false;
+  }
+}
+
 function filterCatalogItems() {
   const keyword = (catalogSearchInput?.value || "").trim().toLowerCase();
-  const sourceItems = catalogItems.filter((item) => {
+  const sourceCollection = currentCatalogView === "BIOS" ? catalogItems : catalogCache;
+  const sourceItems = sourceCollection.filter((item) => {
     if (currentCatalogView === "BIOS" || currentCatalogView === "Boardview") {
       return item.category === currentCatalogView;
     }
@@ -238,7 +353,9 @@ function filterCatalogItems() {
     return false;
   });
 
-  const filteredItems = !keyword
+  const filteredItems = currentCatalogView === "BIOS"
+    ? sourceItems
+    : !keyword
     ? sourceItems
     : sourceItems.filter((item) =>
         [item.title, item.deviceModel, item.description, item.category, item.fileName, item.serialNumber, item.boardCode, item.note, item.uploadedBy]
@@ -248,16 +365,95 @@ function filterCatalogItems() {
   renderCatalog(filteredItems, currentCatalogView);
 }
 
-async function loadCatalog() {
+async function loadBaseCatalog() {
   if (catalogLoaded) {
-    filterCatalogItems();
     return;
   }
 
   const catalog = await fetchJson("/catalog");
-  catalogItems = catalog.items || [];
+  catalogCache = catalog.items || [];
   catalogLoaded = true;
+}
+
+async function loadBiosCatalog() {
+  const query = (catalogSearchInput?.value || "").trim();
+  const requestToken = ++latestBiosRequestToken;
+  biosLoadingMore = false;
+  biosNextOffset = 0;
+  const path = `/catalog?category=BIOS&limit=5${query ? `&query=${encodeURIComponent(query)}` : ""}`;
+  const catalog = await fetchJson(path);
+
+  if (requestToken !== latestBiosRequestToken) {
+    return;
+  }
+
+  catalogItems = catalog.items || [];
+  biosHasMore = Boolean(catalog.hasMore);
+  biosNextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
+}
+
+async function loadMoreBiosCatalog() {
+  if (!biosHasMore || biosLoadingMore) {
+    return;
+  }
+
+  const query = (catalogSearchInput?.value || "").trim();
+  const requestToken = ++latestBiosRequestToken;
+  biosLoadingMore = true;
+  if (catalogLoadMoreButton) {
+    catalogLoadMoreButton.disabled = true;
+  }
+
+  try {
+    const path = `/catalog?category=BIOS&limit=5&offset=${biosNextOffset}${query ? `&query=${encodeURIComponent(query)}` : ""}`;
+    const catalog = await fetchJson(path);
+
+    if (requestToken !== latestBiosRequestToken) {
+      return;
+    }
+
+    catalogItems = [...catalogItems, ...(catalog.items || [])];
+    biosHasMore = Boolean(catalog.hasMore);
+    biosNextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
+    filterCatalogItems();
+  } finally {
+    biosLoadingMore = false;
+    if (catalogLoadMoreButton) {
+      catalogLoadMoreButton.disabled = false;
+    }
+  }
+}
+
+async function loadCatalog() {
+  await loadBaseCatalog();
+
+  if (currentCatalogView === "BIOS") {
+    await loadBiosCatalog();
+    filterCatalogItems();
+    return;
+  }
+
+  catalogItems = catalogCache;
   filterCatalogItems();
+}
+
+function queueCatalogSearch() {
+  if (!catalogSearchInput) {
+    return;
+  }
+
+  if (catalogSearchDebounceId) {
+    clearTimeout(catalogSearchDebounceId);
+  }
+
+  if (currentCatalogView !== "BIOS") {
+    filterCatalogItems();
+    return;
+  }
+
+  catalogSearchDebounceId = setTimeout(() => {
+    loadCatalog().catch((error) => setNotice(error.message, true));
+  }, 250);
 }
 
 function setText(element, value) {
@@ -321,20 +517,40 @@ function persistRememberedPhone() {
 }
 
 function setNotice(message, isWarning = false) {
-  if (!notice) {
+  if (!toastContainer) {
     return;
   }
 
   if (!message) {
-    notice.textContent = "";
-    notice.classList.add("hidden");
-    notice.classList.remove("warning");
+    toastContainer.innerHTML = "";
     return;
   }
 
-  notice.textContent = message;
-  notice.classList.remove("hidden");
-  notice.classList.toggle("warning", isWarning);
+  const tone = isWarning ? "warning" : "success";
+  const icon = isWarning ? "warning" : "check_circle";
+  const toast = document.createElement("div");
+  toast.className = `toast is-${tone}`;
+  toast.innerHTML = `
+    <span class="material-symbols-outlined toast-icon">${icon}</span>
+    <span class="toast-message">${escapeHtml(message)}</span>
+    <button type="button" class="toast-close" aria-label="Tutup pesan">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  `;
+
+  const dismissToast = () => {
+    if (!toast.isConnected) {
+      return;
+    }
+
+    toast.classList.add("is-leaving");
+    window.setTimeout(() => {
+      toast.remove();
+    }, 180);
+  };
+
+  toast.querySelector(".toast-close")?.addEventListener("click", dismissToast);
+  toastContainer.prepend(toast);
 }
 
 function setError(message) {
@@ -385,6 +601,7 @@ function applyStatus(status) {
   if (showDashboard) {
     const displayName = status.displayName || "TeknisiHub User";
     const channelRole = status.channelRole ? ` - ${status.channelRole}` : "";
+    currentChannelRole = status.channelRole || "";
     setText(dashboardTitle, `Halo, ${displayName}`);
     setText(dashboardLoginStatus, "Login Telegram aktif");
     setText(dashboardRoleChip, status.channelRole ? `Role ${status.channelRole}` : "Akses tervalidasi");
@@ -437,6 +654,7 @@ function applyStatus(status) {
     return;
   }
 
+  currentChannelRole = "";
   resetCatalog();
 
   if (status.lastError) {
@@ -460,12 +678,16 @@ function applyStatus(status) {
 async function fetchJson(path, options = {}) {
   const requestUrl = `${serviceBaseUrl}${path}`;
   let response;
+  const isFormDataBody = options.body instanceof FormData;
+  const headers = isFormDataBody
+    ? {}
+    : {
+        "Content-Type": "application/json"
+      };
 
   try {
     response = await fetch(requestUrl, {
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers,
       ...options
     });
   } catch (error) {
@@ -484,7 +706,15 @@ async function fetchJson(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload.message || `Request gagal (${response.status}).`);
+    const validationErrors = payload.errors && typeof payload.errors === "object"
+      ? Object.values(payload.errors).flat().join(" ")
+      : "";
+    throw new Error(
+      payload.message ||
+      payload.title ||
+      validationErrors ||
+      `Request gagal (${response.status}).`
+    );
   }
 
   return payload;
@@ -510,6 +740,59 @@ async function refreshStatus() {
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
   }
+}
+
+async function submitCatalogEditor() {
+  const payload = {
+    deviceModel: catalogEditorDeviceModel?.value.trim() || "",
+    serialNumber: catalogEditorSerialNumber?.value.trim() || "",
+    boardCode: catalogEditorBoardCode?.value.trim() || "",
+    note: catalogEditorNote?.value.trim() || ""
+  };
+
+  if (!payload.deviceModel || !payload.serialNumber || !payload.boardCode || !payload.note) {
+    throw new Error("Semua field metadata BIOS wajib diisi sebelum submit.");
+  }
+
+  if (catalogEditorMode === "edit") {
+    const messageId = Number(catalogEditorMessageId?.value || 0);
+    const result = await fetchJson(`/catalog/bios/${messageId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+    setNotice(result.message);
+    closeCatalogEditor();
+    await loadCatalog();
+    return;
+  }
+
+  if (!catalogEditorFile?.files?.length) {
+    throw new Error("Pilih file BIOS dulu sebelum upload.");
+  }
+
+  const formData = new FormData();
+  formData.set("file", catalogEditorFile.files[0]);
+  formData.set("deviceModel", payload.deviceModel);
+  formData.set("serialNumber", payload.serialNumber);
+  formData.set("boardCode", payload.boardCode);
+  formData.set("note", payload.note);
+
+  const result = await fetchJson("/catalog/bios", {
+    method: "POST",
+    body: formData
+  });
+
+  setNotice(result.message);
+  closeCatalogEditor();
+  await loadCatalog();
+}
+
+async function deleteCatalogItem(messageId) {
+  const result = await fetchJson(`/catalog/bios/${messageId}`, {
+    method: "DELETE"
+  });
+  setNotice(result.message);
+  await loadCatalog();
 }
 
 phoneForm.addEventListener("submit", async (event) => {
@@ -635,42 +918,124 @@ loadRememberedPhone();
 refreshStatus();
 
 if (catalogSearchInput) {
-  catalogSearchInput.addEventListener("input", filterCatalogItems);
+  catalogSearchInput.addEventListener("input", queueCatalogSearch);
 }
 
 if (catalogList) {
-  catalogList.addEventListener("click", (event) => {
+  catalogList.addEventListener("click", async (event) => {
     const button = event.target.closest(".catalog-download-button");
-    if (!button) {
+    if (button) {
+      const title = button.getAttribute("data-title") || "item dummy";
+      setNotice(`Download dummy untuk ${title} belum diimplementasikan. Tahap ini baru validasi dashboard.`, true);
       return;
     }
 
-    const title = button.getAttribute("data-title") || "item dummy";
-    setNotice(`Download dummy untuk ${title} belum diimplementasikan. Tahap ini baru validasi dashboard.`, true);
+    const editButton = event.target.closest(".catalog-edit-button");
+    if (editButton) {
+      const item = findCatalogItemByMessageId(Number(editButton.getAttribute("data-message-id")));
+      if (item) {
+        openCatalogEditor("edit", item);
+      }
+      return;
+    }
+
+    const deleteButton = event.target.closest(".catalog-delete-button");
+    if (!deleteButton) {
+      return;
+    }
+
+    const messageId = Number(deleteButton.getAttribute("data-message-id"));
+    const confirmed = window.confirm("Hapus posting BIOS ini dari channel Telegram?");
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteCatalogItem(messageId);
+    } catch (error) {
+      setNotice(error.message, true);
+    }
   });
 }
 
+if (catalogLoadMoreButton) {
+  catalogLoadMoreButton.addEventListener("click", async () => {
+    const previousLabel = catalogLoadMoreButton.innerHTML;
+    catalogLoadMoreButton.innerHTML = `
+      <span class="material-symbols-outlined">progress_activity</span>
+      <span>Memuat...</span>
+    `;
+
+    try {
+      await loadMoreBiosCatalog();
+    } catch (error) {
+      setNotice(error.message, true);
+    } finally {
+      catalogLoadMoreButton.innerHTML = previousLabel;
+    }
+  });
+}
+
+catalogUploadButton?.addEventListener("click", () => {
+  openCatalogEditor("upload");
+});
+
+catalogEditorCloseButton?.addEventListener("click", closeCatalogEditor);
+
+catalogEditorModal?.addEventListener("click", (event) => {
+  if (event.target === catalogEditorModal) {
+    closeCatalogEditor();
+  }
+});
+
+catalogEditorForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const previousMarkup = catalogEditorSubmitButton?.innerHTML || "";
+  if (catalogEditorSubmitButton) {
+    catalogEditorSubmitButton.disabled = true;
+    catalogEditorSubmitButton.innerHTML = `
+      <span class="material-symbols-outlined">progress_activity</span>
+      <span>Memproses...</span>
+    `;
+  }
+
+  try {
+    await submitCatalogEditor();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    if (catalogEditorSubmitButton) {
+      catalogEditorSubmitButton.disabled = false;
+      catalogEditorSubmitButton.innerHTML = previousMarkup;
+    }
+  }
+});
+
 navBios?.addEventListener("click", () => {
   currentCatalogView = "BIOS";
-  filterCatalogItems();
+  loadCatalog().catch((error) => setNotice(error.message, true));
 });
 
 navBoardview?.addEventListener("click", () => {
   currentCatalogView = "Boardview";
+  catalogItems = catalogCache;
   filterCatalogItems();
 });
 
 toolSpiFlash?.addEventListener("click", () => {
   currentCatalogView = "tool_spi_flash";
+  catalogItems = catalogCache;
   filterCatalogItems();
 });
 
 toolUefi?.addEventListener("click", () => {
   currentCatalogView = "tool_uefi";
+  catalogItems = catalogCache;
   filterCatalogItems();
 });
 
 toolOther?.addEventListener("click", () => {
   currentCatalogView = "tool_other";
+  catalogItems = catalogCache;
   filterCatalogItems();
 });

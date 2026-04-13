@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
   <main class="shell">
     <section class="hero">
       <div class="status-card">
@@ -26,7 +27,6 @@
     </section>
 
     <section class="panel">
-      <div id="notice" class="notice">Menunggu local service aktif.</div>
       <div id="errorMessage" class="error-message hidden"></div>
       <div id="joinChannelHint" class="join-hint hidden">
         <p class="label">Channel Wajib</p>
@@ -212,20 +212,73 @@
               <div class="catalog-toolbar">
                 <label class="catalog-search">
                   <span class="material-symbols-outlined">search</span>
-                  <input id="catalogSearchInput" type="text" placeholder="Cari file atau tool di dashboard...">
+                  <input id="catalogSearchInput" type="text" placeholder="Cari file bios...">
                 </label>
-                <a id="catalogChannelLink" class="catalog-channel-link hidden" href="#" target="_blank" rel="noopener noreferrer">
-                  <span class="material-symbols-outlined">open_in_new</span>
-                  <span>Lihat channel kategori</span>
-                </a>
+                <div class="catalog-toolbar-actions">
+                  <button id="catalogUploadButton" type="button" class="ghost hidden">
+                    <span class="material-symbols-outlined">upload_file</span>
+                    <span>Upload BIOS</span>
+                  </button>
+                  <a id="catalogChannelLink" class="catalog-channel-link hidden" href="#" target="_blank" rel="noopener noreferrer">
+                    <span class="material-symbols-outlined">open_in_new</span>
+                    <span>Lihat channel kategori</span>
+                  </a>
+                </div>
               </div>
               <div id="catalogList" class="catalog-list"></div>
+              <div id="catalogPagination" class="catalog-pagination hidden">
+                <button id="catalogLoadMoreButton" type="button" class="ghost">
+                  <span class="material-symbols-outlined">expand_more</span>
+                  <span>Load more</span>
+                </button>
+              </div>
             </section>
           </div>
         </div>
       </section>
     </section>
   </main>
+
+  <div id="catalogEditorModal" class="catalog-modal hidden">
+    <div class="catalog-modal-card">
+      <div class="catalog-modal-head">
+        <div>
+          <p class="label">BIOS Telegram</p>
+          <h3 id="catalogEditorTitle">Upload BIOS</h3>
+        </div>
+        <button id="catalogEditorCloseButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">close</span>
+          <span>Tutup</span>
+        </button>
+      </div>
+
+      <form id="catalogEditorForm" class="catalog-editor-form">
+        <input id="catalogEditorMessageId" type="hidden">
+
+        <label for="catalogEditorFile">File BIOS</label>
+        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.rar,.zip,.7z,.fd,.cap,.exe,.iso,.txt,.md">
+
+        <label for="catalogEditorDeviceModel">Model Device</label>
+        <input id="catalogEditorDeviceModel" name="deviceModel" type="text" placeholder="Contoh: Lenovo ThinkPad T14" required>
+
+        <label for="catalogEditorSerialNumber">Serial Number</label>
+        <input id="catalogEditorSerialNumber" name="serialNumber" type="text" placeholder="Contoh: PF-123456" required>
+
+        <label for="catalogEditorBoardCode">Code Board</label>
+        <input id="catalogEditorBoardCode" name="boardCode" type="text" placeholder="Contoh: LA-1234P" required>
+
+        <label for="catalogEditorNote">Catatan</label>
+        <input id="catalogEditorNote" name="note" type="text" placeholder="Contoh: Tested OK" required>
+
+        <div class="catalog-editor-actions">
+          <button id="catalogEditorSubmitButton" type="submit">
+            <span class="material-symbols-outlined">save</span>
+            <span>Simpan</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
