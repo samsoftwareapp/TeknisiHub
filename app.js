@@ -7,9 +7,16 @@ const phoneForm = document.getElementById("phoneForm");
 const codeForm = document.getElementById("codeForm");
 const passwordForm = document.getElementById("passwordForm");
 const agreementPanel = document.getElementById("agreementPanel");
+const dashboardPanel = document.getElementById("dashboardPanel");
 const refreshButton = document.getElementById("refreshButton");
 const agreeButton = document.getElementById("agreeButton");
 const agreeCheckbox = document.getElementById("agreeCheckbox");
+const logoutButton = document.getElementById("logoutButton");
+const dashboardTitle = document.getElementById("dashboardTitle");
+const dashboardSubtitle = document.getElementById("dashboardSubtitle");
+const dashboardLoginStatus = document.getElementById("dashboardLoginStatus");
+const dashboardChannelStatus = document.getElementById("dashboardChannelStatus");
+const dashboardAgreementStatus = document.getElementById("dashboardAgreementStatus");
 
 function setText(element, value) {
   if (element) {
@@ -53,18 +60,35 @@ function applyStatus(status) {
   setText(serviceStatus, "Terhubung");
   setError("");
 
-  toggleElement(phoneForm, status.requiresPhoneNumber);
-  toggleElement(codeForm, status.requiresVerificationCode);
-  toggleElement(passwordForm, status.requiresPassword);
-  toggleElement(agreementPanel, status.isLoggedIn && !status.hasAgreed);
+  const showDashboard = status.isLoggedIn && status.hasAgreed && status.isChannelMember;
 
-  if (status.isLoggedIn && status.hasAgreed) {
-    setNotice("Login lokal selesai. Tahap berikutnya kita sambungkan ke katalog file dan modul flash.");
+  toggleElement(phoneForm, status.requiresPhoneNumber && !showDashboard);
+  toggleElement(codeForm, status.requiresVerificationCode && !showDashboard);
+  toggleElement(passwordForm, status.requiresPassword && !showDashboard);
+  toggleElement(agreementPanel, status.isLoggedIn && !status.hasAgreed && !showDashboard);
+  toggleElement(dashboardPanel, showDashboard);
+
+  if (showDashboard) {
+    const displayName = status.displayName || "TeknisiHub User";
+    setText(dashboardTitle, `Halo, ${displayName}`);
+    setText(
+      dashboardSubtitle,
+      "Session Telegram aktif. Dashboard siap dipakai untuk tahap katalog file dan tool lokal."
+    );
+    setText(dashboardLoginStatus, "Login Telegram aktif");
+    setText(dashboardChannelStatus, "Membership channel valid");
+    setText(dashboardAgreementStatus, "Persetujuan tersimpan");
+    setNotice("Login selesai. Kamu sudah masuk ke dashboard TeknisiHub.");
     return;
   }
 
   if (status.isLoggedIn && !status.hasAgreed) {
     setNotice("User sudah login lokal. Simpan persetujuan untuk membuka akses dashboard.");
+    return;
+  }
+
+  if (status.isLoggedIn && !status.isChannelMember) {
+    setNotice("Login berhasil, tetapi akun belum tergabung di channel yang diwajibkan.", true);
     return;
   }
 
@@ -116,6 +140,7 @@ async function refreshStatus() {
     toggleElement(codeForm, false);
     toggleElement(passwordForm, false);
     toggleElement(agreementPanel, false);
+    toggleElement(dashboardPanel, false);
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
   }
@@ -181,6 +206,42 @@ agreeButton.addEventListener("click", async () => {
     setNotice(error.message, true);
   }
 });
+
+if (logoutButton) {
+  logoutButton.addEventListener("click", async () => {
+    try {
+      const result = await fetchJson("/auth/logout", {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+
+      const phoneInput = document.getElementById("phoneNumber");
+      const codeInput = document.getElementById("verificationCode");
+      const passwordInput = document.getElementById("password");
+
+      if (phoneInput) {
+        phoneInput.value = "";
+      }
+
+      if (codeInput) {
+        codeInput.value = "";
+      }
+
+      if (passwordInput) {
+        passwordInput.value = "";
+      }
+
+      if (agreeCheckbox) {
+        agreeCheckbox.checked = false;
+      }
+
+      setNotice(result.message);
+      await refreshStatus();
+    } catch (error) {
+      setNotice(error.message, true);
+    }
+  });
+}
 
 if (refreshButton) {
   refreshButton.addEventListener("click", refreshStatus);

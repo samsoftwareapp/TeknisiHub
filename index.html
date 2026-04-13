@@ -48,6 +48,39 @@
         </label>
         <button id="agreeButton" type="button">Simpan persetujuan</button>
       </div>
+
+      <section id="dashboardPanel" class="dashboard hidden">
+        <div class="dashboard-head">
+          <div>
+            <p class="label">Dashboard</p>
+            <h2 id="dashboardTitle">Selamat datang</h2>
+            <p id="dashboardSubtitle" class="dashboard-subtitle">
+              Akses TeknisiHub sudah aktif di local service.
+            </p>
+          </div>
+          <button id="logoutButton" type="button" class="ghost">Logout session</button>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="dashboard-card">
+            <p class="label">Status Login</p>
+            <strong id="dashboardLoginStatus">Belum login</strong>
+            <span class="dashboard-meta">Sinkron dari local service Telegram</span>
+          </article>
+
+          <article class="dashboard-card">
+            <p class="label">Akses Channel</p>
+            <strong id="dashboardChannelStatus">Belum diverifikasi</strong>
+            <span class="dashboard-meta">Wajib lolos membership channel TeknisiHub</span>
+          </article>
+
+          <article class="dashboard-card">
+            <p class="label">Persetujuan</p>
+            <strong id="dashboardAgreementStatus">Belum disimpan</strong>
+            <span class="dashboard-meta">Persetujuan lokal untuk buka modul lanjutan</span>
+          </article>
+        </div>
+      </section>
     </section>
   </main>
 
