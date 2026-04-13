@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TeknisiHub</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">TeknisiHub Local Access</p>
+      <h1>Login Telegram lewat local service, lalu lanjut ke katalog BIOS dan tools.</h1>
+      <p class="lede">
+        Web ini berjalan di GitHub Pages, tetapi autentikasi dilakukan oleh service lokal C# di PC pengguna.
+      </p>
+      <div class="status-card">
+        <div>
+          <p class="label">Local service</p>
+          <strong id="serviceStatus">Mengecek koneksi...</strong>
+        </div>
+        <button id="refreshButton" type="button">Refresh status</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="label">Akses</p>
+          <h2>Status login</h2>
+        </div>
+        <span id="authStateBadge" class="badge">idle</span>
+      </div>
+
+      <dl class="facts">
+        <div>
+          <dt>Bot</dt>
+          <dd id="botUsername">-</dd>
+        </div>
+        <div>
+          <dt>Channel wajib</dt>
+          <dd><a id="channelLink" href="#" target="_blank" rel="noreferrer">-</a></dd>
+        </div>
+        <div>
+          <dt>User</dt>
+          <dd id="displayName">Belum login</dd>
+        </div>
+      </dl>
+
+      <div id="notice" class="notice">Menunggu local service aktif.</div>
+
+      <form id="phoneForm" class="form">
+        <label for="phoneNumber">Nomor Telegram</label>
+        <input id="phoneNumber" name="phoneNumber" type="tel" placeholder="+628xxxx">
+        <button type="submit">Minta kode login</button>
+      </form>
+
+      <form id="codeForm" class="form hidden">
+        <label for="verificationCode">Kode verifikasi</label>
+        <input id="verificationCode" name="verificationCode" type="text" placeholder="12345">
+        <button type="submit">Kirim kode</button>
+      </form>
+
+      <form id="passwordForm" class="form hidden">
+        <label for="password">Password 2FA Telegram</label>
+        <input id="password" name="password" type="password" placeholder="Password Telegram">
+        <button type="submit">Selesaikan login</button>
+      </form>
+
+      <div id="agreementPanel" class="agreement hidden">
+        <label class="checkline">
+          <input id="agreeCheckbox" type="checkbox">
+          <span>Saya setuju hanya menggunakan file dan tools sesuai izin akses TeknisiHub.</span>
+        </label>
+        <button id="agreeButton" type="button">Simpan persetujuan</button>
+      </div>
+
+      <div class="actions">
+        <button id="logoutButton" type="button" class="ghost">Logout lokal</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
