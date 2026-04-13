@@ -4,16 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TeknisiHub</title>
+  <link rel="icon" type="image/png" href="assets/HubLogo.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="shell">
     <section class="hero">
-      <p class="eyebrow">TeknisiHub Local Access</p>
-      <h1>Login Telegram lewat local service, lalu lanjut ke katalog BIOS dan tools.</h1>
-      <p class="lede">
-        Web ini berjalan di GitHub Pages, tetapi autentikasi dilakukan oleh service lokal C# di PC pengguna.
-      </p>
       <div class="status-card">
         <div>
           <p class="label">Local service</p>
@@ -24,7 +20,7 @@
     </section>
 
     <section class="panel">
-      <div class="panel-head">
+      <!-- <div class="panel-head">
         <div>
           <p class="label">Akses</p>
           <h2>Status login</h2>
@@ -45,7 +41,7 @@
           <dt>User</dt>
           <dd id="displayName">Belum login</dd>
         </div>
-      </dl>
+      </dl> -->
 
       <div id="notice" class="notice">Menunggu local service aktif.</div>
 
@@ -73,10 +69,6 @@
           <span>Saya setuju hanya menggunakan file dan tools sesuai izin akses TeknisiHub.</span>
         </label>
         <button id="agreeButton" type="button">Simpan persetujuan</button>
-      </div>
-
-      <div class="actions">
-        <button id="logoutButton" type="button" class="ghost">Logout lokal</button>
       </div>
     </section>
   </main>

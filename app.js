@@ -11,7 +11,6 @@ const codeForm = document.getElementById("codeForm");
 const passwordForm = document.getElementById("passwordForm");
 const agreementPanel = document.getElementById("agreementPanel");
 const refreshButton = document.getElementById("refreshButton");
-const logoutButton = document.getElementById("logoutButton");
 const agreeButton = document.getElementById("agreeButton");
 const agreeCheckbox = document.getElementById("agreeCheckbox");
 
@@ -154,20 +153,6 @@ agreeButton.addEventListener("click", async () => {
       method: "POST",
       body: JSON.stringify({ accepted: agreeCheckbox.checked })
     });
-    setNotice(result.message);
-    await refreshStatus();
-  } catch (error) {
-    setNotice(error.message, true);
-  }
-});
-
-logoutButton.addEventListener("click", async () => {
-  try {
-    const result = await fetchJson("/auth/logout", {
-      method: "POST",
-      body: JSON.stringify({})
-    });
-    agreeCheckbox.checked = false;
     setNotice(result.message);
     await refreshStatus();
   } catch (error) {
