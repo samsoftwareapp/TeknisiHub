@@ -38,7 +38,14 @@
 
       <form id="phoneForm" class="form">
         <label for="phoneNumber">Nomor Telegram</label>
-        <input id="phoneNumber" name="phoneNumber" type="tel" placeholder="+628xxxx">
+        <div class="phone-input-group">
+          <span class="phone-prefix">+62</span>
+          <input id="phoneNumber" name="phoneNumber" type="tel" inputmode="numeric" placeholder="85204919002">
+        </div>
+        <label class="checkline remember-checkline">
+          <input id="rememberPhoneCheckbox" type="checkbox">
+          <span>Ingat nomor ini di browser ini</span>
+        </label>
         <button type="submit">
           <span class="material-symbols-outlined">send_to_mobile</span>
           <span>Minta kode login</span>
@@ -75,7 +82,7 @@
       </div>
 
       <section id="dashboardPanel" class="dashboard hidden">
-        <div class="dashboard-head">
+        <div class="dashboard-topbar">
           <div>
             <p class="label">Dashboard</p>
             <h2 id="dashboardTitle">Selamat datang</h2>
@@ -83,38 +90,138 @@
               Akses TeknisiHub sudah aktif di local service.
             </p>
           </div>
-          <button id="logoutButton" type="button" class="ghost">
-            <span class="material-symbols-outlined">logout</span>
-            <span>Logout session</span>
-          </button>
+          <div class="dashboard-actions">
+            <div class="dashboard-chip">
+              <span class="material-symbols-outlined">verified_user</span>
+              <span id="dashboardRoleChip">Akses tervalidasi</span>
+            </div>
+            <button id="logoutButton" type="button" class="ghost">
+              <span class="material-symbols-outlined">logout</span>
+              <span>Logout session</span>
+            </button>
+          </div>
         </div>
 
-        <div class="dashboard-grid">
-          <article class="dashboard-card">
-            <p class="label">Status Login</p>
-            <strong id="dashboardLoginStatus">Belum login</strong>
-            <span class="dashboard-meta">Sinkron dari local service Telegram</span>
+        <div class="dashboard-stats">
+          <article class="stat-card stat-login">
+            <div>
+              <p class="label">Status Login</p>
+              <strong id="dashboardLoginStatus">Belum login</strong>
+            </div>
+            <span class="material-symbols-outlined">shield_person</span>
           </article>
 
-          <article class="dashboard-card">
-            <p class="label">Akses Channel</p>
-            <strong id="dashboardChannelStatus">Belum diverifikasi</strong>
-            <span class="dashboard-meta">Wajib lolos membership channel TeknisiHub</span>
+          <article class="stat-card stat-channel">
+            <div>
+              <p class="label">Akses Channel</p>
+              <strong id="dashboardChannelStatus">Belum diverifikasi</strong>
+            </div>
+            <span class="material-symbols-outlined">groups</span>
           </article>
 
-          <article class="dashboard-card">
-            <p class="label">Persetujuan</p>
-            <strong id="dashboardAgreementStatus">Belum disimpan</strong>
-            <span class="dashboard-meta">Persetujuan lokal untuk buka modul lanjutan</span>
+          <article class="stat-card stat-agreement">
+            <div>
+              <p class="label">Persetujuan</p>
+              <strong id="dashboardAgreementStatus">Belum disimpan</strong>
+            </div>
+            <span class="material-symbols-outlined">task_alt</span>
+          </article>
+
+          <article class="stat-card stat-catalog">
+            <div>
+              <p class="label">Item Katalog</p>
+              <strong id="catalogCount">0 item</strong>
+            </div>
+            <span class="material-symbols-outlined">inventory_2</span>
           </article>
         </div>
 
-        <div id="dashboardJoinCta" class="join-hint hidden">
-          <p class="label">Akses Belum Aktif</p>
-          <a id="dashboardJoinLink" href="#" target="_blank" rel="noopener noreferrer">
-            <span class="material-symbols-outlined">open_in_new</span>
-            <span>Join channel wajib sekarang</span>
-          </a>
+        <div class="dashboard-layout">
+          <aside class="dashboard-sidebar">
+            <div class="sidebar-card">
+              <p class="label">Navigasi</p>
+              <nav class="sidebar-nav">
+                <button id="navBios" type="button" class="sidebar-nav-button is-active">
+                  <span class="material-symbols-outlined">memory</span>
+                  <span>BIOS</span>
+                </button>
+                <button id="navBoardview" type="button" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">developer_board</span>
+                  <span>Boardview</span>
+                </button>
+                <details id="navTools" class="sidebar-dropdown">
+                  <summary>
+                    <span class="summary-left">
+                      <span class="material-symbols-outlined">build</span>
+                      <span>Tools</span>
+                    </span>
+                    <span class="material-symbols-outlined">expand_more</span>
+                  </summary>
+                  <div class="sidebar-dropdown-menu">
+                    <button id="toolSpiFlash" type="button" class="sidebar-nav-button">
+                      <span>SPI Flash</span>
+                    </button>
+                    <button id="toolUefi" type="button" class="sidebar-nav-button">
+                      <span>UEFI Tools</span>
+                    </button>
+                    <button id="toolOther" type="button" class="sidebar-nav-button">
+                      <span>Tools Lainnya</span>
+                    </button>
+                  </div>
+                </details>
+              </nav>
+            </div>
+
+            <div id="dashboardAccessCard" class="sidebar-card">
+              <p class="label">Ringkasan Akses</p>
+              <ul class="access-list">
+                <li>
+                  <span class="material-symbols-outlined">person</span>
+                  <span id="accessDisplayName">TeknisiHub User</span>
+                </li>
+                <li>
+                  <span class="material-symbols-outlined">military_tech</span>
+                  <span id="accessRole">Role channel belum tersedia</span>
+                </li>
+                <li>
+                  <span class="material-symbols-outlined">verified</span>
+                  <span id="accessState">Status akses belum penuh</span>
+                </li>
+              </ul>
+            </div>
+
+            <div id="dashboardJoinCta" class="sidebar-card join-card hidden">
+              <p class="label">Akses Belum Aktif</p>
+              <p class="sidebar-copy">Gabung channel wajib dulu untuk membuka katalog penuh.</p>
+              <a id="dashboardJoinLink" class="sidebar-link" href="#" target="_blank" rel="noopener noreferrer">
+                <span class="material-symbols-outlined">open_in_new</span>
+                <span>Join channel wajib sekarang</span>
+              </a>
+            </div>
+          </aside>
+
+          <div class="dashboard-main">
+            <section id="catalogSection" class="catalog hidden">
+              <div class="catalog-head">
+                <div>
+                  <p id="catalogEyebrow" class="label">Katalog Dummy</p>
+                  <h3 id="catalogTitle">BIOS, Boardview, dan Tools</h3>
+                  <p id="catalogSubtitle" class="catalog-subtitle">Gunakan pencarian untuk menemukan file atau tool dummy yang kamu butuhkan.</p>
+                </div>
+              </div>
+              <div class="catalog-toolbar">
+                <label class="catalog-search">
+                  <span class="material-symbols-outlined">search</span>
+                  <input id="catalogSearchInput" type="text" placeholder="Cari file atau tool di dashboard...">
+                </label>
+                <a id="catalogChannelLink" class="catalog-channel-link hidden" href="#" target="_blank" rel="noopener noreferrer">
+                  <span class="material-symbols-outlined">open_in_new</span>
+                  <span>Lihat channel kategori</span>
+                </a>
+              </div>
+              <div id="catalogList" class="catalog-list"></div>
+            </section>
+          </div>
         </div>
       </section>
     </section>
