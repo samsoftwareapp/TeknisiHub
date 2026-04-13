@@ -3,6 +3,8 @@ const serviceBaseUrl = "http://127.0.0.1:48721";
 const serviceStatus = document.getElementById("serviceStatus");
 const notice = document.getElementById("notice");
 const errorMessage = document.getElementById("errorMessage");
+const joinChannelHint = document.getElementById("joinChannelHint");
+const joinChannelLink = document.getElementById("joinChannelLink");
 const phoneForm = document.getElementById("phoneForm");
 const codeForm = document.getElementById("codeForm");
 const passwordForm = document.getElementById("passwordForm");
@@ -17,6 +19,8 @@ const dashboardSubtitle = document.getElementById("dashboardSubtitle");
 const dashboardLoginStatus = document.getElementById("dashboardLoginStatus");
 const dashboardChannelStatus = document.getElementById("dashboardChannelStatus");
 const dashboardAgreementStatus = document.getElementById("dashboardAgreementStatus");
+const dashboardJoinCta = document.getElementById("dashboardJoinCta");
+const dashboardJoinLink = document.getElementById("dashboardJoinLink");
 
 function setText(element, value) {
   if (element) {
@@ -29,7 +33,15 @@ function setNotice(message, isWarning = false) {
     return;
   }
 
+  if (!message) {
+    notice.textContent = "";
+    notice.classList.add("hidden");
+    notice.classList.remove("warning");
+    return;
+  }
+
   notice.textContent = message;
+  notice.classList.remove("hidden");
   notice.classList.toggle("warning", isWarning);
 }
 
@@ -60,35 +72,61 @@ function applyStatus(status) {
   setText(serviceStatus, "Terhubung");
   setError("");
 
-  const showDashboard = status.isLoggedIn && status.hasAgreed && status.isChannelMember;
+  const hasChannelLink = Boolean(status.requiredChannelInviteLink);
+  const showJoinChannelHint = hasChannelLink && (!status.isLoggedIn || !status.isChannelMember);
+  toggleElement(joinChannelHint, showJoinChannelHint);
+  toggleElement(dashboardJoinCta, status.isLoggedIn && !status.isChannelMember && hasChannelLink);
+
+  if (hasChannelLink) {
+    joinChannelLink.href = status.requiredChannelInviteLink;
+    dashboardJoinLink.href = status.requiredChannelInviteLink;
+  }
+
+  const showDashboard = status.isLoggedIn;
 
   toggleElement(phoneForm, status.requiresPhoneNumber && !showDashboard);
   toggleElement(codeForm, status.requiresVerificationCode && !showDashboard);
   toggleElement(passwordForm, status.requiresPassword && !showDashboard);
-  toggleElement(agreementPanel, status.isLoggedIn && !status.hasAgreed && !showDashboard);
+  toggleElement(agreementPanel, status.isLoggedIn && !status.hasAgreed);
   toggleElement(dashboardPanel, showDashboard);
 
   if (showDashboard) {
     const displayName = status.displayName || "TeknisiHub User";
     setText(dashboardTitle, `Halo, ${displayName}`);
+    setText(dashboardLoginStatus, "Login Telegram aktif");
+    setText(
+      dashboardChannelStatus,
+      status.isChannelMember ? "Membership channel valid" : "Belum join channel wajib"
+    );
+    setText(
+      dashboardAgreementStatus,
+      status.hasAgreed ? "Persetujuan tersimpan" : "Menunggu persetujuan"
+    );
+
+    if (status.isChannelMember && status.hasAgreed) {
+      setText(
+        dashboardSubtitle,
+        "Session Telegram aktif. Dashboard siap dipakai untuk tahap katalog file dan tool lokal."
+      );
+      setNotice("");
+      return;
+    }
+
+    if (!status.isChannelMember) {
+      setText(
+        dashboardSubtitle,
+        "Session Telegram aktif, tetapi akses belum dibuka karena akun belum join channel yang diwajibkan."
+      );
+      setNotice("Login berhasil, tetapi akun belum tergabung di channel yang diwajibkan.", true);
+      return;
+    }
+
     setText(
       dashboardSubtitle,
-      "Session Telegram aktif. Dashboard siap dipakai untuk tahap katalog file dan tool lokal."
+      "Session Telegram aktif. Simpan persetujuan lokal untuk membuka akses dashboard penuh."
     );
     setText(dashboardLoginStatus, "Login Telegram aktif");
-    setText(dashboardChannelStatus, "Membership channel valid");
-    setText(dashboardAgreementStatus, "Persetujuan tersimpan");
-    setNotice("Login selesai. Kamu sudah masuk ke dashboard TeknisiHub.");
-    return;
-  }
-
-  if (status.isLoggedIn && !status.hasAgreed) {
     setNotice("User sudah login lokal. Simpan persetujuan untuk membuka akses dashboard.");
-    return;
-  }
-
-  if (status.isLoggedIn && !status.isChannelMember) {
-    setNotice("Login berhasil, tetapi akun belum tergabung di channel yang diwajibkan.", true);
     return;
   }
 
@@ -136,11 +174,13 @@ async function refreshStatus() {
     applyStatus(status);
   } catch (error) {
     setText(serviceStatus, "Tidak aktif");
+    toggleElement(joinChannelHint, false);
     toggleElement(phoneForm, true);
     toggleElement(codeForm, false);
     toggleElement(passwordForm, false);
     toggleElement(agreementPanel, false);
     toggleElement(dashboardPanel, false);
+    toggleElement(dashboardJoinCta, false);
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
   }

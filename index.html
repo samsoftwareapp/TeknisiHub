@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TeknisiHub</title>
   <link rel="icon" type="image/png" href="assets/HubLogo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -15,30 +18,49 @@
           <p class="label">Local service</p>
           <strong id="serviceStatus">Mengecek koneksi...</strong>
         </div>
-        <button id="refreshButton" type="button">Refresh status</button>
+        <button id="refreshButton" type="button">
+          <span class="material-symbols-outlined">refresh</span>
+          <span>Refresh status</span>
+        </button>
       </div>
     </section>
 
     <section class="panel">
       <div id="notice" class="notice">Menunggu local service aktif.</div>
       <div id="errorMessage" class="error-message hidden"></div>
+      <div id="joinChannelHint" class="join-hint hidden">
+        <p class="label">Channel Wajib</p>
+        <a id="joinChannelLink" href="#" target="_blank" rel="noopener noreferrer">
+          <span class="material-symbols-outlined">group_add</span>
+          <span>Gabung channel TeknisiHub</span>
+        </a>
+      </div>
 
       <form id="phoneForm" class="form">
         <label for="phoneNumber">Nomor Telegram</label>
         <input id="phoneNumber" name="phoneNumber" type="tel" placeholder="+628xxxx">
-        <button type="submit">Minta kode login</button>
+        <button type="submit">
+          <span class="material-symbols-outlined">send_to_mobile</span>
+          <span>Minta kode login</span>
+        </button>
       </form>
 
       <form id="codeForm" class="form hidden">
         <label for="verificationCode">Kode verifikasi</label>
         <input id="verificationCode" name="verificationCode" type="text" placeholder="12345">
-        <button type="submit">Kirim kode</button>
+        <button type="submit">
+          <span class="material-symbols-outlined">password</span>
+          <span>Kirim kode</span>
+        </button>
       </form>
 
       <form id="passwordForm" class="form hidden">
         <label for="password">Password 2FA Telegram</label>
         <input id="password" name="password" type="password" placeholder="Password Telegram">
-        <button type="submit">Selesaikan login</button>
+        <button type="submit">
+          <span class="material-symbols-outlined">lock_open_right</span>
+          <span>Selesaikan login</span>
+        </button>
       </form>
 
       <div id="agreementPanel" class="agreement hidden">
@@ -46,7 +68,10 @@
           <input id="agreeCheckbox" type="checkbox">
           <span>Saya setuju hanya menggunakan file dan tools sesuai izin akses TeknisiHub.</span>
         </label>
-        <button id="agreeButton" type="button">Simpan persetujuan</button>
+        <button id="agreeButton" type="button">
+          <span class="material-symbols-outlined">verified</span>
+          <span>Simpan persetujuan</span>
+        </button>
       </div>
 
       <section id="dashboardPanel" class="dashboard hidden">
@@ -58,7 +83,10 @@
               Akses TeknisiHub sudah aktif di local service.
             </p>
           </div>
-          <button id="logoutButton" type="button" class="ghost">Logout session</button>
+          <button id="logoutButton" type="button" class="ghost">
+            <span class="material-symbols-outlined">logout</span>
+            <span>Logout session</span>
+          </button>
         </div>
 
         <div class="dashboard-grid">
@@ -79,6 +107,14 @@
             <strong id="dashboardAgreementStatus">Belum disimpan</strong>
             <span class="dashboard-meta">Persetujuan lokal untuk buka modul lanjutan</span>
           </article>
+        </div>
+
+        <div id="dashboardJoinCta" class="join-hint hidden">
+          <p class="label">Akses Belum Aktif</p>
+          <a id="dashboardJoinLink" href="#" target="_blank" rel="noopener noreferrer">
+            <span class="material-symbols-outlined">open_in_new</span>
+            <span>Join channel wajib sekarang</span>
+          </a>
         </div>
       </section>
     </section>
