@@ -1,11 +1,8 @@
 const serviceBaseUrl = "http://127.0.0.1:48721";
 
 const serviceStatus = document.getElementById("serviceStatus");
-const authStateBadge = document.getElementById("authStateBadge");
-const botUsername = document.getElementById("botUsername");
-const channelLink = document.getElementById("channelLink");
-const displayName = document.getElementById("displayName");
 const notice = document.getElementById("notice");
+const errorMessage = document.getElementById("errorMessage");
 const phoneForm = document.getElementById("phoneForm");
 const codeForm = document.getElementById("codeForm");
 const passwordForm = document.getElementById("passwordForm");
@@ -14,22 +11,47 @@ const refreshButton = document.getElementById("refreshButton");
 const agreeButton = document.getElementById("agreeButton");
 const agreeCheckbox = document.getElementById("agreeCheckbox");
 
+function setText(element, value) {
+  if (element) {
+    element.textContent = value;
+  }
+}
+
 function setNotice(message, isWarning = false) {
+  if (!notice) {
+    return;
+  }
+
   notice.textContent = message;
   notice.classList.toggle("warning", isWarning);
 }
 
+function setError(message) {
+  if (!errorMessage) {
+    return;
+  }
+
+  if (!message) {
+    errorMessage.textContent = "";
+    errorMessage.classList.add("hidden");
+    return;
+  }
+
+  errorMessage.textContent = message;
+  errorMessage.classList.remove("hidden");
+}
+
 function toggleElement(element, visible) {
+  if (!element) {
+    return;
+  }
+
   element.classList.toggle("hidden", !visible);
 }
 
 function applyStatus(status) {
-  serviceStatus.textContent = "Terhubung";
-  authStateBadge.textContent = status.state || "idle";
-  botUsername.textContent = status.botUsername || "-";
-  channelLink.textContent = status.requiredChannelInviteLink || "-";
-  channelLink.href = status.requiredChannelInviteLink || "#";
-  displayName.textContent = status.displayName || "Belum login";
+  setText(serviceStatus, "Terhubung");
+  setError("");
 
   toggleElement(phoneForm, status.requiresPhoneNumber);
   toggleElement(codeForm, status.requiresVerificationCode);
@@ -65,7 +87,8 @@ function applyStatus(status) {
 }
 
 async function fetchJson(path, options = {}) {
-  const response = await fetch(`${serviceBaseUrl}${path}`, {
+  const requestUrl = `${serviceBaseUrl}${path}`;
+  const response = await fetch(requestUrl, {
     headers: {
       "Content-Type": "application/json"
     },
@@ -83,18 +106,17 @@ async function fetchJson(path, options = {}) {
 async function refreshStatus() {
   try {
     const health = await fetchJson("/health");
-    serviceStatus.textContent = health.ready ? "Siap" : "Belum siap";
+    setText(serviceStatus, health.ready ? "Siap" : "Belum siap");
 
     const status = await fetchJson("/auth/status");
     applyStatus(status);
   } catch (error) {
-    serviceStatus.textContent = "Tidak aktif";
-    authStateBadge.textContent = "offline";
-    displayName.textContent = "Belum login";
+    setText(serviceStatus, "Tidak aktif");
     toggleElement(phoneForm, true);
     toggleElement(codeForm, false);
     toggleElement(passwordForm, false);
     toggleElement(agreementPanel, false);
+    setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
   }
 }
@@ -160,6 +182,8 @@ agreeButton.addEventListener("click", async () => {
   }
 });
 
-refreshButton.addEventListener("click", refreshStatus);
+if (refreshButton) {
+  refreshButton.addEventListener("click", refreshStatus);
+}
 
 refreshStatus();

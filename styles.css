@@ -166,6 +166,15 @@ h1 {
   border: 1px solid rgba(198, 107, 34, 0.14);
 }
 
+.error-message {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(198, 107, 34, 0.12);
+  color: var(--warning);
+  border: 1px solid rgba(198, 107, 34, 0.16);
+}
+
 .form,
 .agreement {
   display: grid;
