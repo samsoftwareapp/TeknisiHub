@@ -243,7 +243,7 @@
     <div class="catalog-modal-card">
       <div class="catalog-modal-head">
         <div>
-          <p class="label">BIOS Telegram</p>
+          <p id="catalogEditorLabel" class="label">BIOS Telegram</p>
           <h3 id="catalogEditorTitle">Upload BIOS</h3>
         </div>
         <button id="catalogEditorCloseButton" type="button" class="ghost">
@@ -255,8 +255,8 @@
       <form id="catalogEditorForm" class="catalog-editor-form">
         <input id="catalogEditorMessageId" type="hidden">
 
-        <label for="catalogEditorFile">File BIOS</label>
-        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr">
+        <label id="catalogEditorFileLabel" for="catalogEditorFile">File BIOS</label>
+        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr,.brd,.bdv,.boardview,.fz,.cad,.tvw,.asc">
 
         <label for="catalogEditorDeviceModel">Model Device</label>
         <input id="catalogEditorDeviceModel" name="deviceModel" type="text" placeholder="Contoh: Lenovo ThinkPad T14" required>

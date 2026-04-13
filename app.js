@@ -64,16 +64,41 @@ let catalogCache = [];
 let currentCatalogView = "BIOS";
 let currentChannelRole = "";
 let catalogSearchDebounceId = 0;
-let latestBiosRequestToken = 0;
-let biosHasMore = false;
-let biosNextOffset = 0;
-let biosLoadingMore = false;
 let catalogEditorMode = "upload";
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
 const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
+const allowedBoardviewExtensions = [".brd", ".bdv", ".boardview", ".fz", ".cad", ".tvw", ".asc"];
 
 const boardviewChannelLink = "https://t.me/+0oa9XOhoXZExNDNl";
+
+const telegramCatalogConfigs = {
+  BIOS: {
+    displayName: "BIOS",
+    uploadLabel: "Upload BIOS",
+    editTitle: "Edit Metadata BIOS",
+    fileLabel: "File BIOS",
+    fileAccept: allowedBiosExtensions.join(","),
+    invalidExtensionMessage: "Format file BIOS harus salah satu dari: .bin, .rom, .cap, .img, .fd, .bio, .wph, .efi, .hdr.",
+    endpoint: "bios",
+    channelLink: null
+  },
+  Boardview: {
+    displayName: "Boardview",
+    uploadLabel: "Upload Boardview",
+    editTitle: "Edit Metadata Boardview",
+    fileLabel: "File Boardview",
+    fileAccept: allowedBoardviewExtensions.join(","),
+    invalidExtensionMessage: "Format file Boardview harus salah satu dari: .brd, .bdv, .boardview, .fz, .cad, .tvw, .asc.",
+    endpoint: "boardview",
+    channelLink: boardviewChannelLink
+  }
+};
+
+const telegramCatalogState = {
+  BIOS: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
+  Boardview: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false }
+};
 
 const toolViewMap = {
   tool_spi_flash: {
@@ -110,10 +135,14 @@ function resetCatalog() {
   catalogItems = [];
   catalogCache = [];
   currentChannelRole = "";
-  latestBiosRequestToken = 0;
-  biosHasMore = false;
-  biosNextOffset = 0;
-  biosLoadingMore = false;
+  telegramCatalogState.BIOS.requestToken = 0;
+  telegramCatalogState.BIOS.hasMore = false;
+  telegramCatalogState.BIOS.nextOffset = 0;
+  telegramCatalogState.BIOS.loadingMore = false;
+  telegramCatalogState.Boardview.requestToken = 0;
+  telegramCatalogState.Boardview.hasMore = false;
+  telegramCatalogState.Boardview.nextOffset = 0;
+  telegramCatalogState.Boardview.loadingMore = false;
   catalogEditorMode = "upload";
   if (catalogSearchDebounceId) {
     clearTimeout(catalogSearchDebounceId);
@@ -147,8 +176,31 @@ function canManageBiosCatalog() {
   return normalizedRole === "owner" || normalizedRole === "admin";
 }
 
+function isTelegramCatalogView(viewKey = currentCatalogView) {
+  return viewKey === "BIOS" || viewKey === "Boardview";
+}
+
+function getTelegramCatalogConfig(viewKey = currentCatalogView) {
+  return telegramCatalogConfigs[viewKey] || telegramCatalogConfigs.BIOS;
+}
+
+function getTelegramCatalogState(viewKey = currentCatalogView) {
+  return telegramCatalogState[viewKey] || telegramCatalogState.BIOS;
+}
+
 function updateCatalogToolbar(viewKey = currentCatalogView) {
-  toggleElement(catalogUploadButton, viewKey === "BIOS" && canManageBiosCatalog());
+  const canManage = isTelegramCatalogView(viewKey) && canManageBiosCatalog();
+  toggleElement(catalogUploadButton, canManage);
+
+  if (!catalogUploadButton) {
+    return;
+  }
+
+  const config = getTelegramCatalogConfig(viewKey);
+  catalogUploadButton.innerHTML = `
+    <span class="material-symbols-outlined">upload_file</span>
+    <span>${escapeHtml(config.uploadLabel)}</span>
+  `;
 }
 
 function setActiveNav(targetKey) {
@@ -178,15 +230,21 @@ function updateCatalogHeader(viewKey) {
     setText(catalogEyebrow, "BIOS Telegram");
     setText(catalogTitle, "File BIOS");
     setText(catalogSubtitle, "");
+    if (catalogSearchInput) {
+      catalogSearchInput.placeholder = "Cari file BIOS lalu tekan Enter...";
+    }
     toggleElement(catalogChannelLink, false);
     updateCatalogToolbar(viewKey);
     return;
   }
 
   if (viewKey === "Boardview") {
-    setText(catalogEyebrow, "Boardview Dummy");
+    setText(catalogEyebrow, "Boardview Telegram");
     setText(catalogTitle, "File Boardview");
-    setText(catalogSubtitle, "Daftar dummy boardview. Kategori ini memakai channel khusus boardview.");
+    setText(catalogSubtitle, "");
+    if (catalogSearchInput) {
+      catalogSearchInput.placeholder = "Cari file boardview lalu tekan Enter...";
+    }
     catalogChannelLink.href = boardviewChannelLink;
     toggleElement(catalogChannelLink, true);
     updateCatalogToolbar(viewKey);
@@ -197,6 +255,9 @@ function updateCatalogHeader(viewKey) {
   setText(catalogEyebrow, toolConfig.eyebrow);
   setText(catalogTitle, toolConfig.title);
   setText(catalogSubtitle, toolConfig.subtitle);
+  if (catalogSearchInput) {
+    catalogSearchInput.placeholder = "Cari file atau tool...";
+  }
   toggleElement(catalogChannelLink, false);
   updateCatalogToolbar(viewKey);
 }
@@ -209,7 +270,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
   updateCatalogHeader(viewKey);
   setActiveNav(viewKey);
   catalogCount.textContent = `${items.length} item`;
-  toggleElement(catalogPagination, viewKey === "BIOS" && biosHasMore && items.length > 0);
+  const paginationState = getTelegramCatalogState(viewKey);
+  toggleElement(catalogPagination, isTelegramCatalogView(viewKey) && paginationState.hasMore && items.length > 0);
 
   if (items.length === 0) {
     catalogList.innerHTML = `
@@ -273,7 +335,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">download</span>
           <span>Download</span>
         </button>
-        ${viewKey === "BIOS" && canManageBiosCatalog() && item.messageId ? `
+        ${isTelegramCatalogView(viewKey) && canManageBiosCatalog() && item.messageId ? `
         <button
           type="button"
           class="catalog-action-button ghost catalog-edit-button"
@@ -281,7 +343,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">edit</span>
           <span>Edit</span>
         </button>` : ""}
-        ${viewKey === "BIOS" && isOwnerRole() && item.messageId ? `
+        ${isTelegramCatalogView(viewKey) && isOwnerRole() && item.messageId ? `
         <button
           type="button"
           class="catalog-action-button ghost catalog-delete-button"
@@ -307,8 +369,10 @@ function openCatalogEditor(mode, item = null) {
     return;
   }
 
+  const targetCategory = item?.category || currentCatalogView;
+  const config = getTelegramCatalogConfig(targetCategory);
   const isEditMode = mode === "edit";
-  setText(catalogEditorTitle, isEditMode ? "Edit Metadata BIOS" : "Upload BIOS");
+  setText(catalogEditorTitle, isEditMode ? config.editTitle : config.uploadLabel);
   catalogEditorMessageId.value = isEditMode && item ? String(item.messageId || "") : "";
   catalogEditorDeviceModel.value = item?.deviceModel === "-" ? "" : (item?.deviceModel || "");
   catalogEditorSerialNumber.value = item?.serialNumber === "-" ? "" : (item?.serialNumber || "");
@@ -318,11 +382,21 @@ function openCatalogEditor(mode, item = null) {
     catalogEditorFile.value = "";
     catalogEditorFile.disabled = isEditMode;
     catalogEditorFile.required = !isEditMode;
+    catalogEditorFile.accept = config.fileAccept;
+  }
+
+  const modalLabel = document.getElementById("catalogEditorLabel");
+  const fileLabel = document.getElementById("catalogEditorFileLabel");
+  if (modalLabel) {
+    modalLabel.textContent = `${config.displayName} Telegram`;
+  }
+  if (fileLabel) {
+    fileLabel.textContent = config.fileLabel;
   }
 
   catalogEditorSubmitButton.innerHTML = isEditMode
     ? `<span class="material-symbols-outlined">save</span><span>Simpan Perubahan</span>`
-    : `<span class="material-symbols-outlined">upload_file</span><span>Upload BIOS</span>`;
+    : `<span class="material-symbols-outlined">upload_file</span><span>${escapeHtml(config.uploadLabel)}</span>`;
 }
 
 function closeCatalogEditor() {
@@ -339,9 +413,9 @@ function closeCatalogEditor() {
 
 function filterCatalogItems() {
   const keyword = (catalogSearchInput?.value || "").trim().toLowerCase();
-  const sourceCollection = currentCatalogView === "BIOS" ? catalogItems : catalogCache;
+  const sourceCollection = isTelegramCatalogView(currentCatalogView) ? catalogItems : catalogCache;
   const sourceItems = sourceCollection.filter((item) => {
-    if (currentCatalogView === "BIOS" || currentCatalogView === "Boardview") {
+    if (isTelegramCatalogView(currentCatalogView)) {
       return item.category === currentCatalogView;
     }
 
@@ -362,7 +436,7 @@ function filterCatalogItems() {
     return false;
   });
 
-  const filteredItems = currentCatalogView === "BIOS"
+  const filteredItems = isTelegramCatalogView(currentCatalogView)
     ? sourceItems
     : !keyword
     ? sourceItems
@@ -384,49 +458,51 @@ async function loadBaseCatalog() {
   catalogLoaded = true;
 }
 
-async function loadBiosCatalog() {
+async function loadTelegramCatalog(viewKey = currentCatalogView) {
+  const state = getTelegramCatalogState(viewKey);
   const query = (catalogSearchInput?.value || "").trim();
-  const requestToken = ++latestBiosRequestToken;
-  biosLoadingMore = false;
-  biosNextOffset = 0;
-  const path = `/catalog?category=BIOS&limit=5${query ? `&query=${encodeURIComponent(query)}` : ""}`;
+  const requestToken = ++state.requestToken;
+  state.loadingMore = false;
+  state.nextOffset = 0;
+  const path = `/catalog?category=${encodeURIComponent(viewKey)}&limit=5${query ? `&query=${encodeURIComponent(query)}` : ""}`;
   const catalog = await fetchJson(path);
 
-  if (requestToken !== latestBiosRequestToken) {
+  if (requestToken !== state.requestToken) {
     return;
   }
 
   catalogItems = catalog.items || [];
-  biosHasMore = Boolean(catalog.hasMore);
-  biosNextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
+  state.hasMore = Boolean(catalog.hasMore);
+  state.nextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
 }
 
-async function loadMoreBiosCatalog() {
-  if (!biosHasMore || biosLoadingMore) {
+async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
+  const state = getTelegramCatalogState(viewKey);
+  if (!state.hasMore || state.loadingMore) {
     return;
   }
 
   const query = (catalogSearchInput?.value || "").trim();
-  const requestToken = ++latestBiosRequestToken;
-  biosLoadingMore = true;
+  const requestToken = ++state.requestToken;
+  state.loadingMore = true;
   if (catalogLoadMoreButton) {
     catalogLoadMoreButton.disabled = true;
   }
 
   try {
-    const path = `/catalog?category=BIOS&limit=5&offset=${biosNextOffset}${query ? `&query=${encodeURIComponent(query)}` : ""}`;
+    const path = `/catalog?category=${encodeURIComponent(viewKey)}&limit=5&offset=${state.nextOffset}${query ? `&query=${encodeURIComponent(query)}` : ""}`;
     const catalog = await fetchJson(path);
 
-    if (requestToken !== latestBiosRequestToken) {
+    if (requestToken !== state.requestToken) {
       return;
     }
 
     catalogItems = [...catalogItems, ...(catalog.items || [])];
-    biosHasMore = Boolean(catalog.hasMore);
-    biosNextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
+    state.hasMore = Boolean(catalog.hasMore);
+    state.nextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
     filterCatalogItems();
   } finally {
-    biosLoadingMore = false;
+    state.loadingMore = false;
     if (catalogLoadMoreButton) {
       catalogLoadMoreButton.disabled = false;
     }
@@ -434,14 +510,13 @@ async function loadMoreBiosCatalog() {
 }
 
 async function loadCatalog() {
-  await loadBaseCatalog();
-
-  if (currentCatalogView === "BIOS") {
-    await loadBiosCatalog();
+  if (isTelegramCatalogView(currentCatalogView)) {
+    await loadTelegramCatalog(currentCatalogView);
     filterCatalogItems();
     return;
   }
 
+  await loadBaseCatalog();
   catalogItems = catalogCache;
   filterCatalogItems();
 }
@@ -453,16 +528,15 @@ function queueCatalogSearch() {
 
   if (catalogSearchDebounceId) {
     clearTimeout(catalogSearchDebounceId);
+    catalogSearchDebounceId = 0;
   }
 
-  if (currentCatalogView !== "BIOS") {
+  if (!isTelegramCatalogView(currentCatalogView)) {
     filterCatalogItems();
     return;
   }
 
-  catalogSearchDebounceId = setTimeout(() => {
-    loadCatalog().catch((error) => setNotice(error.message, true));
-  }, 250);
+  loadCatalog().catch((error) => setNotice(error.message, true));
 }
 
 function setText(element, value) {
@@ -769,6 +843,7 @@ async function refreshStatus() {
 }
 
 async function submitCatalogEditor() {
+  const config = getTelegramCatalogConfig();
   const payload = {
     deviceModel: catalogEditorDeviceModel?.value.trim() || "",
     serialNumber: catalogEditorSerialNumber?.value.trim() || "",
@@ -777,12 +852,12 @@ async function submitCatalogEditor() {
   };
 
   if (!payload.deviceModel || !payload.serialNumber || !payload.boardCode || !payload.note) {
-    throw new Error("Semua field metadata BIOS wajib diisi sebelum submit.");
+    throw new Error(`Semua field metadata ${config.displayName} wajib diisi sebelum submit.`);
   }
 
   if (catalogEditorMode === "edit") {
     const messageId = Number(catalogEditorMessageId?.value || 0);
-    const result = await fetchJson(`/catalog/bios/${messageId}`, {
+    const result = await fetchJson(`/catalog/${config.endpoint}/${messageId}`, {
       method: "PUT",
       body: JSON.stringify(payload)
     });
@@ -793,14 +868,15 @@ async function submitCatalogEditor() {
   }
 
   if (!catalogEditorFile?.files?.length) {
-    throw new Error("Pilih file BIOS dulu sebelum upload.");
+    throw new Error(`Pilih file ${config.displayName} dulu sebelum upload.`);
   }
 
   const selectedFile = catalogEditorFile.files[0];
   const lowerFileName = selectedFile.name.toLowerCase();
-  const hasAllowedExtension = allowedBiosExtensions.some((extension) => lowerFileName.endsWith(extension));
+  const allowedExtensions = config.endpoint === "boardview" ? allowedBoardviewExtensions : allowedBiosExtensions;
+  const hasAllowedExtension = allowedExtensions.some((extension) => lowerFileName.endsWith(extension));
   if (!hasAllowedExtension) {
-    throw new Error("Format file BIOS harus salah satu dari: .bin, .rom, .cap, .img, .fd, .bio, .wph, .efi, .hdr.");
+    throw new Error(config.invalidExtensionMessage);
   }
 
   const formData = new FormData();
@@ -810,7 +886,7 @@ async function submitCatalogEditor() {
   formData.set("boardCode", payload.boardCode);
   formData.set("note", payload.note);
 
-  const result = await fetchJson("/catalog/bios", {
+  const result = await fetchJson(`/catalog/${config.endpoint}`, {
     method: "POST",
     body: formData
   });
@@ -820,16 +896,18 @@ async function submitCatalogEditor() {
   await loadCatalog();
 }
 
-async function deleteCatalogItem(messageId) {
-  const result = await fetchJson(`/catalog/bios/${messageId}`, {
+async function deleteCatalogItem(category, messageId) {
+  const config = getTelegramCatalogConfig(category);
+  const result = await fetchJson(`/catalog/${config.endpoint}/${messageId}`, {
     method: "DELETE"
   });
   setNotice(result.message);
   await loadCatalog();
 }
 
-async function downloadCatalogItem(messageId) {
-  const result = await fetchJson(`/catalog/bios/${messageId}/download`, {
+async function downloadCatalogItem(category, messageId) {
+  const config = getTelegramCatalogConfig(category);
+  const result = await fetchJson(`/catalog/${config.endpoint}/${messageId}/download`, {
     method: "POST",
     body: JSON.stringify({})
   });
@@ -968,7 +1046,14 @@ loadRememberedPhone();
 refreshStatus();
 
 if (catalogSearchInput) {
-  catalogSearchInput.addEventListener("input", queueCatalogSearch);
+  catalogSearchInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    queueCatalogSearch();
+  });
 }
 
 if (catalogList) {
@@ -978,17 +1063,18 @@ if (catalogList) {
       const title = button.getAttribute("data-title") || "item dummy";
       const category = button.getAttribute("data-category") || "";
       const messageId = Number(button.getAttribute("data-message-id") || 0);
-      if (category === "BIOS" && messageId > 0) {
+      if (isTelegramCatalogView(category) && messageId > 0) {
+        const config = getTelegramCatalogConfig(category);
         const previousMarkup = button.innerHTML;
         button.disabled = true;
         button.innerHTML = `
           <span class="material-symbols-outlined is-spinning">progress_activity</span>
           <span>Downloading...</span>
         `;
-        setNotice("Pilih folder tujuan di dialog Windows yang muncul, lalu tunggu proses download dan extract selesai.");
+        setNotice(`Pilih folder tujuan di dialog Windows yang muncul, lalu tunggu proses download dan extract ${config.displayName} selesai.`);
 
         try {
-          await downloadCatalogItem(messageId);
+          await downloadCatalogItem(category, messageId);
         } catch (error) {
           setNotice(error.message, true);
         } finally {
@@ -1017,13 +1103,15 @@ if (catalogList) {
     }
 
     const messageId = Number(deleteButton.getAttribute("data-message-id"));
-    const confirmed = window.confirm("Hapus posting BIOS ini dari channel Telegram?");
+    const item = findCatalogItemByMessageId(messageId);
+    const displayName = item?.category || currentCatalogView;
+    const confirmed = window.confirm(`Hapus posting ${displayName} ini dari channel Telegram?`);
     if (!confirmed) {
       return;
     }
 
     try {
-      await deleteCatalogItem(messageId);
+      await deleteCatalogItem(displayName, messageId);
     } catch (error) {
       setNotice(error.message, true);
     }
@@ -1039,7 +1127,7 @@ if (catalogLoadMoreButton) {
     `;
 
     try {
-      await loadMoreBiosCatalog();
+      await loadMoreTelegramCatalog(currentCatalogView);
     } catch (error) {
       setNotice(error.message, true);
     } finally {
@@ -1090,8 +1178,7 @@ navBios?.addEventListener("click", () => {
 
 navBoardview?.addEventListener("click", () => {
   currentCatalogView = "Boardview";
-  catalogItems = catalogCache;
-  filterCatalogItems();
+  loadCatalog().catch((error) => setNotice(error.message, true));
 });
 
 toolSpiFlash?.addEventListener("click", () => {
