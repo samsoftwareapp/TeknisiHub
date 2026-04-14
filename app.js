@@ -13,6 +13,7 @@ const codeSubmitButton = document.getElementById("codeSubmitButton");
 const passwordForm = document.getElementById("passwordForm");
 const passwordSubmitButton = document.getElementById("passwordSubmitButton");
 const agreementPanel = document.getElementById("agreementPanel");
+const channelJoinPanel = document.getElementById("channelJoinPanel");
 const dashboardPanel = document.getElementById("dashboardPanel");
 const refreshButton = document.getElementById("refreshButton");
 const agreeButton = document.getElementById("agreeButton");
@@ -27,12 +28,10 @@ const dashboardRoleChip = document.getElementById("dashboardRoleChip");
 const accessDisplayName = document.getElementById("accessDisplayName");
 const accessRole = document.getElementById("accessRole");
 const accessState = document.getElementById("accessState");
-const dashboardJoinCta = document.getElementById("dashboardJoinCta");
 const dashboardJoinRequiredCheckbox = document.getElementById("dashboardJoinRequiredCheckbox");
 const dashboardJoinBoardviewCheckbox = document.getElementById("dashboardJoinBoardviewCheckbox");
 const dashboardJoinButton = document.getElementById("dashboardJoinButton");
-const dashboardJoinRequiredLink = document.getElementById("dashboardJoinRequiredLink");
-const dashboardJoinBoardviewLink = document.getElementById("dashboardJoinBoardviewLink");
+const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
 const catalogList = document.getElementById("catalogList");
@@ -40,8 +39,8 @@ const catalogEyebrow = document.getElementById("catalogEyebrow");
 const catalogTitle = document.getElementById("catalogTitle");
 const catalogSubtitle = document.getElementById("catalogSubtitle");
 const catalogSearchInput = document.getElementById("catalogSearchInput");
-const catalogChannelLink = document.getElementById("catalogChannelLink");
 const catalogUploadButton = document.getElementById("catalogUploadButton");
+const catalogRefreshButton = document.getElementById("catalogRefreshButton");
 const catalogPagination = document.getElementById("catalogPagination");
 const catalogLoadMoreButton = document.getElementById("catalogLoadMoreButton");
 const catalogEditorModal = document.getElementById("catalogEditorModal");
@@ -57,27 +56,75 @@ const catalogEditorNote = document.getElementById("catalogEditorNote");
 const catalogEditorSubmitButton = document.getElementById("catalogEditorSubmitButton");
 const navBios = document.getElementById("navBios");
 const navBoardview = document.getElementById("navBoardview");
+const navTools = document.getElementById("navTools");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolUefi = document.getElementById("toolUefi");
 const toolOther = document.getElementById("toolOther");
 
+const spiFlashPage = window.teknisiHubPages?.spiFlash || {
+  viewKey: "tool_spi_flash",
+  eyebrow: "Tools Local",
+  title: "SPI Flash",
+  subtitle: "Utility lokal untuk kebutuhan SPI Flash.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
 let catalogLoaded = false;
 let catalogItems = [];
 let catalogCache = [];
-let currentCatalogView = "BIOS";
+let currentCatalogView = spiFlashPage.viewKey;
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
 let currentBoardviewChannelRole = "";
-let currentRequiredChannelLink = "";
-let currentBoardviewChannelLink = "";
 let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
+let catalogRefreshLoading = false;
+let catalogRefreshCooldownUntil = 0;
+let catalogRefreshCooldownTimerId = 0;
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
+const catalogRefreshCooldownMs = 15000;
 const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
 const allowedBoardviewExtensions = [".brd", ".bdv", ".boardview", ".fz", ".cad", ".tvw", ".asc"];
+const localToolCatalog = [
+  ...spiFlashPage.items,
+  {
+    id: "tool-uefi-editor",
+    category: "Tools",
+    title: "UEFI Tools Pack",
+    deviceModel: "Universal",
+    description: "Paket utilitas lokal untuk analisa struktur firmware UEFI, extract volume, dan pemeriksaan region.",
+    accessLevel: "Member",
+    fileName: "uefi-tools-pack.zip",
+    serialNumber: "-",
+    boardCode: "UEFI",
+    note: "Dummy tools entry",
+    postedAt: "Local Tool",
+    uploadedBy: "TeknisiHub Local"
+  },
+  {
+    id: "tool-cleaner-suite",
+    category: "Tools",
+    title: "Maintenance Helper Suite",
+    deviceModel: "Universal",
+    description: "Bundle utilitas lokal tambahan untuk kebutuhan maintenance dan servis umum.",
+    accessLevel: "Member",
+    fileName: "maintenance-helper-suite.zip",
+    serialNumber: "-",
+    boardCode: "TOOLS",
+    note: "Dummy tools entry",
+    postedAt: "Local Tool",
+    uploadedBy: "TeknisiHub Local"
+  }
+];
 
-const boardviewChannelLink = "https://t.me/+0oa9XOhoXZExNDNl";
+spiFlashPage.mount?.({
+  container: spiFlashWorkbench,
+  notify: (message) => setNotice(message)
+});
 
 const telegramCatalogConfigs = {
   BIOS: {
@@ -87,8 +134,7 @@ const telegramCatalogConfigs = {
     fileLabel: "File BIOS",
     fileAccept: allowedBiosExtensions.join(","),
     invalidExtensionMessage: "Format file BIOS harus salah satu dari: .bin, .rom, .cap, .img, .fd, .bio, .wph, .efi, .hdr.",
-    endpoint: "bios",
-    channelLink: null
+    endpoint: "bios"
   },
   Boardview: {
     displayName: "Boardview",
@@ -97,8 +143,7 @@ const telegramCatalogConfigs = {
     fileLabel: "File Boardview",
     fileAccept: allowedBoardviewExtensions.join(","),
     invalidExtensionMessage: "Format file Boardview harus salah satu dari: .brd, .bdv, .boardview, .fz, .cad, .tvw, .asc.",
-    endpoint: "boardview",
-    channelLink: boardviewChannelLink
+    endpoint: "boardview"
   }
 };
 
@@ -109,21 +154,21 @@ const telegramCatalogState = {
 
 const toolViewMap = {
   tool_spi_flash: {
-    eyebrow: "Tools Dummy",
-    title: "SPI Flash",
-    subtitle: "Utility dummy untuk kebutuhan pembacaan, write, dan verify chip SPI.",
+    eyebrow: spiFlashPage.eyebrow,
+    title: spiFlashPage.title,
+    subtitle: spiFlashPage.subtitle,
     channelLink: null
   },
   tool_uefi: {
-    eyebrow: "Tools Dummy",
+    eyebrow: "Tools Local",
     title: "UEFI Tools",
-    subtitle: "Utility dummy untuk analisa image UEFI, region, dan struktur firmware.",
+    subtitle: "Utility lokal untuk analisa image UEFI, region, dan struktur firmware tanpa request ke Telegram.",
     channelLink: null
   },
   tool_other: {
-    eyebrow: "Tools Dummy",
+    eyebrow: "Tools Local",
     title: "Tools Lainnya",
-    subtitle: "Kumpulan dummy utility tambahan untuk kebutuhan servis dan maintenance.",
+    subtitle: "Kumpulan utility lokal tambahan untuk kebutuhan servis dan maintenance.",
     channelLink: null
   }
 };
@@ -144,8 +189,6 @@ function resetCatalog() {
   currentChannelRole = "";
   currentBiosChannelRole = "";
   currentBoardviewChannelRole = "";
-  currentRequiredChannelLink = "";
-  currentBoardviewChannelLink = "";
   telegramCatalogState.BIOS.requestToken = 0;
   telegramCatalogState.BIOS.hasMore = false;
   telegramCatalogState.BIOS.nextOffset = 0;
@@ -168,6 +211,7 @@ function resetCatalog() {
   }
 
   toggleElement(catalogPagination, false);
+  hideWorkbench();
 
   if (catalogSearchInput) {
     catalogSearchInput.value = "";
@@ -217,14 +261,30 @@ function updateCatalogToolbar(viewKey = currentCatalogView) {
   toggleElement(catalogUploadButton, canManage);
 
   if (!catalogUploadButton) {
-    return;
+    if (!catalogRefreshButton) {
+      return;
+    }
   }
 
   const config = getTelegramCatalogConfig(viewKey);
-  catalogUploadButton.innerHTML = `
-    <span class="material-symbols-outlined">upload_file</span>
-    <span>${escapeHtml(config.uploadLabel)}</span>
-  `;
+  if (catalogUploadButton) {
+    catalogUploadButton.innerHTML = `
+      <span class="material-symbols-outlined">upload_file</span>
+      <span>${escapeHtml(config.uploadLabel)}</span>
+    `;
+  }
+  updateCatalogRefreshButton(viewKey);
+}
+
+function showWorkbenchOnly() {
+  toggleElement(catalogSection, false);
+  toggleElement(catalogPagination, false);
+  spiFlashPage.setVisible?.(true);
+  spiFlashPage.refresh?.();
+}
+
+function hideWorkbench() {
+  spiFlashPage.setVisible?.(false);
 }
 
 function setActiveNav(targetKey) {
@@ -243,34 +303,59 @@ function setActiveNav(targetKey) {
 
     element.classList.toggle("is-active", key === targetKey);
   });
+
+  if (navTools) {
+    navTools.open = targetKey.startsWith("tool_");
+  }
+}
+
+function setNavButtonLoading(button, loading) {
+  if (!button) {
+    return;
+  }
+
+  button.classList.toggle("is-loading", loading);
+  button.disabled = loading;
+
+  const icon = button.querySelector(".material-symbols-outlined");
+  if (!icon) {
+    return;
+  }
+
+  if (loading) {
+    button.dataset.originalIcon = icon.textContent.trim();
+    icon.textContent = "progress_activity";
+    icon.classList.add("is-spinning");
+    return;
+  }
+
+  icon.textContent = button.dataset.originalIcon || icon.textContent;
+  icon.classList.remove("is-spinning");
 }
 
 function updateCatalogHeader(viewKey) {
-  if (!catalogEyebrow || !catalogTitle || !catalogSubtitle || !catalogChannelLink) {
+  if (!catalogEyebrow || !catalogTitle || !catalogSubtitle) {
     return;
   }
 
   if (viewKey === "BIOS") {
-    setText(catalogEyebrow, "BIOS Telegram");
-    setText(catalogTitle, "File BIOS");
+    setText(catalogEyebrow, "File BIOS");
+    setText(catalogTitle, "");
     setText(catalogSubtitle, "");
     if (catalogSearchInput) {
       catalogSearchInput.placeholder = "Cari file BIOS lalu tekan Enter...";
     }
-    toggleElement(catalogChannelLink, false);
     updateCatalogToolbar(viewKey);
     return;
   }
 
   if (viewKey === "Boardview") {
-    setText(catalogEyebrow, "Boardview Telegram");
-    setText(catalogTitle, "File Boardview");
+    setText(catalogEyebrow, "File Boardview");
+    setText(catalogTitle, "");
     setText(catalogSubtitle, "");
     if (catalogSearchInput) {
       catalogSearchInput.placeholder = "Cari file boardview lalu tekan Enter...";
     }
-    catalogChannelLink.href = boardviewChannelLink;
-    toggleElement(catalogChannelLink, true);
     updateCatalogToolbar(viewKey);
     return;
   }
@@ -282,11 +367,20 @@ function updateCatalogHeader(viewKey) {
   if (catalogSearchInput) {
     catalogSearchInput.placeholder = "Cari file atau tool...";
   }
-  toggleElement(catalogChannelLink, false);
   updateCatalogToolbar(viewKey);
 }
 
 function renderCatalog(items, viewKey = currentCatalogView) {
+  if (viewKey === spiFlashPage.viewKey) {
+    setActiveNav(viewKey);
+    if (catalogCount) {
+      catalogCount.textContent = "SPI UI";
+    }
+    showWorkbenchOnly();
+    return;
+  }
+
+  hideWorkbench();
   if (!catalogList || !catalogCount) {
     return;
   }
@@ -436,6 +530,11 @@ function closeCatalogEditor() {
 }
 
 function filterCatalogItems() {
+  if (currentCatalogView === spiFlashPage.viewKey) {
+    renderCatalog([], currentCatalogView);
+    return;
+  }
+
   const keyword = (catalogSearchInput?.value || "").trim().toLowerCase();
   const sourceCollection = isTelegramCatalogView(currentCatalogView) ? catalogItems : catalogCache;
   const sourceItems = sourceCollection.filter((item) => {
@@ -477,8 +576,7 @@ async function loadBaseCatalog() {
     return;
   }
 
-  const catalog = await fetchJson("/catalog");
-  catalogCache = catalog.items || [];
+  catalogCache = localToolCatalog;
   catalogLoaded = true;
 }
 
@@ -534,6 +632,11 @@ async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
 }
 
 async function loadCatalog() {
+  if (currentCatalogView === spiFlashPage.viewKey) {
+    renderCatalog([], currentCatalogView);
+    return;
+  }
+
   if (isTelegramCatalogView(currentCatalogView)) {
     await loadTelegramCatalog(currentCatalogView);
     filterCatalogItems();
@@ -567,6 +670,74 @@ function setText(element, value) {
   if (element) {
     element.textContent = value;
   }
+}
+
+function getCatalogRefreshRemainingMs() {
+  return Math.max(0, catalogRefreshCooldownUntil - Date.now());
+}
+
+function getCatalogRefreshRemainingSeconds() {
+  return Math.ceil(getCatalogRefreshRemainingMs() / 1000);
+}
+
+function updateCatalogRefreshButton(viewKey = currentCatalogView) {
+  if (!catalogRefreshButton) {
+    return;
+  }
+
+  const canRefresh = isTelegramCatalogView(viewKey);
+  toggleElement(catalogRefreshButton, canRefresh);
+  if (!canRefresh) {
+    return;
+  }
+
+  const config = getTelegramCatalogConfig(viewKey);
+  const remainingSeconds = getCatalogRefreshRemainingSeconds();
+
+  if (catalogRefreshLoading) {
+    catalogRefreshButton.disabled = true;
+    catalogRefreshButton.innerHTML = `
+      <span class="material-symbols-outlined is-spinning">progress_activity</span>
+      <span>Refreshing...</span>
+    `;
+    return;
+  }
+
+  if (remainingSeconds > 0) {
+    catalogRefreshButton.disabled = true;
+    catalogRefreshButton.innerHTML = `
+      <span class="material-symbols-outlined">timer</span>
+      <span>Tunggu ${remainingSeconds} dtk</span>
+    `;
+    return;
+  }
+
+  catalogRefreshButton.disabled = false;
+  catalogRefreshButton.innerHTML = `
+    <span class="material-symbols-outlined">refresh</span>
+    <span>Refresh ${escapeHtml(config.displayName)}</span>
+  `;
+}
+
+function startCatalogRefreshCooldown() {
+  catalogRefreshCooldownUntil = Date.now() + catalogRefreshCooldownMs;
+
+  if (catalogRefreshCooldownTimerId) {
+    window.clearInterval(catalogRefreshCooldownTimerId);
+  }
+
+  updateCatalogRefreshButton();
+  catalogRefreshCooldownTimerId = window.setInterval(() => {
+    updateCatalogRefreshButton();
+
+    if (getCatalogRefreshRemainingMs() > 0) {
+      return;
+    }
+
+    window.clearInterval(catalogRefreshCooldownTimerId);
+    catalogRefreshCooldownTimerId = 0;
+    updateCatalogRefreshButton();
+  }, 1000);
 }
 
 function setButtonLoading(button, loading, defaultIcon, defaultLabel, loadingLabel) {
@@ -640,7 +811,7 @@ function persistRememberedPhone() {
   localStorage.setItem(rememberedPhoneStorageKey, normalized);
 }
 
-function setNotice(message, isWarning = false) {
+function setNotice(message, toneOrWarning = false) {
   if (!toastContainer) {
     return;
   }
@@ -650,8 +821,16 @@ function setNotice(message, isWarning = false) {
     return;
   }
 
-  const tone = isWarning ? "warning" : "success";
-  const icon = isWarning ? "warning" : "check_circle";
+  const tone = typeof toneOrWarning === "string"
+    ? toneOrWarning
+    : toneOrWarning
+    ? "warning"
+    : "success";
+  const icon = tone === "warning"
+    ? "warning"
+    : tone === "info"
+    ? "info"
+    : "check_circle";
   const toast = document.createElement("div");
   toast.className = `toast is-${tone}`;
   toast.innerHTML = `
@@ -707,16 +886,32 @@ function applyStatus(status) {
   const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
   const hasBoardviewLink = Boolean(status.boardviewChannelInviteLink);
   const hasJoinOption = hasRequiredLink || hasBoardviewLink;
+  const hasKnownChannelAccess = Boolean(
+    status.isChannelMember ||
+    status.channelRole ||
+    status.biosChannelRole ||
+    status.boardviewChannelRole
+  );
   const showJoinChannelHint = hasJoinOption && !status.isLoggedIn;
+  const showJoinPanel = status.isLoggedIn && !hasKnownChannelAccess && hasJoinOption;
+  const showAgreementPanel = status.isLoggedIn && hasKnownChannelAccess && !status.hasAgreed;
+  const showDashboard = status.isLoggedIn && hasKnownChannelAccess && status.hasAgreed;
   toggleElement(joinChannelHint, showJoinChannelHint);
-  toggleElement(dashboardJoinCta, status.isLoggedIn && !status.isChannelMember && hasJoinOption);
 
-  const showDashboard = status.isLoggedIn;
+  if (dashboardJoinRequiredCheckbox) {
+    dashboardJoinRequiredCheckbox.checked = Boolean(status.isRequiredChannelMember);
+    dashboardJoinRequiredCheckbox.disabled = !hasRequiredLink || Boolean(status.isRequiredChannelMember);
+  }
+  if (dashboardJoinBoardviewCheckbox) {
+    dashboardJoinBoardviewCheckbox.checked = Boolean(status.isBoardviewChannelMember);
+    dashboardJoinBoardviewCheckbox.disabled = !hasBoardviewLink || Boolean(status.isBoardviewChannelMember);
+  }
 
-  toggleElement(phoneForm, status.requiresPhoneNumber && !showDashboard);
-  toggleElement(codeForm, status.requiresVerificationCode && !showDashboard);
-  toggleElement(passwordForm, status.requiresPassword && !showDashboard);
-  toggleElement(agreementPanel, status.isLoggedIn && !status.hasAgreed);
+  toggleElement(phoneForm, status.requiresPhoneNumber && !showJoinPanel && !showAgreementPanel && !showDashboard);
+  toggleElement(codeForm, status.requiresVerificationCode && !showJoinPanel && !showAgreementPanel && !showDashboard);
+  toggleElement(passwordForm, status.requiresPassword && !showJoinPanel && !showAgreementPanel && !showDashboard);
+  toggleElement(channelJoinPanel, showJoinPanel);
+  toggleElement(agreementPanel, showAgreementPanel);
   toggleElement(dashboardPanel, showDashboard);
 
   if (showDashboard) {
@@ -727,35 +922,14 @@ function applyStatus(status) {
     currentChannelRole = status.channelRole || "";
     currentBiosChannelRole = status.biosChannelRole || status.channelRole || "";
     currentBoardviewChannelRole = status.boardviewChannelRole || "";
-    currentRequiredChannelLink = status.requiredChannelInviteLink || "";
-    currentBoardviewChannelLink = status.boardviewChannelInviteLink || "";
-    if (dashboardJoinRequiredCheckbox) {
-      dashboardJoinRequiredCheckbox.checked = Boolean(status.isRequiredChannelMember);
-      dashboardJoinRequiredCheckbox.disabled = !hasRequiredLink || Boolean(status.isRequiredChannelMember);
-    }
-    if (dashboardJoinBoardviewCheckbox) {
-      dashboardJoinBoardviewCheckbox.checked = Boolean(status.isBoardviewChannelMember);
-      dashboardJoinBoardviewCheckbox.disabled = !hasBoardviewLink || Boolean(status.isBoardviewChannelMember);
-    }
-    if (dashboardJoinRequiredLink) {
-      dashboardJoinRequiredLink.href = currentRequiredChannelLink || "#";
-      toggleElement(dashboardJoinRequiredLink, hasRequiredLink);
-    }
-    if (dashboardJoinBoardviewLink) {
-      dashboardJoinBoardviewLink.href = currentBoardviewChannelLink || "#";
-      toggleElement(dashboardJoinBoardviewLink, hasBoardviewLink);
-    }
     setText(dashboardTitle, `Halo, ${displayName}`);
     setText(dashboardLoginStatus, "Login Telegram aktif");
     setText(dashboardRoleChip, `BIOS ${biosRole} | Boardview ${boardviewRole}`);
     setText(accessDisplayName, displayName);
-    setText(
-      accessRole,
-      `Role BIOS: ${biosRole} | Peran channel Boardview: ${boardviewRole}`
-    );
+    setText(accessRole, `Role BIOS: ${biosRole}\nRole Boardview: ${boardviewRole}`);
     setText(
       dashboardChannelStatus,
-      status.isChannelMember
+      hasKnownChannelAccess
         ? `Membership channel valid${channelRole}`
         : "Belum join channel akses"
     );
@@ -764,7 +938,7 @@ function applyStatus(status) {
       status.hasAgreed ? "Persetujuan tersimpan" : "Menunggu persetujuan"
     );
 
-    if (status.isChannelMember && status.hasAgreed) {
+    if (status.hasAgreed) {
       setText(
         dashboardSubtitle,
         "Session Telegram aktif. Dashboard siap dipakai untuk tahap katalog file dan tool lokal."
@@ -776,16 +950,6 @@ function applyStatus(status) {
     }
 
     resetCatalog();
-
-    if (!status.isChannelMember) {
-      setText(
-        dashboardSubtitle,
-        "Session Telegram aktif, tetapi akses belum dibuka karena akun belum tergabung di salah satu channel akses."
-      );
-      setText(accessState, "Login aktif, pilih minimal satu channel lalu klik gabung.");
-      setNotice("Login berhasil, tetapi akun belum tergabung di salah satu channel akses.", true);
-      return;
-    }
 
     setText(
       dashboardSubtitle,
@@ -799,6 +963,16 @@ function applyStatus(status) {
 
   currentChannelRole = "";
   resetCatalog();
+
+  if (showAgreementPanel) {
+    setNotice("Join channel sudah valid. Simpan persetujuan untuk membuka dashboard.", true);
+    return;
+  }
+
+  if (showJoinPanel) {
+    setNotice("Login berhasil. Pilih minimal satu channel lalu klik gabung untuk melanjutkan.", true);
+    return;
+  }
 
   if (status.lastError) {
     setNotice(status.lastError, true);
@@ -873,15 +1047,26 @@ async function refreshStatus() {
   } catch (error) {
     setText(serviceStatus, "Tidak aktif");
     toggleElement(joinChannelHint, false);
-    toggleElement(phoneForm, true);
+    toggleElement(phoneForm, false);
     toggleElement(codeForm, false);
     toggleElement(passwordForm, false);
+    toggleElement(channelJoinPanel, false);
     toggleElement(agreementPanel, false);
-    toggleElement(dashboardPanel, false);
-    toggleElement(dashboardJoinCta, false);
+    toggleElement(dashboardPanel, true);
     resetCatalog();
+    currentCatalogView = spiFlashPage.viewKey;
+    setText(dashboardTitle, "SPI Flash Studio");
+    setText(dashboardSubtitle, "Local service sedang offline. Web UI SPI Flash hanya menunggu session backend nyata dan tidak lagi memakai mock browser.");
+    setText(dashboardLoginStatus, "Backend offline");
+    setText(dashboardChannelStatus, "Service unavailable");
+    setText(dashboardAgreementStatus, "Waiting local service");
+    setText(dashboardRoleChip, "SPI backend");
+    setText(accessDisplayName, "Local Service Offline");
+    setText(accessRole, "Role BIOS: Unavailable\nRole Boardview: Unavailable");
+    setText(accessState, "Jalankan TeknisiHub.LocalService untuk membaca status backend asli.");
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
+    loadCatalog().catch((catalogError) => setNotice(catalogError.message, true));
   }
 }
 
@@ -1221,9 +1406,61 @@ if (catalogLoadMoreButton) {
   });
 }
 
+async function navigateTelegramCatalog(viewKey, button) {
+  currentCatalogView = viewKey;
+  setActiveNav(viewKey);
+  setNavButtonLoading(button, true);
+
+  try {
+    await loadCatalog();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    setNavButtonLoading(button, false);
+  }
+}
+
+async function refreshCurrentTelegramCatalog() {
+  if (!catalogRefreshButton || !isTelegramCatalogView(currentCatalogView)) {
+    return;
+  }
+
+  if (catalogRefreshLoading) {
+    setNotice("Refresh katalog masih berjalan. Tunggu sampai selesai dulu.", "info");
+    return;
+  }
+
+  const remainingSeconds = getCatalogRefreshRemainingSeconds();
+  if (remainingSeconds > 0) {
+    setNotice(`Refresh katalog masih dikunci. Coba lagi dalam ${remainingSeconds} detik.`, "info");
+    updateCatalogRefreshButton();
+    return;
+  }
+
+  const config = getTelegramCatalogConfig(currentCatalogView);
+  catalogRefreshLoading = true;
+  updateCatalogRefreshButton();
+
+  try {
+    const result = await fetchJson(`/catalog/refresh?category=${encodeURIComponent(currentCatalogView)}`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    setNotice(`${result.message} Tombol refresh akan aktif lagi dalam 15 detik.`, "info");
+    await loadCatalog();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    catalogRefreshLoading = false;
+    startCatalogRefreshCooldown();
+  }
+}
+
 catalogUploadButton?.addEventListener("click", () => {
   openCatalogEditor("upload");
 });
+
+catalogRefreshButton?.addEventListener("click", refreshCurrentTelegramCatalog);
 
 catalogEditorCloseButton?.addEventListener("click", closeCatalogEditor);
 
@@ -1257,17 +1494,15 @@ catalogEditorForm?.addEventListener("submit", async (event) => {
 });
 
 navBios?.addEventListener("click", () => {
-  currentCatalogView = "BIOS";
-  loadCatalog().catch((error) => setNotice(error.message, true));
+  navigateTelegramCatalog("BIOS", navBios);
 });
 
 navBoardview?.addEventListener("click", () => {
-  currentCatalogView = "Boardview";
-  loadCatalog().catch((error) => setNotice(error.message, true));
+  navigateTelegramCatalog("Boardview", navBoardview);
 });
 
 toolSpiFlash?.addEventListener("click", () => {
-  currentCatalogView = "tool_spi_flash";
+  currentCatalogView = spiFlashPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
