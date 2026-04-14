@@ -63,6 +63,8 @@ let catalogItems = [];
 let catalogCache = [];
 let currentCatalogView = "BIOS";
 let currentChannelRole = "";
+let currentBiosChannelRole = "";
+let currentBoardviewChannelRole = "";
 let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
@@ -135,6 +137,8 @@ function resetCatalog() {
   catalogItems = [];
   catalogCache = [];
   currentChannelRole = "";
+  currentBiosChannelRole = "";
+  currentBoardviewChannelRole = "";
   telegramCatalogState.BIOS.requestToken = 0;
   telegramCatalogState.BIOS.hasMore = false;
   telegramCatalogState.BIOS.nextOffset = 0;
@@ -168,11 +172,12 @@ function resetCatalog() {
 }
 
 function isOwnerRole() {
-  return currentChannelRole.toLowerCase() === "owner";
+  const activeRole = currentCatalogView === "Boardview" ? currentBoardviewChannelRole : currentBiosChannelRole;
+  return activeRole.toLowerCase() === "owner";
 }
 
 function canManageBiosCatalog() {
-  const normalizedRole = currentChannelRole.toLowerCase();
+  const normalizedRole = (currentCatalogView === "Boardview" ? currentBoardviewChannelRole : currentBiosChannelRole).toLowerCase();
   return normalizedRole === "owner" || normalizedRole === "admin";
 }
 
@@ -186,6 +191,18 @@ function getTelegramCatalogConfig(viewKey = currentCatalogView) {
 
 function getTelegramCatalogState(viewKey = currentCatalogView) {
   return telegramCatalogState[viewKey] || telegramCatalogState.BIOS;
+}
+
+function getDisplayRoleForView(viewKey = currentCatalogView) {
+  if (viewKey === "Boardview") {
+    return currentBoardviewChannelRole || currentChannelRole;
+  }
+
+  if (viewKey === "BIOS") {
+    return currentBiosChannelRole || currentChannelRole;
+  }
+
+  return currentChannelRole;
 }
 
 function updateCatalogToolbar(viewKey = currentCatalogView) {
@@ -289,7 +306,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
     <article class="catalog-card">
       <div class="catalog-card-top">
         <span class="catalog-category">${escapeHtml(item.category)}</span>
-        <span class="catalog-access">${escapeHtml(currentChannelRole || item.accessLevel)}</span>
+        <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel)}</span>
       </div>
       <h4>${escapeHtml(item.title)}</h4>
      
@@ -701,14 +718,18 @@ function applyStatus(status) {
   if (showDashboard) {
     const displayName = status.displayName || "TeknisiHub User";
     const channelRole = status.channelRole ? ` - ${status.channelRole}` : "";
+    const biosRole = status.biosChannelRole || status.channelRole || "-";
+    const boardviewRole = status.boardviewChannelRole || "-";
     currentChannelRole = status.channelRole || "";
+    currentBiosChannelRole = status.biosChannelRole || status.channelRole || "";
+    currentBoardviewChannelRole = status.boardviewChannelRole || "";
     setText(dashboardTitle, `Halo, ${displayName}`);
     setText(dashboardLoginStatus, "Login Telegram aktif");
-    setText(dashboardRoleChip, status.channelRole ? `Role ${status.channelRole}` : "Akses tervalidasi");
+    setText(dashboardRoleChip, `BIOS ${biosRole} | Boardview ${boardviewRole}`);
     setText(accessDisplayName, displayName);
     setText(
       accessRole,
-      status.channelRole ? `Peran channel: ${status.channelRole}` : "Peran channel belum tersedia"
+      `Role BIOS: ${biosRole} | Peran channel Boardview: ${boardviewRole}`
     );
     setText(
       dashboardChannelStatus,
