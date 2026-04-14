@@ -17,6 +17,7 @@
       <div class="status-card">
         <div>
           <p class="label">Local service</p>
+          <p id="serviceVersion" class="service-version">Versi: mengecek...</p>
           <strong id="serviceStatus">Mengecek koneksi...</strong>
         </div>
         <button id="refreshButton" type="button">
@@ -24,9 +25,19 @@
           <span>Refresh status</span>
         </button>
       </div>
+      <a
+        id="downloadLocalServiceLink"
+        class="hero-download hidden"
+        href="https://drive.google.com/file/d/1w-bq0FkHn5VdG3Z2BrRQqLlfuMU8ojB5/view?usp=drive_link"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Download local service
+      </a>
+      <p id="serviceUpdateNotice" class="service-update-notice hidden"></p>
     </section>
 
-    <section class="panel">
+    <section id="mainPanel" class="panel">
       <div id="errorMessage" class="error-message hidden"></div>
       <div id="joinChannelHint" class="join-hint hidden">
         <p class="label">Akses Channel</p>

@@ -1,6 +1,10 @@
 const serviceBaseUrl = "http://127.0.0.1:48721";
 
 const serviceStatus = document.getElementById("serviceStatus");
+const serviceVersion = document.getElementById("serviceVersion");
+const downloadLocalServiceLink = document.getElementById("downloadLocalServiceLink");
+const serviceUpdateNotice = document.getElementById("serviceUpdateNotice");
+const mainPanel = document.getElementById("mainPanel");
 const toastContainer = document.getElementById("toastContainer");
 const errorMessage = document.getElementById("errorMessage");
 const joinChannelHint = document.getElementById("joinChannelHint");
@@ -60,6 +64,8 @@ const navTools = document.getElementById("navTools");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolUefi = document.getElementById("toolUefi");
 const toolOther = document.getElementById("toolOther");
+const defaultDownloadLocalServiceUrl = downloadLocalServiceLink?.getAttribute("href") || "";
+const defaultDownloadLocalServiceLabel = downloadLocalServiceLink?.textContent?.trim() || "Download local service";
 
 const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   viewKey: "tool_spi_flash",
@@ -879,8 +885,65 @@ function toggleElement(element, visible) {
   element.classList.toggle("hidden", !visible);
 }
 
+function hideInteractivePanels() {
+  toggleElement(mainPanel, false);
+  toggleElement(joinChannelHint, false);
+  toggleElement(phoneForm, false);
+  toggleElement(codeForm, false);
+  toggleElement(passwordForm, false);
+  toggleElement(channelJoinPanel, false);
+  toggleElement(agreementPanel, false);
+  toggleElement(dashboardPanel, false);
+  resetCatalog();
+}
+
+function setDownloadLinkState(visible, href = defaultDownloadLocalServiceUrl, label = defaultDownloadLocalServiceLabel) {
+  if (!downloadLocalServiceLink) {
+    return;
+  }
+
+  downloadLocalServiceLink.href = href || defaultDownloadLocalServiceUrl;
+  downloadLocalServiceLink.textContent = label || defaultDownloadLocalServiceLabel;
+  toggleElement(downloadLocalServiceLink, visible);
+}
+
+function setServiceUpdateNotice(message) {
+  if (!serviceUpdateNotice) {
+    return;
+  }
+
+  serviceUpdateNotice.textContent = message || "";
+  toggleElement(serviceUpdateNotice, Boolean(message));
+}
+
+function applyUpdateRequirement(health) {
+  const update = health?.update;
+  if (!update?.mustUpdate) {
+    setServiceUpdateNotice("");
+    return false;
+  }
+
+  const currentVersion = health?.version || "unknown";
+  const latestVersion = update.latestVersion || "latest";
+  const downloadUrl = update.downloadUrl || defaultDownloadLocalServiceUrl;
+  const updateMessage = update.message || `Update local service ke versi ${latestVersion} untuk lanjut menggunakan TeknisiHub.`;
+  const noteMessage = update.notes ? ` Catatan: ${update.notes}` : "";
+
+  setText(serviceStatus, "Wajib update");
+  setText(serviceVersion, `Versi: ${currentVersion} -> ${latestVersion}`);
+  setServiceUpdateNotice(`${updateMessage}${noteMessage}`);
+  setDownloadLinkState(true, downloadUrl, "Update local service");
+  hideInteractivePanels();
+  setError("");
+  setNotice(`Local service versi ${currentVersion} harus diperbarui ke ${latestVersion} sebelum lanjut menggunakan dashboard.`, true);
+  return true;
+}
+
 function applyStatus(status) {
   setText(serviceStatus, "Terhubung");
+  toggleElement(mainPanel, true);
+  setDownloadLinkState(false);
+  setServiceUpdateNotice("");
   setError("");
 
   const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
@@ -1041,32 +1104,22 @@ async function refreshStatus() {
   try {
     const health = await fetchJson("/health");
     setText(serviceStatus, health.ready ? "Siap" : "Belum siap");
+    setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
+
+    if (applyUpdateRequirement(health)) {
+      return;
+    }
 
     const status = await fetchJson("/auth/status");
     applyStatus(status);
   } catch (error) {
     setText(serviceStatus, "Tidak aktif");
-    toggleElement(joinChannelHint, false);
-    toggleElement(phoneForm, false);
-    toggleElement(codeForm, false);
-    toggleElement(passwordForm, false);
-    toggleElement(channelJoinPanel, false);
-    toggleElement(agreementPanel, false);
-    toggleElement(dashboardPanel, true);
-    resetCatalog();
-    currentCatalogView = spiFlashPage.viewKey;
-    setText(dashboardTitle, "SPI Flash Studio");
-    setText(dashboardSubtitle, "Local service sedang offline. Web UI SPI Flash hanya menunggu session backend nyata dan tidak lagi memakai mock browser.");
-    setText(dashboardLoginStatus, "Backend offline");
-    setText(dashboardChannelStatus, "Service unavailable");
-    setText(dashboardAgreementStatus, "Waiting local service");
-    setText(dashboardRoleChip, "SPI backend");
-    setText(accessDisplayName, "Local Service Offline");
-    setText(accessRole, "Role BIOS: Unavailable\nRole Boardview: Unavailable");
-    setText(accessState, "Jalankan TeknisiHub.LocalService untuk membaca status backend asli.");
+    setText(serviceVersion, "Versi: offline");
+    setServiceUpdateNotice("");
+    hideInteractivePanels();
+    setDownloadLinkState(true);
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
-    loadCatalog().catch((catalogError) => setNotice(catalogError.message, true));
   }
 }
 
