@@ -29,11 +29,8 @@
     <section class="panel">
       <div id="errorMessage" class="error-message hidden"></div>
       <div id="joinChannelHint" class="join-hint hidden">
-        <p class="label">Channel Wajib</p>
-        <a id="joinChannelLink" href="#" target="_blank" rel="noopener noreferrer">
-          <span class="material-symbols-outlined">group_add</span>
-          <span>Gabung channel TeknisiHub</span>
-        </a>
+        <p class="label">Akses Channel</p>
+        <p>Setelah login, pilih minimal satu channel akses lalu gabung dari dashboard.</p>
       </div>
 
       <form id="phoneForm" class="form">
@@ -191,12 +188,32 @@
             </div>
 
             <div id="dashboardJoinCta" class="sidebar-card join-card hidden">
-              <p class="label">Akses Belum Aktif</p>
-              <p class="sidebar-copy">Gabung channel wajib dulu untuk membuka katalog penuh.</p>
-              <a id="dashboardJoinLink" class="sidebar-link" href="#" target="_blank" rel="noopener noreferrer">
-                <span class="material-symbols-outlined">open_in_new</span>
-                <span>Join channel wajib sekarang</span>
-              </a>
+              <p class="label">Akses Channel</p>
+              <p class="sidebar-copy">Pilih minimal satu channel lalu klik tombol gabung sebelum dashboard penuh dibuka.</p>
+              <label class="join-option">
+                <input id="dashboardJoinRequiredCheckbox" type="checkbox">
+                <span>Channel TeknisiHub Utama</span>
+              </label>
+              <label class="join-option">
+                <input id="dashboardJoinBoardviewCheckbox" type="checkbox">
+                <span>Channel TeknisiHub Boardview</span>
+              </label>
+              <div class="join-card-actions">
+                <button id="dashboardJoinButton" type="button">
+                  <span class="material-symbols-outlined">group_add</span>
+                  <span>Gabung channel terpilih</span>
+                </button>
+              </div>
+              <div class="join-links">
+                <a id="dashboardJoinRequiredLink" class="sidebar-link hidden" href="#" target="_blank" rel="noopener noreferrer">
+                  <span class="material-symbols-outlined">open_in_new</span>
+                  <span>Buka link channel utama</span>
+                </a>
+                <a id="dashboardJoinBoardviewLink" class="sidebar-link hidden" href="#" target="_blank" rel="noopener noreferrer">
+                  <span class="material-symbols-outlined">open_in_new</span>
+                  <span>Buka link channel boardview</span>
+                </a>
+              </div>
             </div>
           </aside>
 

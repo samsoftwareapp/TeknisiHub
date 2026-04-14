@@ -4,7 +4,6 @@ const serviceStatus = document.getElementById("serviceStatus");
 const toastContainer = document.getElementById("toastContainer");
 const errorMessage = document.getElementById("errorMessage");
 const joinChannelHint = document.getElementById("joinChannelHint");
-const joinChannelLink = document.getElementById("joinChannelLink");
 const phoneForm = document.getElementById("phoneForm");
 const phoneNumberInput = document.getElementById("phoneNumber");
 const phoneSubmitButton = document.getElementById("phoneSubmitButton");
@@ -29,7 +28,11 @@ const accessDisplayName = document.getElementById("accessDisplayName");
 const accessRole = document.getElementById("accessRole");
 const accessState = document.getElementById("accessState");
 const dashboardJoinCta = document.getElementById("dashboardJoinCta");
-const dashboardJoinLink = document.getElementById("dashboardJoinLink");
+const dashboardJoinRequiredCheckbox = document.getElementById("dashboardJoinRequiredCheckbox");
+const dashboardJoinBoardviewCheckbox = document.getElementById("dashboardJoinBoardviewCheckbox");
+const dashboardJoinButton = document.getElementById("dashboardJoinButton");
+const dashboardJoinRequiredLink = document.getElementById("dashboardJoinRequiredLink");
+const dashboardJoinBoardviewLink = document.getElementById("dashboardJoinBoardviewLink");
 const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
 const catalogList = document.getElementById("catalogList");
@@ -65,6 +68,8 @@ let currentCatalogView = "BIOS";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
 let currentBoardviewChannelRole = "";
+let currentRequiredChannelLink = "";
+let currentBoardviewChannelLink = "";
 let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
@@ -139,6 +144,8 @@ function resetCatalog() {
   currentChannelRole = "";
   currentBiosChannelRole = "";
   currentBoardviewChannelRole = "";
+  currentRequiredChannelLink = "";
+  currentBoardviewChannelLink = "";
   telegramCatalogState.BIOS.requestToken = 0;
   telegramCatalogState.BIOS.hasMore = false;
   telegramCatalogState.BIOS.nextOffset = 0;
@@ -697,15 +704,12 @@ function applyStatus(status) {
   setText(serviceStatus, "Terhubung");
   setError("");
 
-  const hasChannelLink = Boolean(status.requiredChannelInviteLink);
-  const showJoinChannelHint = hasChannelLink && (!status.isLoggedIn || !status.isChannelMember);
+  const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
+  const hasBoardviewLink = Boolean(status.boardviewChannelInviteLink);
+  const hasJoinOption = hasRequiredLink || hasBoardviewLink;
+  const showJoinChannelHint = hasJoinOption && !status.isLoggedIn;
   toggleElement(joinChannelHint, showJoinChannelHint);
-  toggleElement(dashboardJoinCta, status.isLoggedIn && !status.isChannelMember && hasChannelLink);
-
-  if (hasChannelLink) {
-    joinChannelLink.href = status.requiredChannelInviteLink;
-    dashboardJoinLink.href = status.requiredChannelInviteLink;
-  }
+  toggleElement(dashboardJoinCta, status.isLoggedIn && !status.isChannelMember && hasJoinOption);
 
   const showDashboard = status.isLoggedIn;
 
@@ -723,6 +727,24 @@ function applyStatus(status) {
     currentChannelRole = status.channelRole || "";
     currentBiosChannelRole = status.biosChannelRole || status.channelRole || "";
     currentBoardviewChannelRole = status.boardviewChannelRole || "";
+    currentRequiredChannelLink = status.requiredChannelInviteLink || "";
+    currentBoardviewChannelLink = status.boardviewChannelInviteLink || "";
+    if (dashboardJoinRequiredCheckbox) {
+      dashboardJoinRequiredCheckbox.checked = Boolean(status.isRequiredChannelMember);
+      dashboardJoinRequiredCheckbox.disabled = !hasRequiredLink || Boolean(status.isRequiredChannelMember);
+    }
+    if (dashboardJoinBoardviewCheckbox) {
+      dashboardJoinBoardviewCheckbox.checked = Boolean(status.isBoardviewChannelMember);
+      dashboardJoinBoardviewCheckbox.disabled = !hasBoardviewLink || Boolean(status.isBoardviewChannelMember);
+    }
+    if (dashboardJoinRequiredLink) {
+      dashboardJoinRequiredLink.href = currentRequiredChannelLink || "#";
+      toggleElement(dashboardJoinRequiredLink, hasRequiredLink);
+    }
+    if (dashboardJoinBoardviewLink) {
+      dashboardJoinBoardviewLink.href = currentBoardviewChannelLink || "#";
+      toggleElement(dashboardJoinBoardviewLink, hasBoardviewLink);
+    }
     setText(dashboardTitle, `Halo, ${displayName}`);
     setText(dashboardLoginStatus, "Login Telegram aktif");
     setText(dashboardRoleChip, `BIOS ${biosRole} | Boardview ${boardviewRole}`);
@@ -735,7 +757,7 @@ function applyStatus(status) {
       dashboardChannelStatus,
       status.isChannelMember
         ? `Membership channel valid${channelRole}`
-        : "Belum join channel wajib"
+        : "Belum join channel akses"
     );
     setText(
       dashboardAgreementStatus,
@@ -758,10 +780,10 @@ function applyStatus(status) {
     if (!status.isChannelMember) {
       setText(
         dashboardSubtitle,
-        "Session Telegram aktif, tetapi akses belum dibuka karena akun belum join channel yang diwajibkan."
+        "Session Telegram aktif, tetapi akses belum dibuka karena akun belum tergabung di salah satu channel akses."
       );
-      setText(accessState, "Login aktif, tetapi membership channel belum valid.");
-      setNotice("Login berhasil, tetapi akun belum tergabung di channel yang diwajibkan.", true);
+      setText(accessState, "Login aktif, pilih minimal satu channel lalu klik gabung.");
+      setNotice("Login berhasil, tetapi akun belum tergabung di salah satu channel akses.", true);
       return;
     }
 
@@ -935,6 +957,46 @@ async function downloadCatalogItem(category, messageId) {
   setNotice(result.message);
 }
 
+async function joinSelectedChannels() {
+  const joinRequiredChannel = Boolean(dashboardJoinRequiredCheckbox?.checked && !dashboardJoinRequiredCheckbox.disabled);
+  const joinBoardviewChannel = Boolean(dashboardJoinBoardviewCheckbox?.checked && !dashboardJoinBoardviewCheckbox.disabled);
+
+  if (!joinRequiredChannel && !joinBoardviewChannel) {
+    setNotice("Pilih minimal satu channel sebelum melanjutkan.", true);
+    return;
+  }
+
+  setButtonLoading(
+    dashboardJoinButton,
+    true,
+    "group_add",
+    "Gabung channel terpilih",
+    "Sedang gabung..."
+  );
+
+  try {
+    const result = await fetchJson("/auth/join-channels", {
+      method: "POST",
+      body: JSON.stringify({
+        joinRequiredChannel,
+        joinBoardviewChannel
+      })
+    });
+    setNotice(result.message);
+    await refreshStatus();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    setButtonLoading(
+      dashboardJoinButton,
+      false,
+      "group_add",
+      "Gabung channel terpilih",
+      "Sedang gabung..."
+    );
+  }
+}
+
 phoneForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const phoneNumber = buildInternationalPhoneNumber(phoneNumberInput?.value || "");
@@ -1050,6 +1112,8 @@ if (logoutButton) {
 if (refreshButton) {
   refreshButton.addEventListener("click", refreshStatus);
 }
+
+dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
 
 if (phoneNumberInput) {
   phoneNumberInput.addEventListener("input", () => {
