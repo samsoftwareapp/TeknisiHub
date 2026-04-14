@@ -39,10 +39,6 @@
 
     <section id="mainPanel" class="panel">
       <div id="errorMessage" class="error-message hidden"></div>
-      <div id="joinChannelHint" class="join-hint hidden">
-        <p class="label">Akses Channel</p>
-        <p>Setelah login, pilih minimal satu channel akses lalu gabung dari dashboard.</p>
-      </div>
 
       <form id="phoneForm" class="form">
         <label for="phoneNumber">Nomor Telegram</label>
@@ -260,6 +256,16 @@
     </section>
   </main>
 
+  <footer class="site-footer">
+    <div class="site-footer-copy">
+      <p class="site-footer-text">TeknisiHub 2026 &copy; samsoftwareapp. Hak Cipta Dilindungi.</p>
+    </div>
+    <button id="aboutFooterButton" type="button" class="ghost site-footer-button">
+      <span class="material-symbols-outlined">info</span>
+      <span>Aboutme</span>
+    </button>
+  </footer>
+
   <div id="catalogEditorModal" class="catalog-modal hidden">
     <div class="catalog-modal-card">
       <div class="catalog-modal-head">
@@ -298,6 +304,32 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="aboutModal" class="catalog-modal hidden">
+    <div class="catalog-modal-card about-modal-card">
+      <div class="catalog-modal-head">
+        <div>
+          <p class="label">About</p>
+        </div>
+        <button id="aboutModalCloseButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">close</span>
+          <span>Tutup</span>
+        </button>
+      </div>
+
+      <div class="about-modal-logo">
+        <img src="assets/HubLogo.png" alt="TeknisiHub logo">
+      </div>
+      <div class="about-modal-body">
+        <p>TeknisiHub adalah software yang dikembangkan oleh samsoftwareapp untuk mendukung kebutuhan akses layanan, tools, dan workflow teknisi.</p>
+        <p>Support by partner berikut:</p>
+        <div class="about-support-links">
+          <a href="https://maps.app.goo.gl/Xddwa8Zy4q1qyqW69" target="_blank" rel="noopener noreferrer">Yoso Komputer</a>
+          <a href="https://maps.app.goo.gl/YMvAG3WXsjve6kie8" target="_blank" rel="noopener noreferrer">Mayong Computer "Takim"</a>
+        </div>
+      </div>
     </div>
   </div>
 

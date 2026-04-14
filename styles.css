@@ -21,6 +21,8 @@
 body {
   margin: 0;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color: var(--text);
   background:
@@ -31,11 +33,52 @@ body {
 }
 
 .shell {
+  flex: 1;
   width: min(1380px, calc(100% - 32px));
   margin: 0 auto;
   padding: 48px 0 64px;
   display: grid;
   gap: 24px;
+}
+
+.site-footer {
+  width: min(1380px, calc(100% - 32px));
+  margin: 0 auto 24px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: rgba(244, 252, 255, 0.68);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.site-footer-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.site-footer-title,
+.site-footer-text {
+  margin: 0;
+}
+
+.site-footer-title {
+  font-weight: 800;
+  color: var(--deep);
+}
+
+.site-footer-text {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.site-footer-button {
+  flex-shrink: 0;
 }
 
 .hero,
@@ -881,12 +924,82 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.about-modal-card {
+  position: relative;
+  width: min(620px, 100%);
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(244, 252, 255, 0.9), rgba(244, 252, 255, 0.92)),
+    url("assets/teknisiHubBg.png") center center / cover no-repeat;
+}
+
+.about-modal-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, rgba(39, 199, 213, 0.16), transparent 30%),
+    linear-gradient(135deg, rgba(22, 78, 125, 0.08), transparent 42%);
+  pointer-events: none;
+}
+
+.about-modal-card > * {
+  position: relative;
+  z-index: 1;
+}
+
 .catalog-modal-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+.about-modal-body {
+  display: grid;
+  gap: 16px;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.about-modal-body p {
+  margin: 0;
+}
+
+.about-support-links {
+  display: grid;
+  gap: 12px;
+}
+
+.about-support-links a {
+  display: block;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(39, 199, 213, 0.09);
+  border: 1px solid rgba(39, 199, 213, 0.16);
+  text-decoration: none;
+}
+
+.about-support-links a:hover {
+  background: rgba(39, 199, 213, 0.16);
+}
+
+.about-modal-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.about-modal-logo img {
+  width: min(132px, 34vw);
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 999px;
+  border: 4px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 12px 24px rgba(22, 78, 125, 0.18),
+    0 0 0 1px rgba(22, 78, 125, 0.08);
 }
 
 .catalog-editor-form {
@@ -1236,7 +1349,8 @@ a {
 
 @media (max-width: 720px) {
   .hero,
-  .panel {
+  .panel,
+  .site-footer {
     padding: 22px;
     border-radius: 22px;
   }
@@ -1249,7 +1363,8 @@ a {
   .catalog-toolbar,
   .spi-workbench-hero,
   .spi-card-head,
-  .spi-progress-copy {
+  .spi-progress-copy,
+  .site-footer {
     flex-direction: column;
     align-items: flex-start;
   }

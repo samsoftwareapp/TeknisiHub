@@ -7,7 +7,6 @@ const serviceUpdateNotice = document.getElementById("serviceUpdateNotice");
 const mainPanel = document.getElementById("mainPanel");
 const toastContainer = document.getElementById("toastContainer");
 const errorMessage = document.getElementById("errorMessage");
-const joinChannelHint = document.getElementById("joinChannelHint");
 const phoneForm = document.getElementById("phoneForm");
 const phoneNumberInput = document.getElementById("phoneNumber");
 const phoneSubmitButton = document.getElementById("phoneSubmitButton");
@@ -38,6 +37,7 @@ const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
+const toastAutoHideDelayMs = 4000;
 const catalogList = document.getElementById("catalogList");
 const catalogEyebrow = document.getElementById("catalogEyebrow");
 const catalogTitle = document.getElementById("catalogTitle");
@@ -58,6 +58,9 @@ const catalogEditorSerialNumber = document.getElementById("catalogEditorSerialNu
 const catalogEditorBoardCode = document.getElementById("catalogEditorBoardCode");
 const catalogEditorNote = document.getElementById("catalogEditorNote");
 const catalogEditorSubmitButton = document.getElementById("catalogEditorSubmitButton");
+const aboutFooterButton = document.getElementById("aboutFooterButton");
+const aboutModal = document.getElementById("aboutModal");
+const aboutModalCloseButton = document.getElementById("aboutModalCloseButton");
 const navBios = document.getElementById("navBios");
 const navBoardview = document.getElementById("navBoardview");
 const navTools = document.getElementById("navTools");
@@ -535,6 +538,14 @@ function closeCatalogEditor() {
   }
 }
 
+function openAboutModal() {
+  toggleElement(aboutModal, true);
+}
+
+function closeAboutModal() {
+  toggleElement(aboutModal, false);
+}
+
 function filterCatalogItems() {
   if (currentCatalogView === spiFlashPage.viewKey) {
     renderCatalog([], currentCatalogView);
@@ -846,10 +857,16 @@ function setNotice(message, toneOrWarning = false) {
       <span class="material-symbols-outlined">close</span>
     </button>
   `;
+  let dismissTimeoutId = null;
 
   const dismissToast = () => {
     if (!toast.isConnected) {
       return;
+    }
+
+    if (dismissTimeoutId) {
+      window.clearTimeout(dismissTimeoutId);
+      dismissTimeoutId = null;
     }
 
     toast.classList.add("is-leaving");
@@ -860,6 +877,7 @@ function setNotice(message, toneOrWarning = false) {
 
   toast.querySelector(".toast-close")?.addEventListener("click", dismissToast);
   toastContainer.prepend(toast);
+  dismissTimeoutId = window.setTimeout(dismissToast, toastAutoHideDelayMs);
 }
 
 function setError(message) {
@@ -887,7 +905,6 @@ function toggleElement(element, visible) {
 
 function hideInteractivePanels() {
   toggleElement(mainPanel, false);
-  toggleElement(joinChannelHint, false);
   toggleElement(phoneForm, false);
   toggleElement(codeForm, false);
   toggleElement(passwordForm, false);
@@ -955,11 +972,9 @@ function applyStatus(status) {
     status.biosChannelRole ||
     status.boardviewChannelRole
   );
-  const showJoinChannelHint = hasJoinOption && !status.isLoggedIn;
   const showJoinPanel = status.isLoggedIn && !hasKnownChannelAccess && hasJoinOption;
   const showAgreementPanel = status.isLoggedIn && hasKnownChannelAccess && !status.hasAgreed;
   const showDashboard = status.isLoggedIn && hasKnownChannelAccess && status.hasAgreed;
-  toggleElement(joinChannelHint, showJoinChannelHint);
 
   if (dashboardJoinRequiredCheckbox) {
     dashboardJoinRequiredCheckbox.checked = Boolean(status.isRequiredChannelMember);
@@ -1520,6 +1535,26 @@ catalogEditorCloseButton?.addEventListener("click", closeCatalogEditor);
 catalogEditorModal?.addEventListener("click", (event) => {
   if (event.target === catalogEditorModal) {
     closeCatalogEditor();
+  }
+});
+
+aboutFooterButton?.addEventListener("click", openAboutModal);
+
+aboutModalCloseButton?.addEventListener("click", closeAboutModal);
+
+aboutModal?.addEventListener("click", (event) => {
+  if (event.target === aboutModal) {
+    closeAboutModal();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  if (aboutModal && !aboutModal.classList.contains("hidden")) {
+    closeAboutModal();
   }
 });
 
