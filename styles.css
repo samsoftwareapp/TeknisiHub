@@ -404,6 +404,25 @@ h1 {
   color: var(--muted);
 }
 
+.verification-phone-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(22, 78, 125, 0.06);
+}
+
+.verification-phone-card strong {
+  font-size: 1.05rem;
+  color: var(--deep);
+  word-break: break-word;
+}
+
+.verification-phone-card button {
+  justify-self: start;
+}
+
 .dashboard {
   margin-top: 22px;
   display: grid;
@@ -730,6 +749,31 @@ h1 {
   flex-wrap: wrap;
 }
 
+.catalog-context-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(22, 78, 125, 0.12);
+  background: linear-gradient(135deg, rgba(22, 78, 125, 0.08), rgba(39, 199, 213, 0.08));
+}
+
+.catalog-context-panel strong {
+  color: var(--deep);
+}
+
+.catalog-context-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.catalog-context-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .catalog-search {
   min-width: min(520px, 100%);
   display: flex;
@@ -878,6 +922,11 @@ h1 {
   box-shadow: none;
 }
 
+.catalog-view-button {
+  padding: 11px 14px;
+  box-shadow: none;
+}
+
 .catalog-empty {
   display: grid;
   justify-items: center;
@@ -922,6 +971,24 @@ h1 {
   background: rgba(244, 252, 255, 0.96);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
+}
+
+.problem-solving-modal-card {
+  width: min(880px, 100%);
+}
+
+.problem-solving-viewer-content {
+  margin: 0;
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(13, 30, 44, 0.95);
+  color: #eef7ff;
+  font: 500 0.95rem/1.7 "Consolas", "Courier New", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .about-modal-card {

@@ -57,6 +57,14 @@
       </form>
 
       <form id="codeForm" class="form hidden">
+        <div class="verification-phone-card">
+          <p class="label">OTP dikirim ke</p>
+          <strong id="verificationPhoneDisplay">+62-</strong>
+          <button id="changePhoneButton" class="ghost" type="button">
+            <span class="material-symbols-outlined">edit</span>
+            <span>Ganti nomor</span>
+          </button>
+        </div>
         <label for="verificationCode">Kode verifikasi</label>
         <input id="verificationCode" name="verificationCode" type="text" placeholder="12345">
         <button id="codeSubmitButton" type="submit">
@@ -173,6 +181,10 @@
                   <span class="material-symbols-outlined">developer_board</span>
                   <span>Boardview</span>
                 </button>
+                <button id="navProblemSolving" type="button" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">psychology</span>
+                  <span>Problem Solving</span>
+                </button>
                 <details id="navTools" class="sidebar-dropdown" open>
                   <summary>
                     <span class="summary-left">
@@ -242,6 +254,7 @@
                   </button>
                 </div>
               </div>
+              <div id="catalogContextPanel" class="catalog-context-panel hidden"></div>
               <div id="catalogList" class="catalog-list"></div>
               <div id="catalogPagination" class="catalog-pagination hidden">
                 <button id="catalogLoadMoreButton" type="button" class="ghost">
@@ -330,6 +343,23 @@
           <a href="https://maps.app.goo.gl/YMvAG3WXsjve6kie8" target="_blank" rel="noopener noreferrer">Mayong Computer "Takim"</a>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="problemSolvingViewerModal" class="catalog-modal hidden">
+    <div class="catalog-modal-card problem-solving-modal-card">
+      <div class="catalog-modal-head">
+        <div>
+          <p class="label">Problem Solving</p>
+          <h3 id="problemSolvingViewerTitle">Baca postingan</h3>
+          <p id="problemSolvingViewerMeta" class="catalog-subtitle"></p>
+        </div>
+        <button id="problemSolvingViewerCloseButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">close</span>
+          <span>Tutup</span>
+        </button>
+      </div>
+      <pre id="problemSolvingViewerContent" class="problem-solving-viewer-content"></pre>
     </div>
   </div>
 
