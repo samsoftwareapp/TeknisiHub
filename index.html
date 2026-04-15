@@ -20,10 +20,30 @@
           <p id="serviceVersion" class="service-version">Versi: mengecek...</p>
           <strong id="serviceStatus">Mengecek koneksi...</strong>
         </div>
-        <button id="refreshButton" type="button">
-          <span class="material-symbols-outlined">refresh</span>
-          <span>Refresh status</span>
-        </button>
+        <div class="status-card-actions">
+          <button id="refreshButton" type="button">
+            <span class="material-symbols-outlined">refresh</span>
+            <span>Refresh status</span>
+          </button>
+          <p class="service-platform-note">
+            <span class="windows-logo" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+            <span>Support Windows Only, minimal Win 10+</span>
+          </p>
+          <p class="service-platform-note service-platform-note-linux">
+            <span class="linux-logo" aria-hidden="true">
+              <span class="linux-logo-head"></span>
+              <span class="linux-logo-body"></span>
+              <span class="linux-logo-foot linux-logo-foot-left"></span>
+              <span class="linux-logo-foot linux-logo-foot-right"></span>
+            </span>
+            <span>Versi Linux on progress</span>
+          </p>
+        </div>
       </div>
       <a
         id="downloadLocalServiceLink"
@@ -159,13 +179,14 @@
             <span class="material-symbols-outlined">task_alt</span>
           </article>
 
-          <article class="stat-card stat-catalog">
+          <article class="stat-card stat-total-files">
             <div>
-              <p class="label">Item Katalog</p>
-              <strong id="catalogCount">0 item</strong>
+              <p class="label">Total File</p>
+              <strong id="dashboardCatalogTotal">0 file</strong>
             </div>
             <span class="material-symbols-outlined">inventory_2</span>
           </article>
+
         </div>
 
         <div class="dashboard-layout">
@@ -197,11 +218,14 @@
                     <button id="toolSpiFlash" type="button" class="sidebar-nav-button is-active">
                       <span>SPI Flash</span>
                     </button>
+                    <button id="toolMeAnalyzer" type="button" class="sidebar-nav-button">
+                      <span>ME Analyzer</span>
+                    </button>
                     <button id="toolUefi" type="button" class="sidebar-nav-button">
                       <span>UEFI Tools</span>
                     </button>
                     <button id="toolOther" type="button" class="sidebar-nav-button">
-                      <span>Tools Lainnya</span>
+                      <span>Boardviewer</span>
                     </button>
                   </div>
                 </details>
@@ -229,13 +253,15 @@
 
           <div class="dashboard-main">
             <section id="spiFlashWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="boardViewerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
 
             <section id="catalogSection" class="catalog hidden">
               <div class="catalog-head">
                 <div>
                   <p id="catalogEyebrow" class="label">Katalog Dummy</p>
                   <h3 id="catalogTitle">BIOS, Boardview, dan Tools</h3>
-                  <p id="catalogSubtitle" class="catalog-subtitle">Gunakan pencarian untuk menemukan file atau tool dummy yang kamu butuhkan.</p>
                 </div>
               </div>
               <div class="catalog-toolbar">
@@ -297,18 +323,37 @@
 
         <label id="catalogEditorFileLabel" for="catalogEditorFile">File BIOS</label>
         <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr,.brd,.bdv,.boardview,.fz,.cad,.tvw,.asc">
+        <div id="catalogEditorAnalysisPanel" class="catalog-analysis-panel hidden"></div>
+        <div id="catalogEditorAdditionalFilesSection" class="catalog-additional-files hidden">
+          <div class="catalog-additional-files-head">
+            <label>File Tambahan</label>
+            <button id="catalogEditorAddFileButton" type="button" class="ghost">
+              <span class="material-symbols-outlined">add</span>
+              <span>Tambah File</span>
+            </button>
+          </div>
+          <div id="catalogEditorAdditionalFilesList" class="catalog-additional-files-list"></div>
+          <p class="catalog-additional-files-note">Opsional untuk EC, FULL DUMP, DLL, dan file pendukung lain. Maksimal 5 file.</p>
+        </div>
 
-        <label for="catalogEditorDeviceModel">Model Device</label>
-        <input id="catalogEditorDeviceModel" name="deviceModel" type="text" placeholder="Contoh: Lenovo ThinkPad T14" required>
+        <div id="catalogEditorMetadataFields">
+          <div id="catalogEditorMd5Field" class="catalog-readonly-field">
+            <label for="catalogEditorMd5">MD5</label>
+            <input id="catalogEditorMd5" name="md5" type="text" placeholder="Akan terisi otomatis saat file dipilih" readonly>
+          </div>
 
-        <label for="catalogEditorSerialNumber">Serial Number</label>
-        <input id="catalogEditorSerialNumber" name="serialNumber" type="text" placeholder="Contoh: PF-123456" required>
+          <label for="catalogEditorDeviceModel">Model Device</label>
+          <input id="catalogEditorDeviceModel" name="deviceModel" type="text" placeholder="Contoh: Lenovo ThinkPad T14" required>
 
-        <label for="catalogEditorBoardCode">Code Board</label>
-        <input id="catalogEditorBoardCode" name="boardCode" type="text" placeholder="Contoh: LA-1234P" required>
+          <label for="catalogEditorSerialNumber">Serial Number</label>
+          <input id="catalogEditorSerialNumber" name="serialNumber" type="text" placeholder="Contoh: PF-123456 (Boleh Kosong)">
 
-        <label for="catalogEditorNote">Catatan</label>
-        <input id="catalogEditorNote" name="note" type="text" placeholder="Contoh: Tested OK" required>
+          <label for="catalogEditorBoardCode">Code Board</label>
+          <input id="catalogEditorBoardCode" name="boardCode" type="text" placeholder="Contoh: LA-1234P" required>
+
+          <label for="catalogEditorNote">Catatan</label>
+          <input id="catalogEditorNote" name="note" type="text" placeholder="Contoh: Tested OK (Boleh Kosong)">
+        </div>
 
         <div class="catalog-editor-actions">
           <button id="catalogEditorSubmitButton" type="submit">
@@ -352,7 +397,6 @@
         <div>
           <p class="label">Problem Solving</p>
           <h3 id="problemSolvingViewerTitle">Baca postingan</h3>
-          <p id="problemSolvingViewerMeta" class="catalog-subtitle"></p>
         </div>
         <button id="problemSolvingViewerCloseButton" type="button" class="ghost">
           <span class="material-symbols-outlined">close</span>
@@ -364,6 +408,9 @@
   </div>
 
   <script src="pages/spi-flash/page.js"></script>
+  <script src="pages/me-analyzer/page.js"></script>
+  <script src="pages/uefi-tool/page.js"></script>
+  <script src="pages/boardviewer/page.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

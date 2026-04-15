@@ -126,6 +126,114 @@ body {
   font-size: 0.9rem;
 }
 
+.service-platform-note {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--deep);
+  font-size: 0.9rem;
+  font-weight: 700;
+  justify-self: end;
+}
+
+.service-platform-note-linux {
+  margin-bottom: 0;
+  color: rgba(83, 116, 144, 0.58);
+}
+
+.windows-logo {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.windows-logo span {
+  display: block;
+  background: #00a4ef;
+  border-radius: 1px;
+}
+
+.linux-logo {
+  position: relative;
+  width: 14px;
+  height: 16px;
+  display: inline-block;
+  flex-shrink: 0;
+  opacity: 0.5;
+  filter: grayscale(0.35);
+}
+
+.linux-logo-head {
+  position: absolute;
+  top: 0;
+  left: 3px;
+  width: 8px;
+  height: 7px;
+  background: #1f2f3a;
+  border-radius: 50% 50% 42% 42%;
+}
+
+.linux-logo-head::before,
+.linux-logo-head::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  width: 1px;
+  height: 1px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.linux-logo-head::before {
+  left: 2px;
+}
+
+.linux-logo-head::after {
+  right: 2px;
+}
+
+.linux-logo-body {
+  position: absolute;
+  top: 5px;
+  left: 2px;
+  width: 10px;
+  height: 9px;
+  background: linear-gradient(180deg, #243744, #111c24);
+  border-radius: 45% 45% 38% 38%;
+}
+
+.linux-logo-body::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  background: #f6f7f8;
+  border-radius: 45%;
+}
+
+.linux-logo-foot {
+  position: absolute;
+  bottom: 0;
+  width: 4px;
+  height: 3px;
+  background: #f0b547;
+  border-radius: 50% 50% 45% 45%;
+}
+
+.linux-logo-foot-left {
+  left: 1px;
+}
+
+.linux-logo-foot-right {
+  right: 1px;
+}
+
 h1,
 h3,
 h4,
@@ -161,6 +269,12 @@ h1 {
 .panel-head {
   align-items: center;
   justify-content: space-between;
+}
+
+.status-card-actions {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
 }
 
 .hero-download {
@@ -518,7 +632,7 @@ h1 {
   background: linear-gradient(135deg, #eb9b2d, #b56c17);
 }
 
-.stat-catalog {
+.stat-total-files {
   background: linear-gradient(135deg, #445ecf, #2a3e98);
 }
 
@@ -959,6 +1073,7 @@ h1 {
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow-y: auto;
   background: rgba(10, 38, 62, 0.42);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -966,7 +1081,9 @@ h1 {
 
 .catalog-modal-card {
   width: min(620px, 100%);
+  max-height: calc(100vh - 48px);
   padding: 24px;
+  overflow-y: auto;
   border-radius: 26px;
   background: rgba(244, 252, 255, 0.96);
   border: 1px solid var(--line);
@@ -1072,6 +1189,144 @@ h1 {
 .catalog-editor-form {
   display: grid;
   gap: 12px;
+}
+
+.catalog-readonly-field {
+  display: grid;
+  gap: 12px;
+}
+
+.catalog-readonly-field input[readonly] {
+  color: var(--deep);
+  font-weight: 700;
+  background: rgba(22, 78, 125, 0.07);
+  border-color: rgba(22, 78, 125, 0.14);
+  cursor: default;
+}
+
+.catalog-additional-files {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px dashed rgba(22, 78, 125, 0.18);
+  background: rgba(22, 78, 125, 0.04);
+}
+
+.catalog-additional-files-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.catalog-additional-files-list {
+  display: grid;
+  gap: 10px;
+}
+
+.catalog-additional-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.catalog-additional-files-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.catalog-analysis-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(22, 78, 125, 0.12);
+  background: rgba(22, 78, 125, 0.06);
+}
+
+.catalog-analysis-panel.is-success {
+  border-color: rgba(21, 128, 111, 0.2);
+  background: rgba(21, 128, 111, 0.08);
+}
+
+.catalog-analysis-panel.is-warning {
+  border-color: rgba(180, 83, 9, 0.24);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.catalog-analysis-panel.is-info {
+  border-color: rgba(22, 78, 125, 0.16);
+  background: rgba(22, 78, 125, 0.08);
+}
+
+.catalog-analysis-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--deep);
+}
+
+.catalog-analysis-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.catalog-analysis-detected {
+  font-weight: 700;
+  color: var(--deep);
+}
+
+.catalog-analysis-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.catalog-analysis-grid div {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.catalog-analysis-grid dt {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.catalog-analysis-grid dd {
+  margin: 0;
+  color: var(--deep);
+  font-weight: 700;
+}
+
+.catalog-analysis-list {
+  display: grid;
+  gap: 8px;
+}
+
+.catalog-analysis-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.catalog-analysis-item strong {
+  color: var(--deep);
+}
+
+.catalog-analysis-item span {
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .catalog-editor-actions {
@@ -1346,6 +1601,174 @@ h1 {
   color: var(--text);
 }
 
+.me-analyzer-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.boardviewer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.boardviewer-stats-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.uefi-tool-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.me-analyzer-console {
+  margin: 0;
+  padding: 18px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(17, 35, 48, 0.98), rgba(18, 52, 74, 0.96)),
+    linear-gradient(90deg, rgba(63, 197, 214, 0.1), transparent 42%);
+  color: #d9f7ff;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  overflow: auto;
+  white-space: pre;
+}
+
+.me-analyzer-empty {
+  margin: 0;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(196, 95, 32, 0.07);
+  color: var(--muted);
+}
+
+.uefi-tool-console,
+.uefi-tool-warnings {
+  margin: 0;
+  padding: 18px;
+  border-radius: 20px;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  overflow: auto;
+  white-space: pre;
+}
+
+.uefi-tool-console {
+  background:
+    linear-gradient(180deg, rgba(17, 35, 48, 0.98), rgba(18, 52, 74, 0.96)),
+    linear-gradient(90deg, rgba(63, 197, 214, 0.1), transparent 42%);
+  color: #d9f7ff;
+  padding: 0;
+  white-space: normal;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.uefi-tool-warnings {
+  background: rgba(198, 107, 34, 0.08);
+  color: var(--text);
+}
+
+.uefi-tool-console mark {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: #f5da63;
+  color: #102330;
+}
+
+.uefi-tool-console mark.is-active {
+  background: #ff8a3d;
+  color: #fff;
+}
+
+.uefi-tool-table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+}
+
+.uefi-tool-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 14px 12px;
+  text-align: left;
+  background: rgba(10, 24, 34, 0.96);
+  color: #f2fbff;
+  border-bottom: 1px solid rgba(99, 190, 214, 0.25);
+}
+
+.uefi-tool-table tbody td {
+  padding: 10px 12px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(99, 190, 214, 0.14);
+  color: inherit;
+}
+
+.uefi-tool-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.uefi-tool-table tbody td:last-child {
+  min-width: 440px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.uefi-tool-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.uefi-tool-searchbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.uefi-tool-searchbar label {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+
+.uefi-tool-searchcount {
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.uefi-tool-searchactions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:fullscreen.uefi-tool-console,
+:fullscreen .uefi-tool-console {
+  max-height: calc(100vh - 96px);
+}
+
+:fullscreen#uefiToolReportPanel,
+:fullscreen #uefiToolReportPanel {
+  width: 100vw;
+  height: 100vh;
+  padding: 20px;
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(12, 28, 39, 0.98), rgba(15, 40, 58, 0.98));
+  overflow: hidden;
+}
+
+:fullscreen#uefiToolReportPanel .uefi-tool-console,
+:fullscreen #uefiToolReportPanel .uefi-tool-console {
+  max-height: calc(100vh - 160px);
+}
+
 .dashboard-meta {
   color: var(--muted);
   font-size: 0.92rem;
@@ -1453,6 +1876,10 @@ a {
   }
 
   .catalog-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-analysis-grid {
     grid-template-columns: 1fr;
   }
 }

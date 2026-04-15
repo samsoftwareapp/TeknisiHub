@@ -29,6 +29,7 @@ const dashboardSubtitle = document.getElementById("dashboardSubtitle");
 const dashboardLoginStatus = document.getElementById("dashboardLoginStatus");
 const dashboardChannelStatus = document.getElementById("dashboardChannelStatus");
 const dashboardAgreementStatus = document.getElementById("dashboardAgreementStatus");
+const dashboardCatalogTotal = document.getElementById("dashboardCatalogTotal");
 const dashboardRoleChip = document.getElementById("dashboardRoleChip");
 const accessDisplayName = document.getElementById("accessDisplayName");
 const accessRole = document.getElementById("accessRole");
@@ -37,6 +38,9 @@ const dashboardJoinRequiredCheckbox = document.getElementById("dashboardJoinRequ
 const dashboardJoinBoardviewCheckbox = document.getElementById("dashboardJoinBoardviewCheckbox");
 const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
+const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
+const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
+const boardViewerWorkbench = document.getElementById("boardViewerWorkbench");
 const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
 const toastAutoHideDelayMs = 4000;
@@ -44,7 +48,6 @@ const catalogContextPanel = document.getElementById("catalogContextPanel");
 const catalogList = document.getElementById("catalogList");
 const catalogEyebrow = document.getElementById("catalogEyebrow");
 const catalogTitle = document.getElementById("catalogTitle");
-const catalogSubtitle = document.getElementById("catalogSubtitle");
 const catalogSearchInput = document.getElementById("catalogSearchInput");
 const catalogUploadButton = document.getElementById("catalogUploadButton");
 const catalogRefreshButton = document.getElementById("catalogRefreshButton");
@@ -55,7 +58,14 @@ const catalogEditorTitle = document.getElementById("catalogEditorTitle");
 const catalogEditorCloseButton = document.getElementById("catalogEditorCloseButton");
 const catalogEditorForm = document.getElementById("catalogEditorForm");
 const catalogEditorMessageId = document.getElementById("catalogEditorMessageId");
+const catalogEditorMd5 = document.getElementById("catalogEditorMd5");
+const catalogEditorMd5Field = document.getElementById("catalogEditorMd5Field");
 const catalogEditorFile = document.getElementById("catalogEditorFile");
+const catalogEditorAnalysisPanel = document.getElementById("catalogEditorAnalysisPanel");
+const catalogEditorAdditionalFilesSection = document.getElementById("catalogEditorAdditionalFilesSection");
+const catalogEditorAdditionalFilesList = document.getElementById("catalogEditorAdditionalFilesList");
+const catalogEditorAddFileButton = document.getElementById("catalogEditorAddFileButton");
+const catalogEditorMetadataFields = document.getElementById("catalogEditorMetadataFields");
 const catalogEditorDeviceModel = document.getElementById("catalogEditorDeviceModel");
 const catalogEditorSerialNumber = document.getElementById("catalogEditorSerialNumber");
 const catalogEditorBoardCode = document.getElementById("catalogEditorBoardCode");
@@ -69,11 +79,11 @@ const navBoardview = document.getElementById("navBoardview");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navTools = document.getElementById("navTools");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
+const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
 const toolOther = document.getElementById("toolOther");
 const problemSolvingViewerModal = document.getElementById("problemSolvingViewerModal");
 const problemSolvingViewerTitle = document.getElementById("problemSolvingViewerTitle");
-const problemSolvingViewerMeta = document.getElementById("problemSolvingViewerMeta");
 const problemSolvingViewerContent = document.getElementById("problemSolvingViewerContent");
 const problemSolvingViewerCloseButton = document.getElementById("problemSolvingViewerCloseButton");
 const defaultDownloadLocalServiceUrl = downloadLocalServiceLink?.getAttribute("href") || "";
@@ -84,6 +94,39 @@ const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   eyebrow: "Tools Local",
   title: "SPI Flash",
   subtitle: "Utility lokal untuk kebutuhan SPI Flash.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const meAnalyzerPage = window.teknisiHubPages?.meAnalyzer || {
+  viewKey: "tool_me_analyzer",
+  eyebrow: "ME Analyzer",
+  title: "ME Analyzer",
+  subtitle: "Utility lokal untuk analisa manual output lengkap ME Analyzer.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const uefiToolPage = window.teknisiHubPages?.uefiTool || {
+  viewKey: "tool_uefi",
+  eyebrow: "UEFI Tools",
+  title: "UEFI Tools",
+  subtitle: "Utility lokal untuk analisa manual struktur firmware UEFI.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const boardViewerPage = window.teknisiHubPages?.boardViewer || {
+  viewKey: "tool_boardviewer",
+  eyebrow: "Boardviewer",
+  title: "Boardviewer",
+  subtitle: "Utility lokal untuk membuka file boardview lewat local service.",
   items: [],
   mount() {},
   setVisible() {},
@@ -106,6 +149,9 @@ const catalogJoinRequiredState = {
 };
 let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
+let catalogBiosDuplicateCheckToken = 0;
+let catalogBiosDuplicateFound = false;
+const maxCatalogAdditionalFiles = 5;
 let catalogRefreshLoading = false;
 let catalogRefreshCooldownUntil = 0;
 let catalogRefreshCooldownTimerId = 0;
@@ -116,6 +162,8 @@ const catalogRefreshCooldownMs = 15000;
 let isPhoneNumberChangeRequested = false;
 const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
 const allowedBoardviewExtensions = [".brd", ".bdv", ".boardview", ".fz", ".cad", ".tvw", ".asc"];
+const minCatalogFileNameLength = 15;
+const maxCatalogFileNameLength = 70;
 const localToolCatalog = [
   ...spiFlashPage.items,
   {
@@ -150,6 +198,21 @@ const localToolCatalog = [
 
 spiFlashPage.mount?.({
   container: spiFlashWorkbench,
+  notify: (message) => setNotice(message)
+});
+
+meAnalyzerPage.mount?.({
+  container: meAnalyzerWorkbench,
+  notify: (message) => setNotice(message)
+});
+
+uefiToolPage.mount?.({
+  container: uefiToolWorkbench,
+  notify: (message) => setNotice(message)
+});
+
+boardViewerPage.mount?.({
+  container: boardViewerWorkbench,
   notify: (message) => setNotice(message)
 });
 
@@ -196,16 +259,22 @@ const toolViewMap = {
     subtitle: spiFlashPage.subtitle,
     channelLink: null
   },
-  tool_uefi: {
-    eyebrow: "Tools Local",
-    title: "UEFI Tools",
-    subtitle: "Utility lokal untuk analisa image UEFI, region, dan struktur firmware tanpa request ke Telegram.",
+  tool_me_analyzer: {
+    eyebrow: meAnalyzerPage.eyebrow,
+    title: meAnalyzerPage.title,
+    subtitle: meAnalyzerPage.subtitle,
     channelLink: null
   },
-  tool_other: {
-    eyebrow: "Tools Local",
-    title: "Tools Lainnya",
-    subtitle: "Kumpulan utility lokal tambahan untuk kebutuhan servis dan maintenance.",
+  tool_uefi: {
+    eyebrow: uefiToolPage.eyebrow,
+    title: uefiToolPage.title,
+    subtitle: uefiToolPage.subtitle,
+    channelLink: null
+  },
+  tool_boardviewer: {
+    eyebrow: boardViewerPage.eyebrow,
+    title: boardViewerPage.title,
+    subtitle: boardViewerPage.subtitle,
     channelLink: null
   }
 };
@@ -252,6 +321,10 @@ function resetCatalog() {
     catalogCount.textContent = "0 item";
   }
 
+  if (dashboardCatalogTotal) {
+    dashboardCatalogTotal.textContent = "0 file";
+  }
+
   if (catalogList) {
     catalogList.innerHTML = "";
   }
@@ -270,6 +343,19 @@ function resetCatalog() {
   closeProblemSolvingViewer();
 }
 
+async function refreshCatalogStats() {
+  try {
+    const stats = await fetchJson("/catalog/cache-stats");
+    if (dashboardCatalogTotal) {
+      dashboardCatalogTotal.textContent = `${stats.totalCount || 0} file`;
+    }
+  } catch {
+    if (dashboardCatalogTotal) {
+      dashboardCatalogTotal.textContent = "0 file";
+    }
+  }
+}
+
 function isOwnerRole() {
   if (currentCatalogView === "ProblemSolving") {
     return currentProblemSolvingChannelRole.toLowerCase() === "owner";
@@ -280,11 +366,7 @@ function isOwnerRole() {
 }
 
 function canManageBiosCatalog() {
-  if (currentCatalogView === "ProblemSolving") {
-    return false;
-  }
-
-  const normalizedRole = (currentCatalogView === "Boardview" ? currentBoardviewChannelRole : currentBiosChannelRole).toLowerCase();
+  const normalizedRole = getDisplayRoleForView(currentCatalogView).toLowerCase();
   return normalizedRole === "owner" || normalizedRole === "admin";
 }
 
@@ -399,15 +481,36 @@ function updateCatalogToolbar(viewKey = currentCatalogView) {
   updateCatalogRefreshButton(viewKey);
 }
 
-function showWorkbenchOnly() {
+function showWorkbenchOnly(viewKey) {
   toggleElement(catalogSection, false);
   toggleElement(catalogPagination, false);
-  spiFlashPage.setVisible?.(true);
-  spiFlashPage.refresh?.();
+  spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
+  meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
+  uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
+  boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
+
+  if (viewKey === spiFlashPage.viewKey) {
+    spiFlashPage.refresh?.();
+  }
+
+  if (viewKey === meAnalyzerPage.viewKey) {
+    meAnalyzerPage.refresh?.();
+  }
+
+  if (viewKey === uefiToolPage.viewKey) {
+    uefiToolPage.refresh?.();
+  }
+
+  if (viewKey === boardViewerPage.viewKey) {
+    boardViewerPage.refresh?.();
+  }
 }
 
 function hideWorkbench() {
   spiFlashPage.setVisible?.(false);
+  meAnalyzerPage.setVisible?.(false);
+  uefiToolPage.setVisible?.(false);
+  boardViewerPage.setVisible?.(false);
 }
 
 function setActiveNav(targetKey) {
@@ -416,8 +519,9 @@ function setActiveNav(targetKey) {
     Boardview: navBoardview,
     ProblemSolving: navProblemSolving,
     tool_spi_flash: toolSpiFlash,
+    tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
-    tool_other: toolOther
+    tool_boardviewer: toolOther
   };
 
   Object.entries(navMap).forEach(([key, element]) => {
@@ -458,7 +562,7 @@ function setNavButtonLoading(button, loading) {
 }
 
 function updateCatalogHeader(viewKey) {
-  if (!catalogEyebrow || !catalogTitle || !catalogSubtitle) {
+  if (!catalogEyebrow || !catalogTitle) {
     return;
   }
 
@@ -467,7 +571,6 @@ function updateCatalogHeader(viewKey) {
   if (viewKey === "BIOS") {
     setText(catalogEyebrow, "File BIOS");
     setText(catalogTitle, "");
-    setText(catalogSubtitle, "");
     if (catalogSearchInput) {
       catalogSearchInput.placeholder = "Cari file BIOS lalu tekan Enter...";
     }
@@ -478,7 +581,6 @@ function updateCatalogHeader(viewKey) {
   if (viewKey === "Boardview") {
     setText(catalogEyebrow, "File Boardview");
     setText(catalogTitle, "");
-    setText(catalogSubtitle, "");
     if (catalogSearchInput) {
       catalogSearchInput.placeholder = "Cari file boardview lalu tekan Enter...";
     }
@@ -489,7 +591,6 @@ function updateCatalogHeader(viewKey) {
   if (viewKey === "ProblemSolving") {
     setText(catalogEyebrow, "Problem Solving");
     setText(catalogTitle, "Postingan diagnosa dan solusi teknisi");
-    setText(catalogSubtitle, "File markdown akan dibaca sebagai teks mentah setelah backend menyimpan cache ke AppData\\Roaming\\TeknisiHub\\CatalogCache.");
     if (catalogSearchInput) {
       catalogSearchInput.placeholder = "Cari nama file atau isi problem solving...";
     }
@@ -500,7 +601,6 @@ function updateCatalogHeader(viewKey) {
   const toolConfig = toolViewMap[viewKey];
   setText(catalogEyebrow, toolConfig.eyebrow);
   setText(catalogTitle, toolConfig.title);
-  setText(catalogSubtitle, toolConfig.subtitle);
   if (catalogSearchInput) {
     catalogSearchInput.placeholder = "Cari file atau tool...";
   }
@@ -508,23 +608,36 @@ function updateCatalogHeader(viewKey) {
 }
 
 function renderCatalog(items, viewKey = currentCatalogView) {
-  if (viewKey === spiFlashPage.viewKey) {
+  if (
+    viewKey === spiFlashPage.viewKey ||
+    viewKey === meAnalyzerPage.viewKey ||
+    viewKey === uefiToolPage.viewKey ||
+    viewKey === boardViewerPage.viewKey
+  ) {
     setActiveNav(viewKey);
     if (catalogCount) {
-      catalogCount.textContent = "SPI UI";
+      catalogCount.textContent = viewKey === spiFlashPage.viewKey
+        ? "SPI UI"
+        : viewKey === meAnalyzerPage.viewKey
+        ? "MEA UI"
+        : viewKey === uefiToolPage.viewKey
+        ? "UEFI UI"
+        : "BRD UI";
     }
-    showWorkbenchOnly();
+    showWorkbenchOnly(viewKey);
     return;
   }
 
   hideWorkbench();
-  if (!catalogList || !catalogCount) {
+  if (!catalogList) {
     return;
   }
 
   updateCatalogHeader(viewKey);
   setActiveNav(viewKey);
-  catalogCount.textContent = `${items.length} item`;
+  if (catalogCount) {
+    catalogCount.textContent = `${items.length} item`;
+  }
   const paginationState = getTelegramCatalogState(viewKey);
   toggleElement(catalogPagination, isTelegramCatalogView(viewKey) && paginationState.hasMore && items.length > 0);
 
@@ -630,6 +743,11 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <dt>NOTE</dt>
           <dd>${escapeHtml(item.note || "-")}</dd>
         </div>
+        ${item.category === "BIOS" ? `
+        <div>
+          <dt>MD5</dt>
+          <dd>${escapeHtml(item.md5 || "-")}</dd>
+        </div>` : ""}
       </dl>
       <div class="catalog-file-row">
         <span class="material-symbols-outlined">description</span>
@@ -645,6 +763,15 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         <span>${escapeHtml(item.postedAt || "-")}</span>
       </div>
       <div class="catalog-card-actions">
+        ${item.category === "Boardview" && item.messageId ? `
+        <button
+          type="button"
+          class="catalog-action-button catalog-open-button"
+          data-message-id="${item.messageId}"
+          data-file-name="${escapeHtml(item.fileName || item.title || "")}">
+          <span class="material-symbols-outlined">open_in_new</span>
+          <span>Buka</span>
+        </button>` : ""}
         <button
           type="button"
           class="catalog-download-button"
@@ -681,6 +808,205 @@ function findCatalogItemByMessageId(messageId) {
   return catalogItems.find((item) => Number(item.messageId) === Number(messageId));
 }
 
+function getCatalogAdditionalFileInputs() {
+  if (!catalogEditorAdditionalFilesList) {
+    return [];
+  }
+
+  return Array.from(catalogEditorAdditionalFilesList.querySelectorAll('input[type="file"]'));
+}
+
+function renderCatalogAdditionalFiles() {
+  if (!catalogEditorAdditionalFilesSection || !catalogEditorAdditionalFilesList || !catalogEditorAddFileButton) {
+    return;
+  }
+
+  const shouldShow = currentCatalogView === "BIOS" && catalogEditorMode !== "edit";
+  toggleElement(catalogEditorAdditionalFilesSection, shouldShow);
+  if (!shouldShow) {
+    catalogEditorAdditionalFilesList.innerHTML = "";
+    return;
+  }
+
+  catalogEditorAddFileButton.disabled = getCatalogAdditionalFileInputs().length >= maxCatalogAdditionalFiles;
+}
+
+function appendCatalogAdditionalFileInput() {
+  if (!catalogEditorAdditionalFilesList) {
+    return;
+  }
+
+  const currentInputs = getCatalogAdditionalFileInputs();
+  if (currentInputs.length >= maxCatalogAdditionalFiles) {
+    setNotice(`File tambahan maksimal ${maxCatalogAdditionalFiles}.`, "info");
+    return;
+  }
+
+  const index = currentInputs.length + 1;
+  const row = document.createElement("div");
+  row.className = "catalog-additional-file-row";
+  row.innerHTML = `
+    <input type="file" name="additionalFiles" data-index="${index}">
+    <button type="button" class="ghost catalog-remove-file-button" aria-label="Hapus file tambahan">
+      <span class="material-symbols-outlined">delete</span>
+    </button>
+  `;
+  row.querySelector(".catalog-remove-file-button")?.addEventListener("click", () => {
+    row.remove();
+    renderCatalogAdditionalFiles();
+  });
+
+  catalogEditorAdditionalFilesList.appendChild(row);
+  renderCatalogAdditionalFiles();
+}
+
+function isBoardCodeRequiredForCategory(category) {
+  return category !== "ProblemSolving";
+}
+
+function getCatalogMetadataRequirementMessage(config) {
+  return `Model Device dan Code Board ${config.displayName} wajib diisi sebelum submit.`;
+}
+
+function supportsCatalogMd5Check(category) {
+  return category === "BIOS" || category === "Boardview";
+}
+
+function validateCatalogFileNameLength(fileName, displayName) {
+  const normalizedFileName = String(fileName || "").trim();
+  if (normalizedFileName.length < minCatalogFileNameLength || normalizedFileName.length > maxCatalogFileNameLength) {
+    throw new Error(`Nama file ${displayName} minimal ${minCatalogFileNameLength} karakter dan maksimal ${maxCatalogFileNameLength} karakter.`);
+  }
+}
+
+function resetCatalogBiosDuplicateCheck() {
+  catalogBiosDuplicateCheckToken += 1;
+  catalogBiosDuplicateFound = false;
+  if (catalogEditorMd5) {
+    catalogEditorMd5.value = "-";
+  }
+  if (catalogEditorAnalysisPanel) {
+    catalogEditorAnalysisPanel.className = "catalog-analysis-panel hidden";
+    catalogEditorAnalysisPanel.innerHTML = "";
+  }
+}
+
+function renderCatalogBiosDuplicateCheck(state, analysis = null) {
+  if (!catalogEditorAnalysisPanel) {
+    return;
+  }
+
+  if (state === "hidden") {
+    catalogEditorAnalysisPanel.className = "catalog-analysis-panel hidden";
+    catalogEditorAnalysisPanel.innerHTML = "";
+    return;
+  }
+
+  let toneClass = "is-info";
+  let icon = "info";
+  let title = "Cek MD5";
+  let body = "";
+
+  if (state === "loading") {
+    icon = "progress_activity";
+    title = "Sedang hitung MD5";
+    body = "<p>File sedang dihitung hash MD5 dan dicek langsung ke Telegram.</p>";
+  } else if (state === "error") {
+    toneClass = "is-warning";
+    icon = "warning";
+    title = "MD5 belum bisa dicek";
+    body = `<p>${escapeHtml(analysis?.message || "Cek MD5 file gagal dijalankan.")}</p>`;
+  } else {
+    const matches = Array.isArray(analysis?.matchingItems) ? analysis.matchingItems : [];
+    const detectedBiosType = analysis?.detectedBiosType || "";
+    const detectedMeVersion = analysis?.detectedMeVersion || "";
+    toneClass = analysis?.duplicateFound ? "is-warning" : "is-success";
+    icon = analysis?.duplicateFound ? "warning" : "check_circle";
+    title = analysis?.duplicateFound ? "File serupa sudah ada" : "File tidak ada duplikasi";
+    body = `
+      ${analysis?.message && analysis.message !== title ? `<p>${escapeHtml(analysis.message)}</p>` : ""}
+      ${detectedBiosType ? `<p class="catalog-analysis-detected">Terdeteksi: ${escapeHtml(detectedBiosType)}</p>` : ""}
+      ${detectedBiosType === "Intel BIOS" && detectedMeVersion ? `<p class="catalog-analysis-detected">ME Version: ${escapeHtml(detectedMeVersion)}</p>` : ""}
+      ${matches.length ? `
+      <div class="catalog-analysis-list">
+        ${matches.slice(0, 3).map((item) => `
+          <div class="catalog-analysis-item">
+            <strong>${escapeHtml(item.fileName || item.title || "File BIOS")}</strong>
+            <span>${escapeHtml(item.postedAt || "-")} • ${escapeHtml(item.uploadedBy || "Unknown")}</span>
+          </div>
+        `).join("")}
+      </div>` : ""}
+    `;
+  }
+
+  catalogEditorAnalysisPanel.className = `catalog-analysis-panel ${toneClass}`;
+  catalogEditorAnalysisPanel.innerHTML = `
+    <div class="catalog-analysis-head">
+      <span class="material-symbols-outlined ${state === "loading" ? "is-spinning" : ""}">${icon}</span>
+      <strong>${escapeHtml(title)}</strong>
+    </div>
+    ${body}
+  `;
+}
+
+async function checkSelectedCatalogDuplicate() {
+  if (catalogEditorMode === "edit" || !supportsCatalogMd5Check(currentCatalogView) || !catalogEditorFile?.files?.length) {
+    resetCatalogBiosDuplicateCheck();
+    return;
+  }
+
+  const config = getTelegramCatalogConfig(currentCatalogView);
+  const selectedFile = catalogEditorFile.files[0];
+  validateCatalogFileNameLength(selectedFile.name, config.displayName);
+  const lowerFileName = selectedFile.name.toLowerCase();
+  const allowedExtensions = currentCatalogView === "Boardview"
+    ? allowedBoardviewExtensions
+    : allowedBiosExtensions;
+  const hasAllowedExtension = allowedExtensions.some((extension) => lowerFileName.endsWith(extension));
+  if (!hasAllowedExtension) {
+    resetCatalogBiosDuplicateCheck();
+    renderCatalogBiosDuplicateCheck("error", { message: config.invalidExtensionMessage });
+    return;
+  }
+
+  const token = ++catalogBiosDuplicateCheckToken;
+  catalogBiosDuplicateFound = false;
+  if (catalogEditorMd5) {
+    catalogEditorMd5.value = "Menghitung...";
+  }
+  renderCatalogBiosDuplicateCheck("loading");
+
+  const formData = new FormData();
+  formData.set("file", selectedFile);
+
+  try {
+    const result = await fetchJson(`/catalog/${config.endpoint}/check-duplicate`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (token !== catalogBiosDuplicateCheckToken) {
+      return;
+    }
+
+    catalogBiosDuplicateFound = Boolean(result.duplicateFound);
+    if (catalogEditorMd5) {
+      catalogEditorMd5.value = result.md5 || "-";
+    }
+    renderCatalogBiosDuplicateCheck("result", result);
+  } catch (error) {
+    if (token !== catalogBiosDuplicateCheckToken) {
+      return;
+    }
+
+    catalogBiosDuplicateFound = false;
+    if (catalogEditorMd5) {
+      catalogEditorMd5.value = "-";
+    }
+    renderCatalogBiosDuplicateCheck("error", { message: error.message });
+  }
+}
+
 function openCatalogEditor(mode, item = null) {
   catalogEditorMode = mode;
   toggleElement(catalogEditorModal, true);
@@ -691,12 +1017,17 @@ function openCatalogEditor(mode, item = null) {
   const targetCategory = item?.category || currentCatalogView;
   const config = getTelegramCatalogConfig(targetCategory);
   const isEditMode = mode === "edit";
+  const isProblemSolvingUpload = !isEditMode && targetCategory === "ProblemSolving";
+  const boardCodeRequired = isBoardCodeRequiredForCategory(targetCategory);
   setText(catalogEditorTitle, isEditMode ? config.editTitle : config.uploadLabel);
   catalogEditorMessageId.value = isEditMode && item ? String(item.messageId || "") : "";
   catalogEditorDeviceModel.value = item?.deviceModel === "-" ? "" : (item?.deviceModel || "");
   catalogEditorSerialNumber.value = item?.serialNumber === "-" ? "" : (item?.serialNumber || "");
   catalogEditorBoardCode.value = item?.boardCode === "-" ? "" : (item?.boardCode || "");
   catalogEditorNote.value = item?.note === "-" ? "" : (item?.note || "");
+  if (catalogEditorMd5) {
+    catalogEditorMd5.value = item?.md5 || "-";
+  }
   if (catalogEditorFile) {
     catalogEditorFile.value = "";
     catalogEditorFile.disabled = isEditMode;
@@ -712,6 +1043,32 @@ function openCatalogEditor(mode, item = null) {
   if (fileLabel) {
     fileLabel.textContent = config.fileLabel;
   }
+  toggleElement(catalogEditorMd5Field, supportsCatalogMd5Check(targetCategory));
+  renderCatalogAdditionalFiles();
+  if (isEditMode && supportsCatalogMd5Check(targetCategory) && catalogEditorMd5?.value) {
+    renderCatalogBiosDuplicateCheck("result", {
+      duplicateFound: false,
+      message: `Metadata ${config.displayName} ini sudah menyimpan MD5 ${catalogEditorMd5.value}.`,
+      md5: catalogEditorMd5.value,
+      matchingItems: []
+    });
+  } else if (!isProblemSolvingUpload && supportsCatalogMd5Check(targetCategory)) {
+    resetCatalogBiosDuplicateCheck();
+  } else {
+    renderCatalogBiosDuplicateCheck("hidden");
+  }
+  toggleElement(catalogEditorMetadataFields, !isProblemSolvingUpload);
+  if (catalogEditorDeviceModel) {
+    catalogEditorDeviceModel.required = !isProblemSolvingUpload;
+  }
+  if (catalogEditorBoardCode) {
+    catalogEditorBoardCode.required = !isProblemSolvingUpload && boardCodeRequired;
+  }
+  [catalogEditorSerialNumber, catalogEditorNote].forEach((input) => {
+    if (input) {
+      input.required = false;
+    }
+  });
 
   catalogEditorSubmitButton.innerHTML = isEditMode
     ? `<span class="material-symbols-outlined">save</span><span>Simpan Perubahan</span>`
@@ -724,10 +1081,28 @@ function closeCatalogEditor() {
   if (catalogEditorForm) {
     catalogEditorForm.reset();
   }
+  resetCatalogBiosDuplicateCheck();
   if (catalogEditorFile) {
     catalogEditorFile.disabled = false;
     catalogEditorFile.required = false;
   }
+  toggleElement(catalogEditorMd5Field, true);
+  if (catalogEditorAdditionalFilesList) {
+    catalogEditorAdditionalFilesList.innerHTML = "";
+  }
+  renderCatalogAdditionalFiles();
+  toggleElement(catalogEditorMetadataFields, true);
+  if (catalogEditorDeviceModel) {
+    catalogEditorDeviceModel.required = true;
+  }
+  if (catalogEditorBoardCode) {
+    catalogEditorBoardCode.required = true;
+  }
+  [catalogEditorSerialNumber, catalogEditorNote].forEach((input) => {
+    if (input) {
+      input.required = false;
+    }
+  });
 }
 
 function openAboutModal() {
@@ -738,13 +1113,12 @@ function closeAboutModal() {
   toggleElement(aboutModal, false);
 }
 
-function openProblemSolvingViewer(title, content, meta = "") {
+function openProblemSolvingViewer(title, content) {
   if (!problemSolvingViewerModal || !problemSolvingViewerContent) {
     return;
   }
 
   setText(problemSolvingViewerTitle, title || "Baca postingan");
-  setText(problemSolvingViewerMeta, meta || "");
   problemSolvingViewerContent.textContent = content || "";
   toggleElement(problemSolvingViewerModal, true);
 }
@@ -756,7 +1130,6 @@ function closeProblemSolvingViewer() {
 
   toggleElement(problemSolvingViewerModal, false);
   setText(problemSolvingViewerTitle, "Baca postingan");
-  setText(problemSolvingViewerMeta, "");
   if (problemSolvingViewerContent) {
     problemSolvingViewerContent.textContent = "";
   }
@@ -817,9 +1190,7 @@ async function viewProblemSolvingItem(messageId, button = null) {
     });
     const content = result.content || result.rawContent || result.text || "";
     const title = result.fileName || result.title || findCatalogItemByMessageId(messageId)?.fileName || "Problem Solving";
-    const cachePath = result.cachedFilePath || "AppData\\Roaming\\TeknisiHub\\CatalogCache";
-    setNotice(result.message || "Postingan Problem Solving dibuka dari cache backend.");
-    openProblemSolvingViewer(title, content, `Sumber cache: ${cachePath}`);
+    openProblemSolvingViewer(title, content);
   } finally {
     if (button) {
       button.disabled = false;
@@ -829,7 +1200,7 @@ async function viewProblemSolvingItem(messageId, button = null) {
 }
 
 function filterCatalogItems() {
-  if (currentCatalogView === spiFlashPage.viewKey) {
+  if (currentCatalogView === spiFlashPage.viewKey || currentCatalogView === meAnalyzerPage.viewKey || currentCatalogView === uefiToolPage.viewKey) {
     renderCatalog([], currentCatalogView);
     return;
   }
@@ -849,10 +1220,9 @@ function filterCatalogItems() {
       return item.category === "Tools" && item.title.toLowerCase().includes("uefi");
     }
 
-    if (currentCatalogView === "tool_other") {
+    if (currentCatalogView === boardViewerPage.viewKey) {
       return item.category === "Tools" &&
-        !item.title.toLowerCase().includes("spi") &&
-        !item.title.toLowerCase().includes("uefi");
+        item.title.toLowerCase().includes("board");
     }
 
     return false;
@@ -938,7 +1308,7 @@ async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
 }
 
 async function loadCatalog() {
-  if (currentCatalogView === spiFlashPage.viewKey) {
+  if (currentCatalogView === spiFlashPage.viewKey || currentCatalogView === meAnalyzerPage.viewKey || currentCatalogView === uefiToolPage.viewKey) {
     renderCatalog([], currentCatalogView);
     return;
   }
@@ -1454,6 +1824,11 @@ async function fetchJson(path, options = {}) {
 }
 
 async function refreshStatus() {
+  toggleElement(mainPanel, false);
+  setError("");
+  setText(serviceStatus, "Mengecek koneksi...");
+  setText(serviceVersion, "Versi: mengecek...");
+
   try {
     const health = await fetchJson("/health");
     setText(serviceStatus, health.ready ? "Siap" : "Belum siap");
@@ -1465,12 +1840,16 @@ async function refreshStatus() {
 
     const status = await fetchJson("/auth/status");
     applyStatus(status);
+    await refreshCatalogStats();
   } catch (error) {
     setText(serviceStatus, "Tidak aktif");
     setText(serviceVersion, "Versi: offline");
     setServiceUpdateNotice("");
     hideInteractivePanels();
     setDownloadLinkState(true);
+    if (dashboardCatalogTotal) {
+      dashboardCatalogTotal.textContent = "0 file";
+    }
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
   }
@@ -1478,6 +1857,7 @@ async function refreshStatus() {
 
 async function submitCatalogEditor() {
   const config = getTelegramCatalogConfig();
+  const isProblemSolvingUpload = catalogEditorMode !== "edit" && config.endpoint === "problem-solving";
   const payload = {
     deviceModel: catalogEditorDeviceModel?.value.trim() || "",
     serialNumber: catalogEditorSerialNumber?.value.trim() || "",
@@ -1485,8 +1865,9 @@ async function submitCatalogEditor() {
     note: catalogEditorNote?.value.trim() || ""
   };
 
-  if (!payload.deviceModel || !payload.serialNumber || !payload.boardCode || !payload.note) {
-    throw new Error(`Semua field metadata ${config.displayName} wajib diisi sebelum submit.`);
+  const boardCodeRequired = isBoardCodeRequiredForCategory(currentCatalogView);
+  if (!isProblemSolvingUpload && (!payload.deviceModel || (boardCodeRequired && !payload.boardCode))) {
+    throw new Error(getCatalogMetadataRequirementMessage(config));
   }
 
   if (catalogEditorMode === "edit") {
@@ -1506,6 +1887,7 @@ async function submitCatalogEditor() {
   }
 
   const selectedFile = catalogEditorFile.files[0];
+  validateCatalogFileNameLength(selectedFile.name, config.displayName);
   const lowerFileName = selectedFile.name.toLowerCase();
   const allowedExtensions = config.endpoint === "boardview"
     ? allowedBoardviewExtensions
@@ -1519,10 +1901,19 @@ async function submitCatalogEditor() {
 
   const formData = new FormData();
   formData.set("file", selectedFile);
-  formData.set("deviceModel", payload.deviceModel);
-  formData.set("serialNumber", payload.serialNumber);
-  formData.set("boardCode", payload.boardCode);
-  formData.set("note", payload.note);
+  formData.set("md5", catalogEditorMd5?.value.trim() || "");
+  getCatalogAdditionalFileInputs().forEach((input) => {
+    const extraFile = input.files?.[0];
+    if (extraFile) {
+      formData.append("additionalFiles", extraFile);
+    }
+  });
+  if (!isProblemSolvingUpload) {
+    formData.set("deviceModel", payload.deviceModel);
+    formData.set("serialNumber", payload.serialNumber);
+    formData.set("boardCode", payload.boardCode);
+    formData.set("note", payload.note);
+  }
 
   const result = await fetchJson(`/catalog/${config.endpoint}`, {
     method: "POST",
@@ -1546,6 +1937,14 @@ async function deleteCatalogItem(category, messageId) {
 async function downloadCatalogItem(category, messageId) {
   const config = getTelegramCatalogConfig(category);
   const result = await fetchJson(`/catalog/${config.endpoint}/${messageId}/download`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  setNotice(result.message);
+}
+
+async function openBoardviewCatalogItem(messageId) {
+  const result = await fetchJson(`/catalog/boardview/${messageId}/open`, {
     method: "POST",
     body: JSON.stringify({})
   });
@@ -1776,6 +2175,31 @@ if (catalogList) {
       return;
     }
 
+    const openButton = event.target.closest(".catalog-open-button");
+    if (openButton) {
+      const messageId = Number(openButton.getAttribute("data-message-id") || 0);
+      const fileName = openButton.getAttribute("data-file-name") || "Boardview";
+      if (messageId > 0) {
+        const previousMarkup = openButton.innerHTML;
+        openButton.disabled = true;
+        openButton.innerHTML = `
+          <span class="material-symbols-outlined is-spinning">progress_activity</span>
+          <span>Membuka...</span>
+        `;
+
+        try {
+          setNotice(`Mengecek cache Boardview untuk ${fileName}, lalu membuka file lewat Boardviewer jika tersedia.`);
+          await openBoardviewCatalogItem(messageId);
+        } catch (error) {
+          setNotice(error.message, true);
+        } finally {
+          openButton.disabled = false;
+          openButton.innerHTML = previousMarkup;
+        }
+      }
+      return;
+    }
+
     const button = event.target.closest(".catalog-download-button");
     if (button) {
       const title = button.getAttribute("data-title") || "item dummy";
@@ -1951,41 +2375,23 @@ catalogRefreshButton?.addEventListener("click", refreshCurrentTelegramCatalog);
 
 catalogEditorCloseButton?.addEventListener("click", closeCatalogEditor);
 
-catalogEditorModal?.addEventListener("click", (event) => {
-  if (event.target === catalogEditorModal) {
-    closeCatalogEditor();
-  }
+catalogEditorFile?.addEventListener("change", () => {
+  checkSelectedCatalogDuplicate().catch((error) => {
+    renderCatalogBiosDuplicateCheck("error", { message: error.message });
+  });
 });
+
+catalogEditorAddFileButton?.addEventListener("click", appendCatalogAdditionalFileInput);
 
 aboutFooterButton?.addEventListener("click", openAboutModal);
 
 aboutModalCloseButton?.addEventListener("click", closeAboutModal);
 
-aboutModal?.addEventListener("click", (event) => {
-  if (event.target === aboutModal) {
-    closeAboutModal();
-  }
-});
-
 problemSolvingViewerCloseButton?.addEventListener("click", closeProblemSolvingViewer);
-
-problemSolvingViewerModal?.addEventListener("click", (event) => {
-  if (event.target === problemSolvingViewerModal) {
-    closeProblemSolvingViewer();
-  }
-});
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
-  }
-
-  if (aboutModal && !aboutModal.classList.contains("hidden")) {
-    closeAboutModal();
-  }
-
-  if (problemSolvingViewerModal && !problemSolvingViewerModal.classList.contains("hidden")) {
-    closeProblemSolvingViewer();
   }
 });
 
@@ -2030,14 +2436,20 @@ toolSpiFlash?.addEventListener("click", () => {
   filterCatalogItems();
 });
 
+toolMeAnalyzer?.addEventListener("click", () => {
+  currentCatalogView = meAnalyzerPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
 toolUefi?.addEventListener("click", () => {
-  currentCatalogView = "tool_uefi";
+  currentCatalogView = uefiToolPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
 toolOther?.addEventListener("click", () => {
-  currentCatalogView = "tool_other";
+  currentCatalogView = boardViewerPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
