@@ -148,7 +148,7 @@
           </div>
           <div class="dashboard-actions">
             <div class="dashboard-chip">
-              <span class="material-symbols-outlined">verified_user</span>
+              <span id="dashboardRoleChipIcon" class="material-symbols-outlined">verified_user</span>
               <span id="dashboardRoleChip">Akses tervalidasi</span>
             </div>
             <button id="logoutButton" type="button" class="ghost">
@@ -170,7 +170,7 @@
           <article class="stat-card stat-channel">
             <div>
               <p class="label">Akses Channel</p>
-              <strong id="dashboardChannelStatus">Belum diverifikasi</strong>
+              <strong id="dashboardChannelStatus">Total member channel belum tersedia</strong>
             </div>
             <span class="material-symbols-outlined">groups</span>
           </article>
@@ -210,6 +210,10 @@
                   <span class="material-symbols-outlined">psychology</span>
                   <span>Problem Solving</span>
                 </button>
+                <button id="navDatasheets" type="button" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">picture_as_pdf</span>
+                  <span>Datasheets</span>
+                </button>
                 <details id="navTools" class="sidebar-dropdown" open>
                   <summary>
                     <span class="summary-left">
@@ -227,6 +231,9 @@
                     </button>
                     <button id="toolUefi" type="button" class="sidebar-nav-button">
                       <span>UEFI Tools</span>
+                    </button>
+                    <button id="toolBiosPassword" type="button" class="sidebar-nav-button">
+                      <span>BIOS Unlock Password</span>
                     </button>
                     <button id="toolOther" type="button" class="sidebar-nav-button">
                       <span>Boardviewer</span>
@@ -248,6 +255,10 @@
                   <span id="accessRole">Role channel belum tersedia</span>
                 </li>
                 <li>
+                  <span class="material-symbols-outlined">groups</span>
+                  <span id="accessChannelCount">Belum ada channel aktif</span>
+                </li>
+                <li>
                   <span class="material-symbols-outlined">verified</span>
                   <span id="accessState">Status akses belum penuh</span>
                 </li>
@@ -259,6 +270,7 @@
             <section id="spiFlashWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="biosPasswordWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="boardViewerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
 
             <section id="catalogSection" class="catalog hidden">
@@ -273,6 +285,10 @@
                   <span class="material-symbols-outlined">search</span>
                   <input id="catalogSearchInput" type="text" placeholder="Cari file bios...">
                 </label>
+                <div id="catalogSearchStatus" class="catalog-search-status hidden" aria-live="polite">
+                  <span class="material-symbols-outlined is-spinning">progress_activity</span>
+                  <span>Sedang mencari...</span>
+                </div>
                 <div class="catalog-toolbar-actions">
                   <button id="catalogUploadButton" type="button" class="ghost hidden">
                     <span class="material-symbols-outlined">upload_file</span>
@@ -430,6 +446,7 @@
   <script src="pages/spi-flash/page.js"></script>
   <script src="pages/me-analyzer/page.js"></script>
   <script src="pages/uefi-tool/page.js"></script>
+  <script src="pages/bios-password/page.js"></script>
   <script src="pages/boardviewer/page.js"></script>
   <script src="app.js"></script>
 </body>

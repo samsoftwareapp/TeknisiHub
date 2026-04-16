@@ -569,8 +569,10 @@ h1 {
 .dashboard-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .dashboard-chip {
@@ -583,11 +585,13 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: #fff;
   font-weight: 600;
+  margin-left: auto;
 }
 
 .dashboard-actions .ghost {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.2);
+  margin-left: 0;
 }
 
 .dashboard-actions .ghost:hover {
@@ -811,10 +815,6 @@ h1 {
   gap: 10px;
 }
 
-#accessRole {
-  white-space: pre-line;
-}
-
 .dashboard-main {
   display: grid;
   gap: 18px;
@@ -865,6 +865,7 @@ h1 {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .catalog-context-panel {
@@ -903,6 +904,10 @@ h1 {
   background: rgba(255, 255, 255, 0.82);
 }
 
+.catalog-search.is-hidden {
+  display: none;
+}
+
 .catalog-search input {
   border: none;
   background: transparent;
@@ -913,6 +918,22 @@ h1 {
 
 .catalog-search input:focus {
   outline: none;
+}
+
+.catalog-search-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(22, 78, 125, 0.08);
+  border: 1px solid rgba(22, 78, 125, 0.12);
+  color: var(--deep);
+  font-weight: 600;
+}
+
+.catalog-search-status .material-symbols-outlined {
+  font-size: 1.1rem;
 }
 
 .catalog-count {
@@ -1817,6 +1838,149 @@ h1 {
   font-size: 0.92rem;
 }
 
+.bios-password-hero {
+  background:
+    radial-gradient(circle at top right, rgba(255, 228, 173, 0.24), transparent 30%),
+    linear-gradient(135deg, #45300b, #8a5c17 52%, #e2a72d);
+  box-shadow: 0 22px 48px rgba(84, 56, 6, 0.24);
+}
+
+.bios-password-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.bios-password-layout {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+.bios-password-input-label {
+  display: grid;
+  gap: 8px;
+}
+
+.bios-password-input {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 73, 30, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  padding: 14px 16px;
+  font: inherit;
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+.bios-password-actions {
+  margin-top: 16px;
+}
+
+.bios-password-checklist {
+  display: grid;
+  gap: 12px;
+}
+
+.bios-password-actions-list {
+  margin-top: 16px;
+}
+
+.bios-password-checklist p {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(196, 95, 32, 0.07);
+}
+
+.bios-password-pattern-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bios-password-result-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.bios-password-result-card {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(125, 73, 30, 0.12);
+  background: rgba(255, 252, 248, 0.94);
+}
+
+.bios-password-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--muted);
+}
+
+.bios-password-empty-state span {
+  font-size: 2rem;
+  color: rgba(138, 92, 23, 0.8);
+}
+
+.bios-password-pattern-card {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(125, 73, 30, 0.12);
+  background: rgba(255, 252, 248, 0.9);
+}
+
+.bios-password-pattern-card.is-active {
+  border-color: rgba(37, 120, 63, 0.24);
+  background: linear-gradient(180deg, rgba(230, 248, 236, 0.98), rgba(205, 238, 217, 0.98));
+}
+
+.bios-password-pattern-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.bios-password-pattern-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.bios-password-example-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.bios-password-example-row code,
+.bios-password-password-row code {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(69, 48, 11, 0.08);
+  color: var(--deep);
+  font-size: 0.88rem;
+}
+
+.bios-password-example-button {
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+.bios-password-password-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.bios-password-password-row code {
+  background: linear-gradient(180deg, rgba(230, 248, 236, 0.98), rgba(205, 238, 217, 0.98));
+  border: 1px solid rgba(37, 120, 63, 0.16);
+}
+
 label {
   font-weight: 600;
 }
@@ -1914,7 +2078,8 @@ a {
   .spi-bottom-grid,
   .spi-form-grid,
   .spi-device-grid,
-  .spi-action-grid {
+  .spi-action-grid,
+  .bios-password-pattern-grid {
     grid-template-columns: 1fr;
   }
 
