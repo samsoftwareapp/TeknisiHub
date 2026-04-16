@@ -1639,7 +1639,11 @@ function applyUpdateRequirement(health) {
   const latestVersion = update.latestVersion || "latest";
   const downloadUrl = update.downloadUrl || defaultDownloadLocalServiceUrl;
   const updateMessage = update.message || `Update local service ke versi ${latestVersion} untuk lanjut menggunakan TeknisiHub.`;
-  const noteMessage = update.notes ? ` Catatan: ${update.notes}` : "";
+  const noteDate = (update.noteDate || "").trim();
+  const noteText = (update.noteText || "").trim();
+  const noteMessage = noteText
+    ? ` Catatan rilis ${noteDate || "terbaru"}: ${noteText}`
+    : (update.notes ? ` Catatan: ${update.notes}` : "");
 
   setText(serviceStatus, "Wajib update");
   setText(serviceVersion, `Versi: ${currentVersion} -> ${latestVersion}`);
