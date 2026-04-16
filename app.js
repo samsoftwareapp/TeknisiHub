@@ -164,6 +164,10 @@ let currentBiosChannelRole = "";
 let currentBoardviewChannelRole = "";
 let currentProblemSolvingChannelRole = "";
 let currentDatasheetsChannelRole = "";
+let currentRequiredChannelInviteLink = "";
+let currentBoardviewChannelInviteLink = "";
+let currentProblemSolvingChannelInviteLink = "";
+let currentDatasheetsChannelInviteLink = "";
 let isProblemSolvingMember = false;
 let isDatasheetsMember = false;
 const catalogJoinRequiredState = {
@@ -589,7 +593,7 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
       description: "Setelah berhasil join, katalog BIOS bisa langsung dibuka dan tombol refresh akan memakai cache backend.",
       buttonId: "biosJoinButton",
       buttonLabel: "Gabung Channel BIOS",
-      link: "https://t.me/+Xew7ZbqEE9A3NjNl",
+      link: currentRequiredChannelInviteLink,
       emptyMessage: "Gabung channel BIOS dulu, lalu buka ulang atau refresh katalog."
     };
   }
@@ -600,7 +604,7 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
       description: "Setelah berhasil join, katalog Boardview bisa langsung dibuka dan tombol refresh akan memakai cache backend.",
       buttonId: "boardviewJoinButton",
       buttonLabel: "Gabung Channel Boardview",
-      link: "https://t.me/+0oa9XOhoXZExNDNl",
+      link: currentBoardviewChannelInviteLink,
       emptyMessage: "Gabung channel Boardview dulu, lalu buka ulang atau refresh katalog."
     };
   }
@@ -611,7 +615,7 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
       description: "Setelah berhasil join, katalog Datasheets bisa langsung dibuka dan file PDF dapat diunduh dari dashboard.",
       buttonId: "datasheetsJoinButton",
       buttonLabel: "Gabung Channel Datasheets",
-      link: "https://t.me/+5zNsXe_qOG4zM2M9",
+      link: currentDatasheetsChannelInviteLink,
       emptyMessage: "Gabung channel Datasheets dulu, lalu refresh katalog."
     };
   }
@@ -621,7 +625,7 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
     description: "Setelah berhasil join, tombol refresh akan memakai cache backend seperti katalog Telegram lainnya.",
     buttonId: "problemSolvingJoinButton",
     buttonLabel: "Gabung Channel",
-    link: "https://t.me/+lDTpuhq-9v40OWI1",
+    link: currentProblemSolvingChannelInviteLink,
     emptyMessage: "Gabung channel Problem Solving dulu, lalu refresh katalog."
   };
 }
@@ -848,10 +852,6 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">group_add</span>
             <span>${escapeHtml(joinPromptConfig.buttonLabel)}</span>
           </button>
-          <a class="sidebar-link" href="${escapeHtml(joinPromptConfig.link)}" target="_blank" rel="noopener noreferrer">
-            <span class="material-symbols-outlined">open_in_new</span>
-            <span>Buka link channel</span>
-          </a>
         </div>
       `;
       toggleElement(catalogContextPanel, true);
@@ -2018,6 +2018,10 @@ function applyStatus(status) {
   setServiceUpdateNotice("");
   setPreviousVersionsState(false);
   setError("");
+  currentRequiredChannelInviteLink = status.requiredChannelInviteLink || "";
+  currentBoardviewChannelInviteLink = status.boardviewChannelInviteLink || "";
+  currentProblemSolvingChannelInviteLink = status.problemSolvingChannelInviteLink || "";
+  currentDatasheetsChannelInviteLink = status.datasheetsChannelInviteLink || "";
 
   const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
   const hasBoardviewLink = Boolean(status.boardviewChannelInviteLink);
