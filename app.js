@@ -3,6 +3,7 @@ const serviceBaseUrl = "http://127.0.0.1:48721";
 const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
 const downloadLocalServiceLink = document.getElementById("downloadLocalServiceLink");
+const viewPreviousVersionsButton = document.getElementById("viewPreviousVersionsButton");
 const serviceUpdateNotice = document.getElementById("serviceUpdateNotice");
 const mainPanel = document.getElementById("mainPanel");
 const toastContainer = document.getElementById("toastContainer");
@@ -86,8 +87,12 @@ const problemSolvingViewerModal = document.getElementById("problemSolvingViewerM
 const problemSolvingViewerTitle = document.getElementById("problemSolvingViewerTitle");
 const problemSolvingViewerContent = document.getElementById("problemSolvingViewerContent");
 const problemSolvingViewerCloseButton = document.getElementById("problemSolvingViewerCloseButton");
+const previousVersionsModal = document.getElementById("previousVersionsModal");
+const previousVersionsList = document.getElementById("previousVersionsList");
+const previousVersionsCloseButton = document.getElementById("previousVersionsCloseButton");
 const defaultDownloadLocalServiceUrl = downloadLocalServiceLink?.getAttribute("href") || "";
 const defaultDownloadLocalServiceLabel = downloadLocalServiceLink?.textContent?.trim() || "Download local service";
+let previousVersionNotes = [];
 
 const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   viewKey: "tool_spi_flash",
@@ -1135,6 +1140,53 @@ function closeProblemSolvingViewer() {
   }
 }
 
+function renderPreviousVersions(history = []) {
+  if (!previousVersionsList) {
+    return;
+  }
+
+  if (!Array.isArray(history) || history.length === 0) {
+    previousVersionsList.innerHTML = `<p class="previous-versions-empty">Belum ada histori versi sebelumnya.</p>`;
+    return;
+  }
+
+  previousVersionsList.innerHTML = history
+    .map((entry) => {
+      const date = escapeHtml((entry?.date || "").trim() || "Tanpa tanggal");
+      const text = escapeHtml((entry?.text || "").trim() || "Tidak ada catatan.");
+
+      return `
+        <article class="previous-version-item">
+          <p class="previous-version-date">${date}</p>
+          <p class="previous-version-text">${text}</p>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function openPreviousVersionsModal() {
+  if (!previousVersionsModal) {
+    return;
+  }
+
+  renderPreviousVersions(previousVersionNotes);
+  toggleElement(previousVersionsModal, true);
+}
+
+function closePreviousVersionsModal() {
+  toggleElement(previousVersionsModal, false);
+}
+
+function setPreviousVersionsState(visible, history = []) {
+  previousVersionNotes = Array.isArray(history) ? history : [];
+  toggleElement(viewPreviousVersionsButton, visible && previousVersionNotes.length > 0);
+
+  if (!visible) {
+    closePreviousVersionsModal();
+  }
+}
+
 async function joinCatalogChannel(viewKey = currentCatalogView, button = null) {
   const previousMarkup = button?.innerHTML || "";
   if (button) {
@@ -1606,6 +1658,7 @@ function hideInteractivePanels() {
   toggleElement(channelJoinPanel, false);
   toggleElement(agreementPanel, false);
   toggleElement(dashboardPanel, false);
+  setPreviousVersionsState(false);
   resetCatalog();
 }
 
@@ -1632,6 +1685,7 @@ function applyUpdateRequirement(health) {
   const update = health?.update;
   if (!update?.mustUpdate) {
     setServiceUpdateNotice("");
+    setPreviousVersionsState(false);
     return false;
   }
 
@@ -1650,6 +1704,7 @@ function applyUpdateRequirement(health) {
   setServiceUpdateNotice(`${updateMessage}${noteMessage}`);
   setDownloadLinkState(true, downloadUrl, "Update local service");
   hideInteractivePanels();
+  setPreviousVersionsState(true, update.noteHistory || []);
   setError("");
   setNotice(`Local service versi ${currentVersion} harus diperbarui ke ${latestVersion} sebelum lanjut menggunakan dashboard.`, true);
   return true;
@@ -1660,6 +1715,7 @@ function applyStatus(status) {
   toggleElement(mainPanel, true);
   setDownloadLinkState(false);
   setServiceUpdateNotice("");
+  setPreviousVersionsState(false);
   setError("");
 
   const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
@@ -2393,10 +2449,18 @@ aboutModalCloseButton?.addEventListener("click", closeAboutModal);
 
 problemSolvingViewerCloseButton?.addEventListener("click", closeProblemSolvingViewer);
 
+viewPreviousVersionsButton?.addEventListener("click", openPreviousVersionsModal);
+
+previousVersionsCloseButton?.addEventListener("click", closePreviousVersionsModal);
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
   }
+
+  closeAboutModal();
+  closeProblemSolvingViewer();
+  closePreviousVersionsModal();
 });
 
 catalogEditorForm?.addEventListener("submit", async (event) => {

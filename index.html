@@ -54,6 +54,10 @@
       >
         Download local service
       </a>
+      <button id="viewPreviousVersionsButton" type="button" class="ghost hero-secondary-action hidden">
+        <span class="material-symbols-outlined">history</span>
+        <span>Lihat versi sebelumnya</span>
+      </button>
       <p id="serviceUpdateNotice" class="service-update-notice hidden"></p>
     </section>
 
@@ -404,6 +408,22 @@
         </button>
       </div>
       <pre id="problemSolvingViewerContent" class="problem-solving-viewer-content"></pre>
+    </div>
+  </div>
+
+  <div id="previousVersionsModal" class="catalog-modal hidden">
+    <div class="catalog-modal-card previous-versions-modal-card">
+      <div class="catalog-modal-head">
+        <div>
+          <p class="label">Update local service</p>
+          <h3>Versi sebelumnya</h3>
+        </div>
+        <button id="previousVersionsCloseButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">close</span>
+          <span>Tutup</span>
+        </button>
+      </div>
+      <div id="previousVersionsList" class="previous-versions-list"></div>
     </div>
   </div>
 

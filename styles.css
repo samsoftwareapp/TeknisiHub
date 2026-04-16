@@ -290,6 +290,10 @@ h1 {
   box-shadow: 0 16px 36px rgba(22, 78, 125, 0.22);
 }
 
+.hero-secondary-action {
+  margin-top: 12px;
+}
+
 .hero-download:hover {
   transform: translateY(-1px);
   box-shadow: 0 20px 40px rgba(22, 78, 125, 0.28);
@@ -1092,6 +1096,45 @@ h1 {
 
 .problem-solving-modal-card {
   width: min(880px, 100%);
+}
+
+.previous-versions-modal-card {
+  width: min(760px, 100%);
+}
+
+.previous-versions-list {
+  display: grid;
+  gap: 12px;
+}
+
+.previous-version-item {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.previous-version-date {
+  margin: 0;
+  color: var(--deep);
+  font-weight: 800;
+}
+
+.previous-version-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.previous-versions-empty {
+  margin: 0;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(22, 78, 125, 0.06);
+  color: var(--muted);
 }
 
 .problem-solving-viewer-content {
