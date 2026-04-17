@@ -45,6 +45,7 @@ const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
 const boardViewerWorkbench = document.getElementById("boardViewerWorkbench");
+const settingsWorkbench = document.getElementById("settingsWorkbench");
 const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
 const toastAutoHideDelayMs = 4000;
@@ -84,6 +85,7 @@ const navBoardview = document.getElementById("navBoardview");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
 const navTools = document.getElementById("navTools");
+const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
@@ -149,6 +151,17 @@ const boardViewerPage = window.teknisiHubPages?.boardViewer || {
   eyebrow: "Boardviewer",
   title: "Boardviewer",
   subtitle: "Utility lokal untuk membuka file boardview lewat local service.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const settingsPage = window.teknisiHubPages?.settings || {
+  viewKey: "settings",
+  eyebrow: "Pengaturan",
+  title: "Pengaturan",
+  subtitle: "Pengaturan dasar untuk local service.",
   items: [],
   mount() {},
   setVisible() {},
@@ -252,6 +265,11 @@ boardViewerPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+settingsPage.mount?.({
+  container: settingsWorkbench,
+  notify: (message) => setNotice(message)
+});
+
 const telegramCatalogConfigs = {
   BIOS: {
     displayName: "BIOS",
@@ -328,8 +346,23 @@ const toolViewMap = {
     title: boardViewerPage.title,
     subtitle: boardViewerPage.subtitle,
     channelLink: null
+  },
+  [settingsPage.viewKey]: {
+    eyebrow: settingsPage.eyebrow,
+    title: settingsPage.title,
+    subtitle: settingsPage.subtitle,
+    channelLink: null
   }
 };
+
+const localWorkbenchViewKeys = new Set([
+  spiFlashPage.viewKey,
+  meAnalyzerPage.viewKey,
+  uefiToolPage.viewKey,
+  biosPasswordPage.viewKey,
+  boardViewerPage.viewKey,
+  settingsPage.viewKey
+]);
 
 const viewHashMap = {
   BIOS: "BIOS",
@@ -340,7 +373,8 @@ const viewHashMap = {
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
   [biosPasswordPage.viewKey]: "BiosPassword",
-  [boardViewerPage.viewKey]: "Boardviewer"
+  [boardViewerPage.viewKey]: "Boardviewer",
+  [settingsPage.viewKey]: "Settings"
 };
 
 const hashRouteMap = {
@@ -358,7 +392,8 @@ const hashRouteMap = {
   biospassword: biosPasswordPage.viewKey,
   toolbiospassword: biosPasswordPage.viewKey,
   boardviewer: boardViewerPage.viewKey,
-  toolboardviewer: boardViewerPage.viewKey
+  toolboardviewer: boardViewerPage.viewKey,
+  settings: settingsPage.viewKey
 };
 
 function escapeHtml(value) {
@@ -380,7 +415,8 @@ function getViewButton(viewKey) {
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
     [biosPasswordPage.viewKey]: toolBiosPassword,
-    [boardViewerPage.viewKey]: toolOther
+    [boardViewerPage.viewKey]: toolOther,
+    [settingsPage.viewKey]: navSettings
   };
 
   return navMap[viewKey] || null;
@@ -668,6 +704,7 @@ function showWorkbenchOnly(viewKey) {
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
   biosPasswordPage.setVisible?.(viewKey === biosPasswordPage.viewKey);
   boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
+  settingsPage.setVisible?.(viewKey === settingsPage.viewKey);
 
   if (viewKey === spiFlashPage.viewKey) {
     spiFlashPage.refresh?.();
@@ -688,6 +725,10 @@ function showWorkbenchOnly(viewKey) {
   if (viewKey === boardViewerPage.viewKey) {
     boardViewerPage.refresh?.();
   }
+
+  if (viewKey === settingsPage.viewKey) {
+    settingsPage.refresh?.();
+  }
 }
 
 function hideWorkbench() {
@@ -696,6 +737,7 @@ function hideWorkbench() {
   uefiToolPage.setVisible?.(false);
   biosPasswordPage.setVisible?.(false);
   boardViewerPage.setVisible?.(false);
+  settingsPage.setVisible?.(false);
 }
 
 function setActiveNav(targetKey) {
@@ -708,7 +750,8 @@ function setActiveNav(targetKey) {
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
     tool_bios_password: toolBiosPassword,
-    tool_boardviewer: toolOther
+    tool_boardviewer: toolOther,
+    [settingsPage.viewKey]: navSettings
   };
 
   Object.entries(navMap).forEach(([key, element]) => {
@@ -805,13 +848,7 @@ function updateCatalogHeader(viewKey) {
 }
 
 function renderCatalog(items, viewKey = currentCatalogView) {
-  if (
-    viewKey === spiFlashPage.viewKey ||
-    viewKey === meAnalyzerPage.viewKey ||
-    viewKey === uefiToolPage.viewKey ||
-    viewKey === biosPasswordPage.viewKey ||
-    viewKey === boardViewerPage.viewKey
-  ) {
+  if (localWorkbenchViewKeys.has(viewKey)) {
     setActiveNav(viewKey);
     if (catalogCount) {
       catalogCount.textContent = viewKey === spiFlashPage.viewKey
@@ -822,7 +859,9 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "UEFI UI"
         : viewKey === biosPasswordPage.viewKey
         ? "PWD UI"
-        : "BRD UI";
+        : viewKey === boardViewerPage.viewKey
+        ? "BRD UI"
+        : "SET UI";
     }
     showWorkbenchOnly(viewKey);
     return;
@@ -1504,7 +1543,7 @@ function viewDatasheetsItem(messageId) {
 }
 
 function filterCatalogItems() {
-  if (currentCatalogView === spiFlashPage.viewKey || currentCatalogView === meAnalyzerPage.viewKey || currentCatalogView === uefiToolPage.viewKey) {
+  if (localWorkbenchViewKeys.has(currentCatalogView)) {
     renderCatalog([], currentCatalogView);
     return;
   }
@@ -1619,7 +1658,7 @@ async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
 }
 
 async function loadCatalog() {
-  if (currentCatalogView === spiFlashPage.viewKey || currentCatalogView === meAnalyzerPage.viewKey || currentCatalogView === uefiToolPage.viewKey) {
+  if (localWorkbenchViewKeys.has(currentCatalogView)) {
     renderCatalog([], currentCatalogView);
     return;
   }
@@ -2878,6 +2917,13 @@ toolBiosPassword?.addEventListener("click", () => {
 toolOther?.addEventListener("click", () => {
   updateViewHash(boardViewerPage.viewKey);
   currentCatalogView = boardViewerPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+navSettings?.addEventListener("click", () => {
+  updateViewHash(settingsPage.viewKey);
+  currentCatalogView = settingsPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
