@@ -54,11 +54,25 @@
       >
         Download local service
       </a>
+      <button id="runLocalUpdateButton" type="button" class="hero-download hidden">
+        <span class="material-symbols-outlined">system_update_alt</span>
+        <span>Update local service</span>
+      </button>
       <button id="viewPreviousVersionsButton" type="button" class="ghost hero-secondary-action hidden">
         <span class="material-symbols-outlined">history</span>
         <span>Lihat versi sebelumnya</span>
       </button>
       <p id="serviceUpdateNotice" class="service-update-notice hidden"></p>
+      <section id="updateProgressPanel" class="update-progress hidden" aria-live="polite">
+        <div class="update-progress-head">
+          <strong id="updateProgressLabel">Mengunduh update...</strong>
+          <span id="updateProgressPercent">0%</span>
+        </div>
+        <div class="update-progress-track" aria-hidden="true">
+          <div id="updateProgressBar" class="update-progress-bar"></div>
+        </div>
+        <p id="updateProgressMeta" class="update-progress-meta"></p>
+      </section>
     </section>
 
     <section id="mainPanel" class="panel">
@@ -151,10 +165,16 @@
               <span id="dashboardRoleChipIcon" class="material-symbols-outlined">verified_user</span>
               <span id="dashboardRoleChip">Akses tervalidasi</span>
             </div>
-            <button id="logoutButton" type="button" class="ghost">
-              <span class="material-symbols-outlined">logout</span>
-              <span>Logout session</span>
-            </button>
+            <div class="dashboard-action-buttons">
+              <button id="dashboardCheckUpdateButton" type="button" class="ghost">
+                <span class="material-symbols-outlined">system_update_alt</span>
+                <span>Check update</span>
+              </button>
+              <button id="logoutButton" type="button" class="ghost">
+                <span class="material-symbols-outlined">logout</span>
+                <span>Logout session</span>
+              </button>
+            </div>
           </div>
         </div>
 

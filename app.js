@@ -3,8 +3,14 @@ const serviceBaseUrl = "http://127.0.0.1:48721";
 const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
 const downloadLocalServiceLink = document.getElementById("downloadLocalServiceLink");
+const runLocalUpdateButton = document.getElementById("runLocalUpdateButton");
 const viewPreviousVersionsButton = document.getElementById("viewPreviousVersionsButton");
 const serviceUpdateNotice = document.getElementById("serviceUpdateNotice");
+const updateProgressPanel = document.getElementById("updateProgressPanel");
+const updateProgressLabel = document.getElementById("updateProgressLabel");
+const updateProgressPercent = document.getElementById("updateProgressPercent");
+const updateProgressBar = document.getElementById("updateProgressBar");
+const updateProgressMeta = document.getElementById("updateProgressMeta");
 const mainPanel = document.getElementById("mainPanel");
 const toastContainer = document.getElementById("toastContainer");
 const errorMessage = document.getElementById("errorMessage");
@@ -25,6 +31,7 @@ const refreshButton = document.getElementById("refreshButton");
 const agreeButton = document.getElementById("agreeButton");
 const agreeCheckbox = document.getElementById("agreeCheckbox");
 const logoutButton = document.getElementById("logoutButton");
+const dashboardCheckUpdateButton = document.getElementById("dashboardCheckUpdateButton");
 const dashboardTitle = document.getElementById("dashboardTitle");
 const dashboardSubtitle = document.getElementById("dashboardSubtitle");
 const dashboardLoginStatus = document.getElementById("dashboardLoginStatus");
@@ -101,6 +108,9 @@ const previousVersionsCloseButton = document.getElementById("previousVersionsClo
 const defaultDownloadLocalServiceUrl = downloadLocalServiceLink?.getAttribute("href") || "";
 const defaultDownloadLocalServiceLabel = downloadLocalServiceLink?.textContent?.trim() || "Download local service";
 let previousVersionNotes = [];
+let updateStatusPollTimeoutId = null;
+let updateRestartPollTimeoutId = null;
+let pendingUpdateVersion = "";
 
 const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   viewKey: "tool_spi_flash",
@@ -2012,6 +2022,19 @@ function setDownloadLinkState(visible, href = defaultDownloadLocalServiceUrl, la
   toggleElement(downloadLocalServiceLink, visible);
 }
 
+function setLocalUpdateButtonState(visible, label = "Update local service") {
+  if (!runLocalUpdateButton) {
+    return;
+  }
+
+  const labelNode = runLocalUpdateButton.querySelector("span:last-child");
+  if (labelNode) {
+    labelNode.textContent = label;
+  }
+
+  toggleElement(runLocalUpdateButton, visible);
+}
+
 function setServiceUpdateNotice(message) {
   if (!serviceUpdateNotice) {
     return;
@@ -2021,9 +2044,196 @@ function setServiceUpdateNotice(message) {
   toggleElement(serviceUpdateNotice, Boolean(message));
 }
 
+function setUpdateProgressState(visible, progressPercent = 0, label = "", meta = "") {
+  toggleElement(updateProgressPanel, visible);
+
+  if (!visible) {
+    if (updateProgressBar) {
+      updateProgressBar.style.width = "0%";
+    }
+
+    if (updateProgressPercent) {
+      updateProgressPercent.textContent = "0%";
+    }
+
+    if (updateProgressLabel) {
+      updateProgressLabel.textContent = "";
+    }
+
+    if (updateProgressMeta) {
+      updateProgressMeta.textContent = "";
+    }
+
+    return;
+  }
+
+  const normalizedProgress = Math.max(0, Math.min(100, Number(progressPercent) || 0));
+  if (updateProgressBar) {
+    updateProgressBar.style.width = `${normalizedProgress}%`;
+  }
+
+  if (updateProgressPercent) {
+    updateProgressPercent.textContent = `${normalizedProgress}%`;
+  }
+
+  if (updateProgressLabel) {
+    updateProgressLabel.textContent = label || "Memproses update...";
+  }
+
+  if (updateProgressMeta) {
+    updateProgressMeta.textContent = meta || "";
+  }
+}
+
+function clearUpdatePollers() {
+  if (updateStatusPollTimeoutId) {
+    window.clearTimeout(updateStatusPollTimeoutId);
+    updateStatusPollTimeoutId = null;
+  }
+
+  if (updateRestartPollTimeoutId) {
+    window.clearTimeout(updateRestartPollTimeoutId);
+    updateRestartPollTimeoutId = null;
+  }
+}
+
+function formatBytes(value) {
+  const numericValue = Number(value) || 0;
+  if (numericValue <= 0) {
+    return "";
+  }
+
+  const units = ["B", "KB", "MB", "GB"];
+  let unitIndex = 0;
+  let scaledValue = numericValue;
+
+  while (scaledValue >= 1024 && unitIndex < units.length - 1) {
+    scaledValue /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${scaledValue.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function buildUpdateProgressMeta(operation) {
+  const downloadedText = formatBytes(operation?.downloadedBytes);
+  const totalText = formatBytes(operation?.totalBytes);
+  const versionText = operation?.targetVersion ? `Target v.${operation.targetVersion}` : "";
+
+  if (downloadedText && totalText) {
+    return `${versionText}${versionText ? " • " : ""}${downloadedText} / ${totalText}`;
+  }
+
+  return versionText;
+}
+
+function scheduleUpdateStatusPolling(delayMs = 1200) {
+  if (updateStatusPollTimeoutId) {
+    window.clearTimeout(updateStatusPollTimeoutId);
+  }
+
+  updateStatusPollTimeoutId = window.setTimeout(checkUpdateOperationStatus, delayMs);
+}
+
+function scheduleRestartPolling(delayMs = 3000) {
+  if (updateRestartPollTimeoutId) {
+    window.clearTimeout(updateRestartPollTimeoutId);
+  }
+
+  updateRestartPollTimeoutId = window.setTimeout(waitForUpdatedService, delayMs);
+}
+
+async function checkUpdateOperationStatus() {
+  try {
+    const operation = await fetchJson("/update/status");
+    if (!operation?.active && operation?.stage !== "restarting") {
+      if (operation?.stage === "failed") {
+        setUpdateProgressState(true, operation.progressPercent || 0, operation.message || "Update gagal.", operation.lastError || "");
+        setNotice(operation.lastError || operation.message || "Update otomatis gagal.", true);
+      }
+      return;
+    }
+
+    pendingUpdateVersion = operation.targetVersion || pendingUpdateVersion;
+    setLocalUpdateButtonState(false);
+    setDownloadLinkState(false);
+    setUpdateProgressState(
+      true,
+      operation.progressPercent || 0,
+      operation.message || "Memproses update...",
+      buildUpdateProgressMeta(operation)
+    );
+
+    if (operation.stage === "restarting") {
+      scheduleRestartPolling(2500);
+      return;
+    }
+
+    scheduleUpdateStatusPolling();
+  } catch (error) {
+    if (pendingUpdateVersion) {
+      setUpdateProgressState(true, 100, "Menunggu local service hidup lagi...", `Target v.${pendingUpdateVersion}`);
+      scheduleRestartPolling(3000);
+      return;
+    }
+
+    setNotice(error.message, true);
+  }
+}
+
+async function waitForUpdatedService() {
+  try {
+    const health = await refreshStatus({ forceUpdateCheck: true });
+    clearUpdatePollers();
+    setUpdateProgressState(false);
+    if (health?.version) {
+      setNotice(`Update selesai. sudah terbaru v.${health.version}`);
+    }
+    pendingUpdateVersion = "";
+  } catch {
+    setUpdateProgressState(true, 100, "Menunggu local service hidup lagi...", pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : "");
+    scheduleRestartPolling(3000);
+  }
+}
+
+async function startLocalUpdate() {
+  if (!runLocalUpdateButton) {
+    return;
+  }
+
+  setButtonLoading(runLocalUpdateButton, true, "system_update_alt", "Update local service", "Menyiapkan update...");
+
+  try {
+    const result = await fetchJson("/update/start", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+
+    pendingUpdateVersion = result.operation?.targetVersion || pendingUpdateVersion;
+    setNotice(result.message);
+    setLocalUpdateButtonState(false);
+    setDownloadLinkState(false);
+    setUpdateProgressState(
+      true,
+      result.operation?.progressPercent || 0,
+      result.operation?.message || "Menyiapkan update...",
+      buildUpdateProgressMeta(result.operation)
+    );
+    scheduleUpdateStatusPolling(800);
+  } catch (error) {
+    setNotice(error.message || "Gagal memulai update otomatis.", true);
+  } finally {
+    setButtonLoading(runLocalUpdateButton, false, "system_update_alt", "Update local service", "Menyiapkan update...");
+  }
+}
+
 function applyUpdateRequirement(health) {
   const update = health?.update;
   if (!update?.mustUpdate) {
+    setLocalUpdateButtonState(false);
+    if (!pendingUpdateVersion) {
+      setUpdateProgressState(false);
+    }
     setServiceUpdateNotice("");
     setPreviousVersionsState(false);
     return false;
@@ -2031,7 +2241,10 @@ function applyUpdateRequirement(health) {
 
   const currentVersion = health?.version || "unknown";
   const latestVersion = update.latestVersion || "latest";
-  const downloadUrl = update.downloadUrl || defaultDownloadLocalServiceUrl;
+  const canAutoUpdate = Boolean(update.canAutoUpdate);
+  const downloadUrl = canAutoUpdate
+    ? (update.updaterUrl || update.downloadUrl || defaultDownloadLocalServiceUrl)
+    : (update.installerUrl || update.downloadUrl || defaultDownloadLocalServiceUrl);
   const updateMessage = update.message || `Update local service ke versi ${latestVersion} untuk lanjut menggunakan TeknisiHub.`;
   const noteDate = (update.noteDate || "").trim();
   const noteText = (update.noteText || "").trim();
@@ -2042,7 +2255,8 @@ function applyUpdateRequirement(health) {
   setText(serviceStatus, "Wajib update");
   setText(serviceVersion, `Versi: ${currentVersion} -> ${latestVersion}`);
   setServiceUpdateNotice(`${updateMessage}${noteMessage}`);
-  setDownloadLinkState(true, downloadUrl, "Update local service");
+  setLocalUpdateButtonState(canAutoUpdate, "Update local service");
+  setDownloadLinkState(!canAutoUpdate, downloadUrl, "Update local service");
   hideInteractivePanels();
   setPreviousVersionsState(true, update.noteHistory || []);
   setError("");
@@ -2053,9 +2267,13 @@ function applyUpdateRequirement(health) {
 function applyStatus(status) {
   setText(serviceStatus, "Terhubung");
   toggleElement(mainPanel, true);
+  setLocalUpdateButtonState(false);
   setDownloadLinkState(false);
   setServiceUpdateNotice("");
   setPreviousVersionsState(false);
+  if (!pendingUpdateVersion) {
+    setUpdateProgressState(false);
+  }
   setError("");
   currentRequiredChannelInviteLink = status.requiredChannelInviteLink || "";
   currentBoardviewChannelInviteLink = status.boardviewChannelInviteLink || "";
@@ -2244,35 +2462,47 @@ async function fetchJson(path, options = {}) {
   return payload;
 }
 
-async function refreshStatus() {
+async function refreshStatus(options = {}) {
+  const forceUpdateCheck = Boolean(options.forceUpdateCheck);
   toggleElement(mainPanel, false);
   setError("");
   setText(serviceStatus, "Mengecek koneksi...");
   setText(serviceVersion, "Versi: mengecek...");
 
   try {
-    const health = await fetchJson("/health");
+    const healthUrl = forceUpdateCheck ? "/health?forceUpdateCheck=true" : "/health";
+    const health = await fetchJson(healthUrl);
     setText(serviceStatus, health.ready ? "Siap" : "Belum siap");
     setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
 
     if (applyUpdateRequirement(health)) {
-      return;
+      return health;
     }
 
     const status = await fetchJson("/auth/status");
     applyStatus(status);
     await refreshCatalogStats();
+    return health;
   } catch (error) {
     setText(serviceStatus, "Tidak aktif");
     setText(serviceVersion, "Versi: offline");
     setServiceUpdateNotice("");
     hideInteractivePanels();
-    setDownloadLinkState(true);
+    setLocalUpdateButtonState(false);
+    if (pendingUpdateVersion) {
+      setDownloadLinkState(false);
+      setUpdateProgressState(true, 100, "Menunggu local service hidup lagi...", pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : "");
+      scheduleRestartPolling(3000);
+    } else {
+      setDownloadLinkState(true);
+      setUpdateProgressState(false);
+    }
     if (dashboardCatalogTotal) {
       dashboardCatalogTotal.textContent = "0 file";
     }
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
+    throw error;
   }
 }
 
@@ -2531,6 +2761,36 @@ if (logoutButton) {
     }
   });
 }
+
+if (dashboardCheckUpdateButton) {
+  dashboardCheckUpdateButton.addEventListener("click", async () => {
+    setButtonLoading(
+      dashboardCheckUpdateButton,
+      true,
+      "system_update_alt",
+      "Check update",
+      "Checking..."
+    );
+
+    try {
+      const health = await refreshStatus({ forceUpdateCheck: true });
+      const latestVersion = health?.update?.latestVersion || health?.version || "unknown";
+      setNotice(`sudah terbaru v.${latestVersion}`);
+    } catch (error) {
+      setNotice(error.message || "Gagal mengecek update.", true);
+    } finally {
+      setButtonLoading(
+        dashboardCheckUpdateButton,
+        false,
+        "system_update_alt",
+        "Check update",
+        "Checking..."
+      );
+    }
+  });
+}
+
+runLocalUpdateButton?.addEventListener("click", startLocalUpdate);
 
 if (refreshButton) {
   refreshButton.addEventListener("click", refreshStatus);
