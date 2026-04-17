@@ -111,6 +111,7 @@ let previousVersionNotes = [];
 let updateStatusPollTimeoutId = null;
 let updateRestartPollTimeoutId = null;
 let pendingUpdateVersion = "";
+let updateProgressHideTimeoutId = null;
 
 const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   viewKey: "tool_spi_flash",
@@ -2045,6 +2046,11 @@ function setServiceUpdateNotice(message) {
 }
 
 function setUpdateProgressState(visible, progressPercent = 0, label = "", meta = "") {
+  if (updateProgressHideTimeoutId) {
+    window.clearTimeout(updateProgressHideTimeoutId);
+    updateProgressHideTimeoutId = null;
+  }
+
   toggleElement(updateProgressPanel, visible);
 
   if (!visible) {
@@ -2127,6 +2133,38 @@ function buildUpdateProgressMeta(operation) {
   return versionText;
 }
 
+function getUpdateProgressLabel(operation) {
+  const stage = String(operation?.stage || "").trim().toLowerCase();
+
+  if (stage === "downloading") {
+    return "Mengunduh paket update...";
+  }
+
+  if (stage === "launching") {
+    return "Menjalankan updater...";
+  }
+
+  if (stage === "restarting") {
+    return "Menghentikan local service, melepas file lock, lalu menyalakan versi baru...";
+  }
+
+  if (stage === "failed") {
+    return "Update gagal dijalankan.";
+  }
+
+  return operation?.message || "Memproses update...";
+}
+
+function scheduleHideUpdateProgress(delayMs = 8000) {
+  if (updateProgressHideTimeoutId) {
+    window.clearTimeout(updateProgressHideTimeoutId);
+  }
+
+  updateProgressHideTimeoutId = window.setTimeout(() => {
+    setUpdateProgressState(false);
+  }, delayMs);
+}
+
 function scheduleUpdateStatusPolling(delayMs = 1200) {
   if (updateStatusPollTimeoutId) {
     window.clearTimeout(updateStatusPollTimeoutId);
@@ -2160,7 +2198,7 @@ async function checkUpdateOperationStatus() {
     setUpdateProgressState(
       true,
       operation.progressPercent || 0,
-      operation.message || "Memproses update...",
+      getUpdateProgressLabel(operation),
       buildUpdateProgressMeta(operation)
     );
 
@@ -2172,7 +2210,12 @@ async function checkUpdateOperationStatus() {
     scheduleUpdateStatusPolling();
   } catch (error) {
     if (pendingUpdateVersion) {
-      setUpdateProgressState(true, 100, "Menunggu local service hidup lagi...", `Target v.${pendingUpdateVersion}`);
+      setUpdateProgressState(
+        true,
+        99,
+        "Menghentikan local service, melepas file lock, lalu menyalakan versi baru...",
+        `Target v.${pendingUpdateVersion}`
+      );
       scheduleRestartPolling(3000);
       return;
     }
@@ -2185,13 +2228,24 @@ async function waitForUpdatedService() {
   try {
     const health = await refreshStatus({ forceUpdateCheck: true });
     clearUpdatePollers();
-    setUpdateProgressState(false);
+    setUpdateProgressState(
+      true,
+      100,
+      "Update selesai. Local service terbaru sudah aktif.",
+      health?.version ? `Versi aktif v.${health.version}` : ""
+    );
+    scheduleHideUpdateProgress();
     if (health?.version) {
       setNotice(`Update selesai. sudah terbaru v.${health.version}`);
     }
     pendingUpdateVersion = "";
   } catch {
-    setUpdateProgressState(true, 100, "Menunggu local service hidup lagi...", pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : "");
+    setUpdateProgressState(
+      true,
+      99,
+      "Menghentikan local service, melepas file lock, lalu menyalakan versi baru...",
+      pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : ""
+    );
     scheduleRestartPolling(3000);
   }
 }
@@ -2216,7 +2270,7 @@ async function startLocalUpdate() {
     setUpdateProgressState(
       true,
       result.operation?.progressPercent || 0,
-      result.operation?.message || "Menyiapkan update...",
+      getUpdateProgressLabel(result.operation),
       buildUpdateProgressMeta(result.operation)
     );
     scheduleUpdateStatusPolling(800);
@@ -2491,7 +2545,12 @@ async function refreshStatus(options = {}) {
     setLocalUpdateButtonState(false);
     if (pendingUpdateVersion) {
       setDownloadLinkState(false);
-      setUpdateProgressState(true, 100, "Menunggu local service hidup lagi...", pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : "");
+      setUpdateProgressState(
+        true,
+        99,
+        "Menunggu local service berhenti, file unlock, lalu service baru menyala...",
+        pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : ""
+      );
       scheduleRestartPolling(3000);
     } else {
       setDownloadLinkState(true);
