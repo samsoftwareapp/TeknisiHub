@@ -852,6 +852,37 @@ h1 {
   padding: 0 12px 12px;
 }
 
+.sidebar-subdropdown {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.sidebar-subdropdown summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #fff;
+}
+
+.sidebar-subdropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-subdropdown-menu {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px 18px;
+}
+
+.sidebar-nav-button-subitem {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .access-list {
   margin: 0;
   padding: 0;
@@ -1762,6 +1793,29 @@ h1 {
 
 .me-analyzer-stats-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lenovo-bios-patch-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lenovo-bios-patch-notes {
+  display: grid;
+  gap: 10px;
+}
+
+.lenovo-bios-patch-notes p {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(196, 95, 32, 0.07);
+  color: var(--text);
+}
+
+.lenovo-bios-patch-download {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .boardviewer-actions {

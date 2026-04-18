@@ -252,6 +252,19 @@
                     <button id="toolUefi" type="button" class="sidebar-nav-button">
                       <span>UEFI Tools</span>
                     </button>
+                    <details id="toolBiosPatchGroup" class="sidebar-subdropdown">
+                      <summary>
+                        <span class="summary-left">
+                          <span>Bios Patch</span>
+                        </span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                      </summary>
+                      <div class="sidebar-subdropdown-menu">
+                        <button id="toolDumpBiosLenovo" type="button" class="sidebar-nav-button sidebar-nav-button-subitem">
+                          <span>Dump Bios Lenovo</span>
+                        </button>
+                      </div>
+                    </details>
                     <button id="toolBiosPassword" type="button" class="sidebar-nav-button">
                       <span>BIOS Unlock Password</span>
                     </button>
@@ -297,6 +310,7 @@
             <section id="spiFlashWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="lenovoBiosPatchWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="biosPasswordWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="microscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="boardViewerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -491,6 +505,7 @@
   <script src="pages/spi-flash/page.js"></script>
   <script src="pages/me-analyzer/page.js"></script>
   <script src="pages/uefi-tool/page.js"></script>
+  <script src="pages/lenovo-bios-patch/page.js"></script>
   <script src="pages/bios-password/page.js"></script>
   <script src="pages/microscope/page.js"></script>
   <script src="pages/boardviewer/page.js"></script>

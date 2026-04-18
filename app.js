@@ -50,6 +50,7 @@ const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
+const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
 const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
 const microscopeWorkbench = document.getElementById("microscopeWorkbench");
 const boardViewerWorkbench = document.getElementById("boardViewerWorkbench");
@@ -103,6 +104,8 @@ const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
+const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
+const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
 const toolBiosPassword = document.getElementById("toolBiosPassword");
 const toolMicroscope = document.getElementById("toolMicroscope");
 const toolOther = document.getElementById("toolOther");
@@ -148,6 +151,17 @@ const uefiToolPage = window.teknisiHubPages?.uefiTool || {
   eyebrow: "UEFI Tools",
   title: "UEFI Tools",
   subtitle: "Utility lokal untuk analisa manual struktur firmware UEFI.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const lenovoBiosPatchPage = window.teknisiHubPages?.lenovoBiosPatch || {
+  viewKey: "tool_lenovo_dump_bios",
+  eyebrow: "Bios Patch",
+  title: "Dump Bios Lenovo",
+  subtitle: "Utility lokal untuk membuat file patch dari dump BIOS Lenovo.",
   items: [],
   mount() {},
   setVisible() {},
@@ -285,6 +299,11 @@ uefiToolPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+lenovoBiosPatchPage.mount?.({
+  container: lenovoBiosPatchWorkbench,
+  notify: (message) => setNotice(message)
+});
+
 biosPasswordPage.mount?.({
   container: biosPasswordWorkbench,
   notify: (message) => setNotice(message)
@@ -370,6 +389,12 @@ const toolViewMap = {
     subtitle: uefiToolPage.subtitle,
     channelLink: null
   },
+  [lenovoBiosPatchPage.viewKey]: {
+    eyebrow: lenovoBiosPatchPage.eyebrow,
+    title: lenovoBiosPatchPage.title,
+    subtitle: lenovoBiosPatchPage.subtitle,
+    channelLink: null
+  },
   tool_bios_password: {
     eyebrow: biosPasswordPage.eyebrow,
     title: biosPasswordPage.title,
@@ -400,6 +425,7 @@ const localWorkbenchViewKeys = new Set([
   spiFlashPage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
+  lenovoBiosPatchPage.viewKey,
   biosPasswordPage.viewKey,
   microscopePage.viewKey,
   boardViewerPage.viewKey,
@@ -414,6 +440,7 @@ const viewHashMap = {
   [spiFlashPage.viewKey]: "SpiFlash",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
+  [lenovoBiosPatchPage.viewKey]: "DumpBiosLenovo",
   [biosPasswordPage.viewKey]: "BiosPassword",
   [microscopePage.viewKey]: "Microscope",
   [boardViewerPage.viewKey]: "Boardviewer",
@@ -432,6 +459,8 @@ const hashRouteMap = {
   uefitools: uefiToolPage.viewKey,
   tooluefitools: uefiToolPage.viewKey,
   tooluefi: uefiToolPage.viewKey,
+  dumpbioslenovo: lenovoBiosPatchPage.viewKey,
+  tooldumpbioslenovo: lenovoBiosPatchPage.viewKey,
   biospassword: biosPasswordPage.viewKey,
   toolbiospassword: biosPasswordPage.viewKey,
   microscope: microscopePage.viewKey,
@@ -459,6 +488,7 @@ function getViewButton(viewKey) {
     [spiFlashPage.viewKey]: toolSpiFlash,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
+    [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     [biosPasswordPage.viewKey]: toolBiosPassword,
     [microscopePage.viewKey]: toolMicroscope,
     [boardViewerPage.viewKey]: toolOther,
@@ -748,6 +778,7 @@ function showWorkbenchOnly(viewKey) {
   spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
+  lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
   biosPasswordPage.setVisible?.(viewKey === biosPasswordPage.viewKey);
   microscopePage.setVisible?.(viewKey === microscopePage.viewKey);
   boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
@@ -763,6 +794,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === uefiToolPage.viewKey) {
     uefiToolPage.refresh?.();
+  }
+
+  if (viewKey === lenovoBiosPatchPage.viewKey) {
+    lenovoBiosPatchPage.refresh?.();
   }
 
   if (viewKey === biosPasswordPage.viewKey) {
@@ -786,6 +821,7 @@ function hideWorkbench() {
   spiFlashPage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
+  lenovoBiosPatchPage.setVisible?.(false);
   biosPasswordPage.setVisible?.(false);
   microscopePage.setVisible?.(false);
   boardViewerPage.setVisible?.(false);
@@ -801,6 +837,7 @@ function setActiveNav(targetKey) {
     tool_spi_flash: toolSpiFlash,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
+    [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     tool_bios_password: toolBiosPassword,
     tool_microscope: toolMicroscope,
     tool_boardviewer: toolOther,
@@ -817,6 +854,10 @@ function setActiveNav(targetKey) {
 
   if (navTools) {
     navTools.open = targetKey.startsWith("tool_");
+  }
+
+  if (toolBiosPatchGroup) {
+    toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey;
   }
 }
 
@@ -3507,6 +3548,13 @@ toolMeAnalyzer?.addEventListener("click", () => {
 toolUefi?.addEventListener("click", () => {
   updateViewHash(uefiToolPage.viewKey);
   currentCatalogView = uefiToolPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolDumpBiosLenovo?.addEventListener("click", () => {
+  updateViewHash(lenovoBiosPatchPage.viewKey);
+  currentCatalogView = lenovoBiosPatchPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
