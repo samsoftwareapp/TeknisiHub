@@ -51,6 +51,7 @@ const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
+const microscopeWorkbench = document.getElementById("microscopeWorkbench");
 const boardViewerWorkbench = document.getElementById("boardViewerWorkbench");
 const settingsWorkbench = document.getElementById("settingsWorkbench");
 const catalogSection = document.getElementById("catalogSection");
@@ -99,6 +100,7 @@ const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
 const toolBiosPassword = document.getElementById("toolBiosPassword");
+const toolMicroscope = document.getElementById("toolMicroscope");
 const toolOther = document.getElementById("toolOther");
 const problemSolvingViewerModal = document.getElementById("problemSolvingViewerModal");
 const problemSolvingViewerTitle = document.getElementById("problemSolvingViewerTitle");
@@ -164,6 +166,17 @@ const boardViewerPage = window.teknisiHubPages?.boardViewer || {
   eyebrow: "Boardviewer",
   title: "Boardviewer",
   subtitle: "Utility lokal untuk membuka file boardview lewat local service.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const microscopePage = window.teknisiHubPages?.microscope || {
+  viewKey: "tool_microscope",
+  eyebrow: "Microscope",
+  title: "Microscope",
+  subtitle: "Preview microscope USB atau camera internal langsung dari browser.",
   items: [],
   mount() {},
   setVisible() {},
@@ -278,6 +291,11 @@ boardViewerPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+microscopePage.mount?.({
+  container: microscopeWorkbench,
+  notify: (message) => setNotice(message)
+});
+
 settingsPage.mount?.({
   container: settingsWorkbench,
   notify: (message) => setNotice(message)
@@ -360,6 +378,12 @@ const toolViewMap = {
     subtitle: boardViewerPage.subtitle,
     channelLink: null
   },
+  tool_microscope: {
+    eyebrow: microscopePage.eyebrow,
+    title: microscopePage.title,
+    subtitle: microscopePage.subtitle,
+    channelLink: null
+  },
   [settingsPage.viewKey]: {
     eyebrow: settingsPage.eyebrow,
     title: settingsPage.title,
@@ -373,6 +397,7 @@ const localWorkbenchViewKeys = new Set([
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
   biosPasswordPage.viewKey,
+  microscopePage.viewKey,
   boardViewerPage.viewKey,
   settingsPage.viewKey
 ]);
@@ -386,6 +411,7 @@ const viewHashMap = {
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
   [biosPasswordPage.viewKey]: "BiosPassword",
+  [microscopePage.viewKey]: "Microscope",
   [boardViewerPage.viewKey]: "Boardviewer",
   [settingsPage.viewKey]: "Settings"
 };
@@ -404,6 +430,8 @@ const hashRouteMap = {
   tooluefi: uefiToolPage.viewKey,
   biospassword: biosPasswordPage.viewKey,
   toolbiospassword: biosPasswordPage.viewKey,
+  microscope: microscopePage.viewKey,
+  toolmicroscope: microscopePage.viewKey,
   boardviewer: boardViewerPage.viewKey,
   toolboardviewer: boardViewerPage.viewKey,
   settings: settingsPage.viewKey
@@ -428,6 +456,7 @@ function getViewButton(viewKey) {
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
     [biosPasswordPage.viewKey]: toolBiosPassword,
+    [microscopePage.viewKey]: toolMicroscope,
     [boardViewerPage.viewKey]: toolOther,
     [settingsPage.viewKey]: navSettings
   };
@@ -716,6 +745,7 @@ function showWorkbenchOnly(viewKey) {
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
   biosPasswordPage.setVisible?.(viewKey === biosPasswordPage.viewKey);
+  microscopePage.setVisible?.(viewKey === microscopePage.viewKey);
   boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
   settingsPage.setVisible?.(viewKey === settingsPage.viewKey);
 
@@ -739,6 +769,10 @@ function showWorkbenchOnly(viewKey) {
     boardViewerPage.refresh?.();
   }
 
+  if (viewKey === microscopePage.viewKey) {
+    microscopePage.refresh?.();
+  }
+
   if (viewKey === settingsPage.viewKey) {
     settingsPage.refresh?.();
   }
@@ -749,6 +783,7 @@ function hideWorkbench() {
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
   biosPasswordPage.setVisible?.(false);
+  microscopePage.setVisible?.(false);
   boardViewerPage.setVisible?.(false);
   settingsPage.setVisible?.(false);
 }
@@ -763,6 +798,7 @@ function setActiveNav(targetKey) {
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
     tool_bios_password: toolBiosPassword,
+    tool_microscope: toolMicroscope,
     tool_boardviewer: toolOther,
     [settingsPage.viewKey]: navSettings
   };
@@ -3264,6 +3300,13 @@ toolUefi?.addEventListener("click", () => {
 toolBiosPassword?.addEventListener("click", () => {
   updateViewHash(biosPasswordPage.viewKey);
   currentCatalogView = biosPasswordPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolMicroscope?.addEventListener("click", () => {
+  updateViewHash(microscopePage.viewKey);
+  currentCatalogView = microscopePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
