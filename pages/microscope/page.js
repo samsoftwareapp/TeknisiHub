@@ -1,4 +1,5 @@
 (function initializeMicroscopePage(globalScope) {
+  const serviceBaseUrl = "http://127.0.0.1:48721";
   const zoomStep = 0.1;
   const minZoom = 1;
   const maxZoom = 5;
@@ -32,6 +33,30 @@
     return `${Math.round(clampZoom(value) * 100)}%`;
   }
 
+  async function fetchJson(path, options = {}) {
+    const requestUrl = `${serviceBaseUrl}${path}`;
+    const response = await fetch(requestUrl, {
+      headers: { "Content-Type": "application/json" },
+      ...options
+    });
+
+    const rawText = await response.text();
+    let payload = {};
+    if (rawText) {
+      try {
+        payload = JSON.parse(rawText);
+      } catch {
+        payload = { message: rawText };
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(payload.message || payload.title || `Request gagal (${response.status}).`);
+    }
+
+    return payload;
+  }
+
   function buildResolutionOptions(state) {
     const options = [...resolutionPresets];
     const actualResolutionValue = state.actualResolution && state.actualResolution !== "Auto"
@@ -56,14 +81,15 @@
     return {
       scanning: false,
       streaming: false,
-      permissionGranted: false,
       selectedDeviceId: "",
       selectedResolution: "auto",
       zoomLevel: 1,
       actualResolution: "Auto",
       devices: [],
-      message: "Klik Scan Camera untuk mendeteksi microscope USB atau kamera internal yang tersedia.",
-      errorMessage: ""
+      streamUrl: "",
+      message: "Klik Scan Camera untuk mendeteksi microscope USB atau kamera internal lewat local service.",
+      errorMessage: "",
+      debugLines: ["Mode microscope sekarang memakai LocalService untuk akses camera."]
     };
   }
 
@@ -73,19 +99,6 @@
       || "Belum ada kamera dipilih";
 
     return `
-      <div class="spi-workbench-hero microscope-hero">
-        <div>
-          <p class="label">Microscope</p>
-          <h3>Preview live microscope USB dan kamera servis</h3>
-          <p class="spi-workbench-copy">Scan semua kamera yang terdeteksi, pilih device, atur ukuran resolusi, lalu zoom pakai tombol atau Ctrl + scroll langsung pada preview.</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill">${state.devices.length} camera</span>
-          <span class="spi-status-pill">${escapeHtml(state.actualResolution)}</span>
-          <span class="spi-status-pill">${escapeHtml(formatZoom(state.zoomLevel))}</span>
-        </div>
-      </div>
-
       <div class="spi-layout microscope-layout">
         <section class="spi-card">
           <div class="spi-card-head">
@@ -104,9 +117,9 @@
               Pilih Camera
               <select id="microscopeDeviceSelect"${disableAttr}>
                 ${state.devices.length > 0
-                  ? state.devices.map((device, index) => `
+                  ? state.devices.map((device) => `
                       <option value="${escapeHtml(device.deviceId)}"${device.deviceId === state.selectedDeviceId ? " selected" : ""}>
-                        ${escapeHtml(device.label || `Camera ${index + 1}`)}
+                        ${escapeHtml(device.label)}
                       </option>
                     `).join("")
                   : `<option value="">Belum ada camera terdeteksi</option>`}
@@ -124,11 +137,19 @@
             </label>
             <label>
               Zoom
-              <input type="text" value="${escapeHtml(formatZoom(state.zoomLevel))}" readonly>
+              <input id="microscopeZoomValue" type="text" value="${escapeHtml(formatZoom(state.zoomLevel))}" readonly>
             </label>
           </div>
 
           <div class="microscope-actions">
+            <button type="button" id="microscopeStartButton" class="ghost"${disableAttr}${state.selectedDeviceId ? "" : " disabled"}>
+              <span class="material-symbols-outlined">play_circle</span>
+              <span>Tampilkan</span>
+            </button>
+            <button type="button" id="microscopeStopButton" class="ghost"${disableAttr}${state.streaming ? "" : " disabled"}>
+              <span class="material-symbols-outlined">stop_circle</span>
+              <span>Stop</span>
+            </button>
             <button type="button" id="microscopeZoomOutButton" class="ghost"${disableAttr}>
               <span class="material-symbols-outlined">zoom_out</span>
               <span>Zoom Out</span>
@@ -143,34 +164,43 @@
             </button>
           </div>
 
-          <p class="spi-note">${escapeHtml(state.errorMessage || state.message)}</p>
+          <p id="microscopeNote" class="spi-note">${escapeHtml(state.errorMessage || state.message)}</p>
+
+          <details class="microscope-debug-panel">
+            <summary>Debug Camera</summary>
+            <pre id="microscopeDebugLog" class="microscope-debug-log">${escapeHtml(state.debugLines.join("\n"))}</pre>
+          </details>
         </section>
 
-        <section class="spi-card microscope-preview-card">
+        <section id="microscopePreviewPanel" class="spi-card microscope-preview-card">
           <div class="spi-card-head">
             <div>
               <p class="label">Live Preview</p>
-              <h4>Ctrl + scroll untuk zoom</h4>
+              <h4>Stream dari Local Service</h4>
             </div>
-            <span class="spi-mini-badge">${state.streaming ? "Live" : "Standby"}</span>
+            <div class="microscope-panel-actions">
+              <button type="button" id="microscopeFullscreenButton" class="ghost"${disableAttr}>
+                <span class="material-symbols-outlined">fullscreen</span>
+                <span>Full Screen</span>
+              </button>
+              <span id="microscopeStreamBadge" class="spi-mini-badge">${state.streaming ? "Live" : "Standby"}</span>
+            </div>
           </div>
 
           <div id="microscopeViewport" class="microscope-viewport">
-            <video
-              id="microscopeVideo"
+            <img
+              id="microscopePreviewImage"
               class="microscope-video${state.streaming ? " is-ready" : ""}"
-              autoplay
-              playsinline
-              muted></video>
-            <div class="microscope-overlay${state.streaming ? " hidden" : ""}">
-              <span class="material-symbols-outlined">mic</span>
+              alt="Microscope preview dari local service">
+            <div id="microscopeOverlay" class="microscope-overlay${state.streaming ? " hidden" : ""}">
+              <span class="material-symbols-outlined">videocam</span>
               <strong>Preview belum aktif</strong>
-              <p>Scan camera lalu pilih device yang ingin dipakai.</p>
+              <p>Scan camera lewat local service, pilih device, lalu klik Tampilkan.</p>
             </div>
           </div>
 
           <div class="spi-inline-meta microscope-meta">
-            <span>Resolusi aktif <strong>${escapeHtml(state.actualResolution)}</strong></span>
+            <span>Resolusi aktif <strong id="microscopeActualResolutionLabel">${escapeHtml(state.actualResolution)}</strong></span>
             <span>Device terdeteksi <strong>${escapeHtml(String(state.devices.length))}</strong></span>
           </div>
         </section>
@@ -182,224 +212,193 @@
     let state = createInitialState();
     let mountedContainer = null;
     let notify = () => {};
-    let currentStream = null;
     let isVisible = false;
     let hasLoadedOnce = false;
-    let deviceChangeBound = false;
 
-    function stopCurrentStream() {
-      if (!currentStream) {
-        const videoElement = mountedContainer?.querySelector("#microscopeVideo");
-        if (videoElement) {
-          videoElement.srcObject = null;
-        }
+    function pushDebug(message) {
+      const nextLine = String(message || "").trim();
+      if (!nextLine) {
         return;
       }
 
-      currentStream.getTracks().forEach((track) => track.stop());
-      currentStream = null;
+      state.debugLines = [...state.debugLines, nextLine].slice(-12);
+      syncDebugLog();
+    }
 
-      const videoElement = mountedContainer?.querySelector("#microscopeVideo");
-      if (videoElement) {
-        videoElement.pause?.();
-        videoElement.srcObject = null;
+    function syncDebugLog() {
+      const debugLog = mountedContainer?.querySelector("#microscopeDebugLog");
+      if (debugLog) {
+        debugLog.textContent = state.debugLines.join("\n");
       }
     }
 
-    function applyVideoTransform() {
-      if (!mountedContainer) {
-        return;
+    function syncStatusText() {
+      const note = mountedContainer?.querySelector("#microscopeNote");
+      if (note) {
+        note.textContent = state.errorMessage || state.message;
       }
+    }
 
-      const videoElement = mountedContainer.querySelector("#microscopeVideo");
-      if (videoElement) {
-        videoElement.style.transform = `scale(${clampZoom(state.zoomLevel)})`;
+    function syncPreviewMeta() {
+      const actualResolutionLabel = mountedContainer?.querySelector("#microscopeActualResolutionLabel");
+      const zoomValue = mountedContainer?.querySelector("#microscopeZoomValue");
+      const streamBadge = mountedContainer?.querySelector("#microscopeStreamBadge");
+      const overlay = mountedContainer?.querySelector("#microscopeOverlay");
+      const previewImage = mountedContainer?.querySelector("#microscopePreviewImage");
+      const stopButton = mountedContainer?.querySelector("#microscopeStopButton");
+
+      if (actualResolutionLabel) {
+        actualResolutionLabel.textContent = state.actualResolution;
+      }
+      if (zoomValue) {
+        zoomValue.value = formatZoom(state.zoomLevel);
+      }
+      if (streamBadge) {
+        streamBadge.textContent = state.streaming ? "Live" : "Standby";
+      }
+      if (overlay) {
+        overlay.classList.toggle("hidden", state.streaming);
+      }
+      if (previewImage) {
+        previewImage.classList.toggle("is-ready", state.streaming);
+      }
+      if (stopButton) {
+        stopButton.disabled = !state.streaming || state.scanning;
+      }
+    }
+
+    function applyPreviewTransform() {
+      const previewImage = mountedContainer?.querySelector("#microscopePreviewImage");
+      if (previewImage) {
+        previewImage.style.transform = `scale(${clampZoom(state.zoomLevel)})`;
       }
     }
 
     function updateZoom(nextZoom) {
       state.zoomLevel = clampZoom(nextZoom);
-      applyVideoTransform();
+      applyPreviewTransform();
+      syncPreviewMeta();
     }
 
-    async function attachStreamToVideoElement(stream) {
-      const videoElement = mountedContainer?.querySelector("#microscopeVideo");
-      if (!videoElement) {
-        return false;
-      }
-
-      if (videoElement.srcObject !== stream) {
-        videoElement.srcObject = stream;
-      }
-
-      if (typeof videoElement.load === "function") {
-        videoElement.load();
-      }
-
-      const metadataPromise = new Promise((resolve) => {
-        if (videoElement.readyState >= 1) {
-          resolve();
-          return;
-        }
-
-        const handleLoadedMetadata = () => {
-          videoElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
-          resolve();
-        };
-
-        videoElement.addEventListener("loadedmetadata", handleLoadedMetadata, { once: true });
+    function buildStreamUrl() {
+      const params = new URLSearchParams({
+        deviceId: state.selectedDeviceId,
+        resolution: state.selectedResolution,
+        _: Date.now().toString()
       });
 
-      await metadataPromise;
-      await videoElement.play();
-      applyVideoTransform();
-      return true;
+      return `${serviceBaseUrl}/tools/microscope/stream?${params.toString()}`;
     }
 
-    async function requestCameraPermission() {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false
-      });
-      state.permissionGranted = true;
-      stream.getTracks().forEach((track) => track.stop());
-    }
-
-    async function scanDevices(options = {}) {
-      if (!navigator.mediaDevices?.enumerateDevices || !navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Browser ini belum mendukung akses camera via MediaDevices.");
-      }
-
-      state.scanning = true;
+    function stopPreview(reason = "Preview microscope dihentikan.") {
+      state.streaming = false;
+      state.streamUrl = "";
+      state.actualResolution = state.selectedResolution === "auto"
+        ? "Auto"
+        : state.selectedResolution;
+      state.message = reason;
       state.errorMessage = "";
-      state.message = options.silent ? state.message : "Mendeteksi camera yang tersedia...";
+      pushDebug(reason);
+
+      const previewImage = mountedContainer?.querySelector("#microscopePreviewImage");
+      if (previewImage) {
+        previewImage.removeAttribute("src");
+      }
+
+      render();
+    }
+
+    async function scanDevices() {
+      state.scanning = true;
+      state.streaming = false;
+      state.streamUrl = "";
+      state.errorMessage = "";
+      state.actualResolution = "Auto";
+      state.message = "Mendeteksi camera lewat local service...";
+      pushDebug("Scan camera dimulai lewat local service.");
       render();
 
       try {
-        if (!state.permissionGranted || options.forcePermission) {
-          await requestCameraPermission();
-        }
+        const result = await fetchJson("/tools/microscope/devices");
+        state.devices = Array.isArray(result.devices) ? result.devices : [];
 
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices
-          .filter((device) => device.kind === "videoinput")
-          .map((device, index) => ({
-            deviceId: device.deviceId,
-            label: device.label || `Camera ${index + 1}`
-          }));
-
-        state.devices = videoInputs;
-
-        if (!videoInputs.length) {
+        if (!state.devices.length) {
           state.selectedDeviceId = "";
-          state.streaming = false;
-          state.actualResolution = "Auto";
-          stopCurrentStream();
-          state.message = "Tidak ada camera yang terdeteksi. Pastikan microscope USB atau camera laptop sudah terhubung.";
+          state.message = result.message || "Tidak ada camera yang terdeteksi oleh local service.";
+          pushDebug("Local service tidak menemukan camera yang bisa dibuka.");
           return;
         }
 
-        if (!videoInputs.some((device) => device.deviceId === state.selectedDeviceId)) {
-          state.selectedDeviceId = videoInputs[0].deviceId;
+        if (!state.devices.some((device) => device.deviceId === state.selectedDeviceId)) {
+          state.selectedDeviceId = state.devices[0].deviceId;
         }
 
-        state.message = `${videoInputs.length} camera terdeteksi. Preview sedang disiapkan.`;
-        await startPreview();
+        state.message = result.message || `${state.devices.length} camera terdeteksi oleh local service.`;
+        state.errorMessage = "";
+        pushDebug(`${state.devices.length} camera siap dipakai oleh local service.`);
+        notify(state.message);
       } catch (error) {
         state.devices = [];
         state.selectedDeviceId = "";
-        state.streaming = false;
-        stopCurrentStream();
-        state.errorMessage = error?.message || "Gagal mendeteksi camera.";
+        state.errorMessage = error?.message || "Gagal mendeteksi camera dari local service.";
+        pushDebug(`Scan gagal: ${state.errorMessage}`);
       } finally {
         state.scanning = false;
         render();
       }
     }
 
-    function parseResolution(value) {
-      const normalized = String(value || "auto").trim().toLowerCase();
-      if (!normalized || normalized === "auto") {
-        return null;
-      }
-
-      const [widthValue, heightValue] = normalized.split("x");
-      const width = Number(widthValue);
-      const height = Number(heightValue);
-      if (!Number.isFinite(width) || !Number.isFinite(height)) {
-        return null;
-      }
-
-      return { width, height };
-    }
-
-    async function startPreview() {
+    function startPreview() {
       if (!state.selectedDeviceId) {
-        state.streaming = false;
-        state.actualResolution = "Auto";
+        state.errorMessage = "Pilih camera terlebih dahulu.";
+        pushDebug("Tombol Tampilkan ditekan tanpa camera terpilih.");
         render();
         return;
       }
 
-      stopCurrentStream();
-      state.streaming = false;
-      state.errorMessage = "";
-      state.message = "Menghubungkan preview camera...";
-      render();
-
-      const resolution = parseResolution(state.selectedResolution);
-      const videoConstraints = {
-        deviceId: { exact: state.selectedDeviceId }
-      };
-
-      if (resolution) {
-        videoConstraints.width = { ideal: resolution.width };
-        videoConstraints.height = { ideal: resolution.height };
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: false
-      });
-
-      currentStream = stream;
-
-      const track = stream.getVideoTracks()[0];
-      const settings = track?.getSettings?.() || {};
-      if (settings.width && settings.height) {
-        state.actualResolution = `${settings.width}x${settings.height}`;
-      } else if (resolution) {
-        state.actualResolution = `${resolution.width}x${resolution.height}`;
-      } else {
-        state.actualResolution = "Auto";
-      }
-
-      const attached = await attachStreamToVideoElement(stream);
-      if (!attached) {
-        throw new Error("Elemen preview camera tidak ditemukan.");
-      }
-
+      const selectedDevice = state.devices.find((device) => device.deviceId === state.selectedDeviceId);
       state.streaming = true;
-      state.message = `Preview aktif untuk ${state.devices.find((device) => device.deviceId === state.selectedDeviceId)?.label || "camera terpilih"}.`;
       state.errorMessage = "";
-
+      state.actualResolution = state.selectedResolution === "auto"
+        ? "Auto"
+        : state.selectedResolution;
+      state.streamUrl = buildStreamUrl();
+      state.message = `Meminta stream local service untuk ${selectedDevice?.label || "camera terpilih"}.`;
+      pushDebug(`Preview dimulai via local service: ${selectedDevice?.label || state.selectedDeviceId}, resolusi ${state.selectedResolution}.`);
       render();
     }
 
-    function bindDeviceChangeListener() {
-      if (deviceChangeBound || !navigator.mediaDevices?.addEventListener) {
+    function bindPreviewImage(previewImage) {
+      if (!previewImage) {
         return;
       }
 
-      navigator.mediaDevices.addEventListener("devicechange", async () => {
-        if (!isVisible) {
+      previewImage.addEventListener("load", () => {
+        if (previewImage.naturalWidth && previewImage.naturalHeight) {
+          state.actualResolution = `${previewImage.naturalWidth}x${previewImage.naturalHeight}`;
+          state.message = "Preview microscope aktif dari local service.";
+          state.errorMessage = "";
+          syncStatusText();
+          syncPreviewMeta();
+          pushDebug(`Frame awal diterima: ${state.actualResolution}.`);
+        }
+      }, { once: true });
+
+      previewImage.addEventListener("error", () => {
+        if (!state.streaming) {
           return;
         }
 
-        await scanDevices({ silent: true });
-        notify("Perubahan device camera terdeteksi. Daftar camera sudah diperbarui.");
-      });
-      deviceChangeBound = true;
+        state.streaming = false;
+        state.streamUrl = "";
+        state.errorMessage = "Preview dari local service gagal dimuat. Pastikan camera tidak sedang dipakai aplikasi lain.";
+        pushDebug("Tag IMG gagal memuat stream MJPEG dari local service.");
+        render();
+      }, { once: true });
+
+      previewImage.dataset.streamUrl = state.streamUrl;
+      previewImage.src = state.streamUrl;
+      applyPreviewTransform();
     }
 
     function render() {
@@ -412,46 +411,78 @@
       const scanButton = mountedContainer.querySelector("#microscopeScanButton");
       const deviceSelect = mountedContainer.querySelector("#microscopeDeviceSelect");
       const resolutionSelect = mountedContainer.querySelector("#microscopeResolutionSelect");
+      const startButton = mountedContainer.querySelector("#microscopeStartButton");
+      const stopButton = mountedContainer.querySelector("#microscopeStopButton");
       const zoomInButton = mountedContainer.querySelector("#microscopeZoomInButton");
       const zoomOutButton = mountedContainer.querySelector("#microscopeZoomOutButton");
       const zoomResetButton = mountedContainer.querySelector("#microscopeZoomResetButton");
+      const fullscreenButton = mountedContainer.querySelector("#microscopeFullscreenButton");
+      const previewPanel = mountedContainer.querySelector("#microscopePreviewPanel");
       const viewport = mountedContainer.querySelector("#microscopeViewport");
-      const videoElement = mountedContainer.querySelector("#microscopeVideo");
+      const previewImage = mountedContainer.querySelector("#microscopePreviewImage");
 
-      if (videoElement && currentStream) {
-        videoElement.srcObject = currentStream;
-        videoElement.play().catch((error) => {
-          state.streaming = false;
-          state.errorMessage = error?.message || "Preview camera tidak bisa diputar.";
-          render();
-        });
-        applyVideoTransform();
-      }
+      syncStatusText();
+      syncPreviewMeta();
 
-      scanButton?.addEventListener("click", async () => {
-        await scanDevices();
+      scanButton?.addEventListener("click", () => {
+        scanDevices();
       });
 
-      deviceSelect?.addEventListener("change", async () => {
+      startButton?.addEventListener("click", () => {
+        startPreview();
+      });
+
+      stopButton?.addEventListener("click", () => {
+        stopPreview("Preview microscope dihentikan dari Web UI.");
+      });
+
+      fullscreenButton?.addEventListener("click", async () => {
+        const fullscreenTarget = previewPanel || viewport;
+        if (!fullscreenTarget) {
+          return;
+        }
+
+        if (document.fullscreenElement === fullscreenTarget) {
+          await document.exitFullscreen();
+          return;
+        }
+
+        await fullscreenTarget.requestFullscreen();
+      });
+
+      deviceSelect?.addEventListener("change", () => {
         state.selectedDeviceId = deviceSelect.value || "";
         state.zoomLevel = 1;
-        await startPreview().catch((error) => {
-          stopCurrentStream();
-          state.streaming = false;
-          state.errorMessage = error?.message || "Gagal memulai preview camera.";
-          render();
-        });
+        state.actualResolution = "Auto";
+        state.errorMessage = "";
+        state.message = state.selectedDeviceId
+          ? "Camera dipilih. Klik Tampilkan untuk membuka stream dari local service."
+          : "Pilih camera terlebih dahulu.";
+        pushDebug(`Device aktif diganti ke ${state.devices.find((device) => device.deviceId === state.selectedDeviceId)?.label || state.selectedDeviceId || "kosong"}.`);
+
+        if (state.streaming) {
+          startPreview();
+          return;
+        }
+
+        render();
       });
 
-      resolutionSelect?.addEventListener("change", async () => {
+      resolutionSelect?.addEventListener("change", () => {
         state.selectedResolution = resolutionSelect.value || "auto";
         state.zoomLevel = 1;
-        await startPreview().catch((error) => {
-          stopCurrentStream();
-          state.streaming = false;
-          state.errorMessage = error?.message || "Gagal menerapkan ukuran preview camera.";
-          render();
-        });
+        state.errorMessage = "";
+        state.actualResolution = state.selectedResolution === "auto"
+          ? "Auto"
+          : state.selectedResolution;
+        pushDebug(`Resolusi dipilih: ${state.selectedResolution}.`);
+
+        if (state.streaming) {
+          startPreview();
+          return;
+        }
+
+        render();
       });
 
       zoomInButton?.addEventListener("click", () => updateZoom(state.zoomLevel + zoomStep));
@@ -466,18 +497,23 @@
         event.preventDefault();
         updateZoom(state.zoomLevel + (event.deltaY < 0 ? zoomStep : -zoomStep));
       }, { passive: false });
+
+      if (state.streamUrl && previewImage) {
+        bindPreviewImage(previewImage);
+      } else {
+        applyPreviewTransform();
+      }
     }
 
     return {
       viewKey: "tool_microscope",
       eyebrow: "Microscope",
       title: "Microscope",
-      subtitle: "Preview microscope USB atau camera internal langsung dari browser.",
+      subtitle: "Preview microscope USB atau camera internal lewat local service.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;
         notify = typeof options.notify === "function" ? options.notify : notify;
-        bindDeviceChangeListener();
         render();
       },
       setVisible(visible) {
@@ -487,10 +523,8 @@
         }
 
         mountedContainer.classList.toggle("hidden", !visible);
-        if (!visible) {
-          stopCurrentStream();
-          state.streaming = false;
-          render();
+        if (!visible && state.streaming) {
+          stopPreview("Preview microscope dihentikan karena panel disembunyikan.");
         }
       },
       async refresh() {
@@ -501,13 +535,6 @@
         if (!hasLoadedOnce) {
           hasLoadedOnce = true;
           await scanDevices();
-          return;
-        }
-
-        if (!currentStream && state.selectedDeviceId) {
-          await startPreview().catch(async () => {
-            await scanDevices({ silent: true });
-          });
           return;
         }
 
