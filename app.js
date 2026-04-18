@@ -53,6 +53,7 @@ const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
 const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
 const microscopeWorkbench = document.getElementById("microscopeWorkbench");
+const alienServerWorkbench = document.getElementById("alienServerWorkbench");
 const boardViewerWorkbench = document.getElementById("boardViewerWorkbench");
 const settingsWorkbench = document.getElementById("settingsWorkbench");
 const catalogSection = document.getElementById("catalogSection");
@@ -108,6 +109,7 @@ const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
 const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
 const toolBiosPassword = document.getElementById("toolBiosPassword");
 const toolMicroscope = document.getElementById("toolMicroscope");
+const toolAlienServer = document.getElementById("toolAlienServer");
 const toolOther = document.getElementById("toolOther");
 const problemSolvingViewerModal = document.getElementById("problemSolvingViewerModal");
 const problemSolvingViewerTitle = document.getElementById("problemSolvingViewerTitle");
@@ -195,6 +197,17 @@ const microscopePage = window.teknisiHubPages?.microscope || {
   eyebrow: "Microscope",
   title: "Microscope",
   subtitle: "Preview microscope USB atau camera internal langsung dari browser.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const alienServerPage = window.teknisiHubPages?.alienServer || {
+  viewKey: "tool_alien_server",
+  eyebrow: "Alien Server",
+  title: "Alien Server",
+  subtitle: "Embed cepat untuk halaman tool eksternal AMITSESetup.",
   items: [],
   mount() {},
   setVisible() {},
@@ -319,6 +332,11 @@ microscopePage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+alienServerPage.mount?.({
+  container: alienServerWorkbench,
+  notify: (message) => setNotice(message)
+});
+
 settingsPage.mount?.({
   container: settingsWorkbench,
   notify: (message) => setNotice(message)
@@ -413,6 +431,12 @@ const toolViewMap = {
     subtitle: microscopePage.subtitle,
     channelLink: null
   },
+  [alienServerPage.viewKey]: {
+    eyebrow: alienServerPage.eyebrow,
+    title: alienServerPage.title,
+    subtitle: alienServerPage.subtitle,
+    channelLink: null
+  },
   [settingsPage.viewKey]: {
     eyebrow: settingsPage.eyebrow,
     title: settingsPage.title,
@@ -428,6 +452,7 @@ const localWorkbenchViewKeys = new Set([
   lenovoBiosPatchPage.viewKey,
   biosPasswordPage.viewKey,
   microscopePage.viewKey,
+  alienServerPage.viewKey,
   boardViewerPage.viewKey,
   settingsPage.viewKey
 ]);
@@ -443,6 +468,7 @@ const viewHashMap = {
   [lenovoBiosPatchPage.viewKey]: "DumpBiosLenovo",
   [biosPasswordPage.viewKey]: "BiosPassword",
   [microscopePage.viewKey]: "Microscope",
+  [alienServerPage.viewKey]: "AlienServer",
   [boardViewerPage.viewKey]: "Boardviewer",
   [settingsPage.viewKey]: "Settings"
 };
@@ -465,6 +491,8 @@ const hashRouteMap = {
   toolbiospassword: biosPasswordPage.viewKey,
   microscope: microscopePage.viewKey,
   toolmicroscope: microscopePage.viewKey,
+  alienserver: alienServerPage.viewKey,
+  toolalienserver: alienServerPage.viewKey,
   boardviewer: boardViewerPage.viewKey,
   toolboardviewer: boardViewerPage.viewKey,
   settings: settingsPage.viewKey
@@ -781,6 +809,7 @@ function showWorkbenchOnly(viewKey) {
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
   biosPasswordPage.setVisible?.(viewKey === biosPasswordPage.viewKey);
   microscopePage.setVisible?.(viewKey === microscopePage.viewKey);
+  alienServerPage.setVisible?.(viewKey === alienServerPage.viewKey);
   boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
   settingsPage.setVisible?.(viewKey === settingsPage.viewKey);
 
@@ -812,6 +841,10 @@ function showWorkbenchOnly(viewKey) {
     microscopePage.refresh?.();
   }
 
+  if (viewKey === alienServerPage.viewKey) {
+    alienServerPage.refresh?.();
+  }
+
   if (viewKey === settingsPage.viewKey) {
     settingsPage.refresh?.();
   }
@@ -824,6 +857,7 @@ function hideWorkbench() {
   lenovoBiosPatchPage.setVisible?.(false);
   biosPasswordPage.setVisible?.(false);
   microscopePage.setVisible?.(false);
+  alienServerPage.setVisible?.(false);
   boardViewerPage.setVisible?.(false);
   settingsPage.setVisible?.(false);
 }
@@ -840,6 +874,7 @@ function setActiveNav(targetKey) {
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     tool_bios_password: toolBiosPassword,
     tool_microscope: toolMicroscope,
+    [alienServerPage.viewKey]: toolAlienServer,
     tool_boardviewer: toolOther,
     [settingsPage.viewKey]: navSettings
   };
@@ -953,6 +988,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "UEFI UI"
         : viewKey === biosPasswordPage.viewKey
         ? "PWD UI"
+        : viewKey === alienServerPage.viewKey
+        ? "ALN UI"
         : viewKey === boardViewerPage.viewKey
         ? "BRD UI"
         : "SET UI";
@@ -3569,6 +3606,13 @@ toolBiosPassword?.addEventListener("click", () => {
 toolMicroscope?.addEventListener("click", () => {
   updateViewHash(microscopePage.viewKey);
   currentCatalogView = microscopePage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolAlienServer?.addEventListener("click", () => {
+  updateViewHash(alienServerPage.viewKey);
+  currentCatalogView = alienServerPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });

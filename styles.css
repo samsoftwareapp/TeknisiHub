@@ -1828,6 +1828,33 @@ h1 {
   grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
 }
 
+.alien-server-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.alien-server-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.alien-server-frame-shell {
+  height: 430px;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #eef5fe;
+}
+
+.alien-server-frame {
+  display: block;
+  width: 100%;
+  height: 430px;
+  border: 0;
+  background: #eef5fe;
+  vertical-align: top;
+}
+
 .settings-toggle-card {
   display: flex;
   align-items: flex-start;
@@ -2525,6 +2552,15 @@ a {
   .dashboard-actions,
   .dashboard-action-buttons {
     width: 100%;
+  }
+
+  .alien-server-frame-shell,
+  .alien-server-frame {
+    height: 430px;
+  }
+
+  .alien-server-grid {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-action-buttons .ghost {
