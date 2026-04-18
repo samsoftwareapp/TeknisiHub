@@ -75,19 +75,6 @@
     const hasResult = Boolean(state.rawOutput);
 
     return `
-      <div class="spi-workbench-hero">
-        <div>
-          <p class="label">ME Analyzer</p>
-          <h3>Analisa manual BIOS langsung dari Web UI</h3>
-          <p class="spi-workbench-copy">Tool ini menjalankan ME Analyzer secara manual dan menampilkan seluruh hasil analisa, bukan hanya family dan version.</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill">Manual check</span>
-          <span class="spi-status-pill">Local service</span>
-          <span class="spi-status-pill">Full output</span>
-        </div>
-      </div>
-
       <div class="spi-layout">
         <section class="spi-card">
           <div class="spi-card-head">

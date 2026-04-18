@@ -115,19 +115,6 @@
     const notesMarkup = (state.notes || []).map((note) => `<p>${escapeHtml(note)}</p>`).join("");
 
     return `
-      <div class="spi-workbench-hero bios-password-hero">
-        <div>
-          <p class="label">BIOS Password</p>
-          <h3>Generator password BIOS offline dari engine pwgen-for-bios</h3>
-          <p class="spi-workbench-copy">Tool ini tidak lagi sekadar mendeteksi pola. Input lock code akan dijalankan ke engine generator lokal dan hasil solver yang cocok ditampilkan langsung di Web UI.</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill">Offline</span>
-          <span class="spi-status-pill">Node Runtime</span>
-          <span class="spi-status-pill">Local Service</span>
-        </div>
-      </div>
-
       <div class="spi-stats-grid bios-password-stats-grid">
         <article class="spi-stat-card${statusClass}">
           <span class="material-symbols-outlined">${statusIcon}</span>

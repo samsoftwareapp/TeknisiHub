@@ -238,19 +238,6 @@
     const reportRows = parseReportRows(state.reportOutput);
 
     return `
-      <div class="spi-workbench-hero">
-        <div>
-          <p class="label">UEFI Tools</p>
-          <h3>Analisa struktur firmware UEFI langsung dari Web UI</h3>
-          <p class="spi-workbench-copy">Halaman ini menjalankan UEFIExtract mode report untuk membaca struktur image, region, volume, file, dan parser warning dari firmware.</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill">UEFIExtract</span>
-          <span class="spi-status-pill">Local service</span>
-          <span class="spi-status-pill">Full report</span>
-        </div>
-      </div>
-
       <div class="spi-layout">
         <section class="spi-card">
           <div class="spi-card-head">

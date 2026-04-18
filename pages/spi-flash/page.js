@@ -136,10 +136,6 @@
     const progressWidth = Math.max(0, Math.min(100, Number(state.progress) || 0));
     const controlsDisabled = !state.serviceAvailable || busy;
     const disableAttr = controlsDisabled ? " disabled" : "";
-    const serviceTone = state.serviceAvailable ? "Hardware ready" : "Service offline";
-    const subtitle = state.serviceAvailable
-      ? "Data di halaman ini berasal dari local service."
-      : "Menunggu local service.";
     const chipLabel = [state.chipVendor, state.chipModel].filter(Boolean).join(" ");
     const chipMeta = [];
     if (state.chipCapacity) {
@@ -162,19 +158,6 @@
     const statsStateClass = isConnected ? " is-connected" : " is-disconnected";
 
     return `
-      <div class="spi-workbench-hero">
-        <div>
-          <p class="label">SPI Flash Studio</p>
-          <h3>Workbench Web UI untuk read, write, erase, dan verify</h3>
-          <p class="spi-workbench-copy">${escapeHtml(subtitle)}</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill${state.serviceAvailable ? "" : " is-preview"}">${escapeHtml(serviceTone)}</span>
-          <span class="spi-status-pill">${escapeHtml(profile.label)}</span>
-          <span class="spi-status-pill">${escapeHtml(state.backendMode)}</span>
-        </div>
-      </div>
-
       ${state.errorMessage ? `
         <section class="spi-card">
           <div class="spi-card-head">

@@ -56,6 +56,8 @@ const settingsWorkbench = document.getElementById("settingsWorkbench");
 const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
 const toastAutoHideDelayMs = 4000;
+const minBiosFileSizeBytes = 512 * 1024;
+const maxBiosFileSizeBytes = 50 * 1024 * 1024;
 const catalogContextPanel = document.getElementById("catalogContextPanel");
 const catalogList = document.getElementById("catalogList");
 const catalogEyebrow = document.getElementById("catalogEyebrow");
@@ -1243,6 +1245,30 @@ function renderCatalogBiosDuplicateCheck(state, analysis = null) {
   `;
 }
 
+function formatFileSize(bytes) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2).replace(/\.00$/, "")} MB`;
+  }
+
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(2).replace(/\.00$/, "")} KB`;
+  }
+
+  return `${bytes} B`;
+}
+
+function validateCatalogFileSize(file, category) {
+  if (!file || category !== "BIOS") {
+    return;
+  }
+
+  if (file.size < minBiosFileSizeBytes || file.size > maxBiosFileSizeBytes) {
+    throw new Error(
+      `Ukuran file BIOS ${file.name} tidak didukung. Ukuran file saat ini ${formatFileSize(file.size)}, sedangkan batas upload BIOS adalah ${formatFileSize(minBiosFileSizeBytes)} sampai ${formatFileSize(maxBiosFileSizeBytes)}.`
+    );
+  }
+}
+
 async function checkSelectedCatalogDuplicate() {
   if (catalogEditorMode === "edit" || !supportsCatalogMd5Check(currentCatalogView) || !catalogEditorFile?.files?.length) {
     resetCatalogBiosDuplicateCheck();
@@ -1252,6 +1278,13 @@ async function checkSelectedCatalogDuplicate() {
   const config = getTelegramCatalogConfig(currentCatalogView);
   const selectedFile = catalogEditorFile.files[0];
   validateCatalogFileNameLength(selectedFile.name, config.displayName);
+  try {
+    validateCatalogFileSize(selectedFile, currentCatalogView);
+  } catch (error) {
+    resetCatalogBiosDuplicateCheck();
+    renderCatalogBiosDuplicateCheck("error", { message: error.message });
+    return;
+  }
   const lowerFileName = selectedFile.name.toLowerCase();
   const allowedExtensions = currentCatalogView === "Boardview"
     ? allowedBoardviewExtensions
@@ -2598,6 +2631,7 @@ async function submitCatalogEditor() {
 
   const selectedFile = catalogEditorFile.files[0];
   validateCatalogFileNameLength(selectedFile.name, config.displayName);
+  validateCatalogFileSize(selectedFile, currentCatalogView);
   const lowerFileName = selectedFile.name.toLowerCase();
   const allowedExtensions = config.endpoint === "boardview"
     ? allowedBoardviewExtensions
@@ -2617,6 +2651,7 @@ async function submitCatalogEditor() {
   getCatalogAdditionalFileInputs().forEach((input) => {
     const extraFile = input.files?.[0];
     if (extraFile) {
+      validateCatalogFileSize(extraFile, currentCatalogView);
       formData.append("additionalFiles", extraFile);
     }
   });

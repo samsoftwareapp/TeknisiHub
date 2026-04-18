@@ -60,19 +60,6 @@
   function createWorkbenchMarkup(state, busy) {
     const disableAttr = busy ? " disabled" : "";
     return `
-      <div class="spi-workbench-hero">
-        <div>
-          <p class="label">Boardviewer</p>
-          <h3>Buka file boardview langsung dari Web UI</h3>
-          <p class="spi-workbench-copy">Halaman ini tetap berjalan di Web UI, tetapi local service akan membuka aplikasi BoardViewer desktop dari folder Prerequisites dengan file yang Anda pilih.</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill">BoardViewer</span>
-          <span class="spi-status-pill">Prerequisites</span>
-          <span class="spi-status-pill">Desktop launcher</span>
-        </div>
-      </div>
-
       <div class="spi-layout">
         <section class="spi-card">
           <div class="spi-card-head">
