@@ -87,6 +87,10 @@ const catalogEditorSerialNumber = document.getElementById("catalogEditorSerialNu
 const catalogEditorBoardCode = document.getElementById("catalogEditorBoardCode");
 const catalogEditorNote = document.getElementById("catalogEditorNote");
 const catalogEditorSubmitButton = document.getElementById("catalogEditorSubmitButton");
+const catalogEditorUploadProgress = document.getElementById("catalogEditorUploadProgress");
+const catalogEditorUploadProgressLabel = document.getElementById("catalogEditorUploadProgressLabel");
+const catalogEditorUploadProgressPercent = document.getElementById("catalogEditorUploadProgressPercent");
+const catalogEditorUploadProgressBar = document.getElementById("catalogEditorUploadProgressBar");
 const aboutFooterButton = document.getElementById("aboutFooterButton");
 const aboutModal = document.getElementById("aboutModal");
 const aboutModalCloseButton = document.getElementById("aboutModalCloseButton");
@@ -1204,10 +1208,14 @@ function supportsCatalogMd5Check(category) {
   return category === "BIOS" || category === "Boardview";
 }
 
-function validateCatalogFileNameLength(fileName, displayName) {
+function validateCatalogFileNameLength(fileName, displayName, options = {}) {
   const normalizedFileName = String(fileName || "").trim();
-  if (normalizedFileName.length < minCatalogFileNameLength || normalizedFileName.length > maxCatalogFileNameLength) {
-    throw new Error(`Nama file ${displayName} minimal ${minCatalogFileNameLength} karakter dan maksimal ${maxCatalogFileNameLength} karakter.`);
+  const minimumLength = options.skipMinimumLength ? 1 : minCatalogFileNameLength;
+  if (normalizedFileName.length < minimumLength || normalizedFileName.length > maxCatalogFileNameLength) {
+    const minimumMessage = options.skipMinimumLength
+      ? "minimal 1 karakter"
+      : `minimal ${minCatalogFileNameLength} karakter`;
+    throw new Error(`Nama file ${displayName} ${minimumMessage} dan maksimal ${maxCatalogFileNameLength} karakter.`);
   }
 }
 
@@ -1313,7 +1321,9 @@ async function checkSelectedCatalogDuplicate() {
 
   const config = getTelegramCatalogConfig(currentCatalogView);
   const selectedFile = catalogEditorFile.files[0];
-  validateCatalogFileNameLength(selectedFile.name, config.displayName);
+  validateCatalogFileNameLength(selectedFile.name, config.displayName, {
+    skipMinimumLength: currentCatalogView === "Datasheets"
+  });
   try {
     validateCatalogFileSize(selectedFile, currentCatalogView);
   } catch (error) {
@@ -1436,6 +1446,7 @@ function openCatalogEditor(mode, item = null) {
   catalogEditorSubmitButton.innerHTML = isEditMode
     ? `<span class="material-symbols-outlined">save</span><span>Simpan Perubahan</span>`
     : `<span class="material-symbols-outlined">upload_file</span><span>${escapeHtml(config.uploadLabel)}</span>`;
+  setCatalogEditorUploadProgress({ active: false });
 }
 
 function closeCatalogEditor() {
@@ -1466,6 +1477,7 @@ function closeCatalogEditor() {
       input.required = false;
     }
   });
+  setCatalogEditorUploadProgress({ active: false });
 }
 
 function openAboutModal() {
@@ -1922,6 +1934,85 @@ function setButtonLoading(button, loading, defaultIcon, defaultLabel, loadingLab
       <span class="material-symbols-outlined">${escapeHtml(defaultIcon)}</span>
       <span>${escapeHtml(defaultLabel)}</span>
     `;
+}
+
+function setCatalogEditorUploadProgress(progress = {}) {
+  const active = Boolean(progress.active);
+  toggleElement(catalogEditorUploadProgress, active);
+  if (!catalogEditorUploadProgress) {
+    return;
+  }
+
+  const percent = Math.max(0, Math.min(100, Math.round(Number(progress.percent) || 0)));
+  if (catalogEditorUploadProgressLabel) {
+    catalogEditorUploadProgressLabel.textContent = progress.label || "Menyiapkan upload...";
+  }
+  if (catalogEditorUploadProgressPercent) {
+    catalogEditorUploadProgressPercent.textContent = active ? `${percent}%` : "0%";
+  }
+  if (catalogEditorUploadProgressBar) {
+    catalogEditorUploadProgressBar.style.width = active ? `${percent}%` : "0%";
+  }
+
+  const progressTrack = catalogEditorUploadProgress.querySelector(".catalog-editor-upload-progress-track");
+  if (progressTrack) {
+    progressTrack.setAttribute("aria-valuenow", String(active ? percent : 0));
+  }
+}
+
+function setCatalogEditorSubmitting(isSubmitting, options = {}) {
+  if (!catalogEditorSubmitButton) {
+    return;
+  }
+
+  if (!isSubmitting) {
+    catalogEditorSubmitButton.disabled = false;
+    catalogEditorSubmitButton.innerHTML = options.defaultMarkup || catalogEditorSubmitButton.innerHTML;
+    setCatalogEditorUploadProgress({ active: false });
+    return;
+  }
+
+  const percent = Math.max(0, Math.min(100, Math.round(Number(options.percent) || 0)));
+  const label = options.label || "Memproses...";
+  const showProgress = options.showProgress !== false;
+  catalogEditorSubmitButton.disabled = true;
+  catalogEditorSubmitButton.innerHTML = `
+    <span class="material-symbols-outlined is-spinning">progress_activity</span>
+    <span>${escapeHtml(label)}</span>
+  `;
+  setCatalogEditorUploadProgress({
+    active: showProgress,
+    percent,
+    label: options.progressLabel || "Menyiapkan upload..."
+  });
+}
+
+function createCatalogUploadOperationId() {
+  return `catalog-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function applyCatalogTelegramUploadProgress(progress = {}) {
+  const percent = Math.max(0, Math.min(100, Math.round(Number(progress.progressPercent) || 0)));
+  const stage = String(progress.stage || "").toLowerCase();
+  const message = progress.message || "Upload ke Telegram sedang berjalan...";
+  const buttonLabel = stage === "sending"
+    ? "Mengirim ke channel..."
+    : stage === "completed"
+    ? "Upload selesai"
+    : stage === "failed"
+    ? "Upload gagal"
+    : stage === "cancelled"
+    ? "Upload dibatalkan"
+    : percent > 0
+    ? `Upload Telegram ${percent}%`
+    : "Menyiapkan upload Telegram...";
+
+  setCatalogEditorSubmitting(true, {
+    percent,
+    label: buttonLabel,
+    progressLabel: message,
+    showProgress: true
+  });
 }
 
 function normalizeLocalPhoneNumber(value) {
@@ -2585,6 +2676,117 @@ async function fetchJson(path, options = {}) {
   return payload;
 }
 
+function uploadFormData(path, formData, options = {}) {
+  const requestUrl = `${serviceBaseUrl}${path}`;
+  const operationId = String(options.operationId || "").trim();
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method || "POST", requestUrl, true);
+    let pollingTimerId = 0;
+    let pollingStopped = false;
+
+    const stopPolling = () => {
+      pollingStopped = true;
+      if (pollingTimerId) {
+        window.clearInterval(pollingTimerId);
+        pollingTimerId = 0;
+      }
+    };
+
+    const pollServerProgress = async () => {
+      if (!operationId || pollingStopped || typeof options.onServerProgress !== "function") {
+        return;
+      }
+
+      try {
+        const progress = await fetchJson(`/catalog/upload-progress/${encodeURIComponent(operationId)}`);
+        if (pollingStopped) {
+          return;
+        }
+
+        options.onServerProgress(progress);
+        if (!progress.active && ["completed", "failed", "cancelled"].includes(String(progress.stage || "").toLowerCase())) {
+          stopPolling();
+        }
+      } catch {
+        // Progress polling is best effort while the main upload request is still running.
+      }
+    };
+
+    if (operationId && typeof options.onServerProgress === "function") {
+      void pollServerProgress();
+      pollingTimerId = window.setInterval(() => {
+        void pollServerProgress();
+      }, 700);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || typeof options.onProgress !== "function") {
+        return;
+      }
+
+      options.onProgress({
+        loaded: event.loaded,
+        total: event.total,
+        percent: event.total > 0 ? (event.loaded / event.total) * 100 : 0
+      });
+    };
+
+    xhr.onerror = () => {
+      stopPolling();
+      reject(new Error("Koneksi ke local service gagal: unknown error"));
+    };
+
+    xhr.onload = () => {
+      stopPolling();
+      const rawText = xhr.responseText || "";
+      let payload = {};
+
+      if (rawText) {
+        try {
+          payload = JSON.parse(rawText);
+        } catch {
+          payload = { message: rawText };
+        }
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const validationErrors = payload.errors && typeof payload.errors === "object"
+          ? Object.values(payload.errors).flat().join(" ")
+          : "";
+        reject(new Error(
+          payload.message ||
+          payload.title ||
+          validationErrors ||
+          `Request gagal (${xhr.status}).`
+        ));
+        return;
+      }
+
+      resolve(payload);
+    };
+
+    xhr.onloadend = () => {
+      const canPollFinalState = Boolean(operationId) && typeof options.onServerProgress === "function";
+      stopPolling();
+      if (!canPollFinalState) {
+        return;
+      }
+
+      fetchJson(`/catalog/upload-progress/${encodeURIComponent(operationId)}`)
+        .then((progress) => {
+          options.onServerProgress(progress);
+        })
+        .catch(() => {
+          // Ignore final polling failure because the main request already carries the definitive result.
+        });
+    };
+
+    xhr.send(formData);
+  });
+}
+
 async function refreshStatus(options = {}) {
   const forceUpdateCheck = Boolean(options.forceUpdateCheck);
   toggleElement(mainPanel, false);
@@ -2666,7 +2868,9 @@ async function submitCatalogEditor() {
   }
 
   const selectedFile = catalogEditorFile.files[0];
-  validateCatalogFileNameLength(selectedFile.name, config.displayName);
+  validateCatalogFileNameLength(selectedFile.name, config.displayName, {
+    skipMinimumLength: config.endpoint === "datasheets"
+  });
   validateCatalogFileSize(selectedFile, currentCatalogView);
   const lowerFileName = selectedFile.name.toLowerCase();
   const allowedExtensions = config.endpoint === "boardview"
@@ -2697,10 +2901,24 @@ async function submitCatalogEditor() {
     formData.set("boardCode", payload.boardCode);
     formData.set("note", payload.note);
   }
+  const operationId = createCatalogUploadOperationId();
+  formData.set("operationId", operationId);
 
-  const result = await fetchJson(`/catalog/${config.endpoint}`, {
+  const result = await uploadFormData(`/catalog/${config.endpoint}`, formData, {
     method: "POST",
-    body: formData
+    operationId,
+    onProgress: ({ percent }) => {
+      const roundedPercent = Math.max(1, Math.min(15, Math.round(percent * 0.15)));
+      setCatalogEditorSubmitting(true, {
+        percent: roundedPercent,
+        label: "Mengirim file...",
+        progressLabel: `Mengirim file ${config.displayName} ke local service...`,
+        showProgress: true
+      });
+    },
+    onServerProgress: (progress) => {
+      applyCatalogTelegramUploadProgress(progress);
+    }
   });
 
   setNotice(result.message);
@@ -3236,23 +3454,19 @@ document.addEventListener("keydown", (event) => {
 catalogEditorForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const previousMarkup = catalogEditorSubmitButton?.innerHTML || "";
-  if (catalogEditorSubmitButton) {
-    catalogEditorSubmitButton.disabled = true;
-    catalogEditorSubmitButton.innerHTML = `
-      <span class="material-symbols-outlined">progress_activity</span>
-      <span>Memproses...</span>
-    `;
-  }
+  setCatalogEditorSubmitting(true, {
+    percent: 0,
+    label: catalogEditorMode === "edit" ? "Menyimpan..." : "Menyiapkan upload...",
+    progressLabel: catalogEditorMode === "edit" ? "Menyimpan perubahan..." : "Menyiapkan upload...",
+    showProgress: catalogEditorMode !== "edit"
+  });
 
   try {
     await submitCatalogEditor();
   } catch (error) {
     setNotice(error.message, true);
   } finally {
-    if (catalogEditorSubmitButton) {
-      catalogEditorSubmitButton.disabled = false;
-      catalogEditorSubmitButton.innerHTML = previousMarkup;
-    }
+    setCatalogEditorSubmitting(false, { defaultMarkup: previousMarkup });
   }
 });
 

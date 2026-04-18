@@ -1450,6 +1450,50 @@ h1 {
   margin-top: 8px;
 }
 
+.catalog-editor-upload-progress {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(18, 135, 174, 0.08);
+  border: 1px solid rgba(18, 135, 174, 0.14);
+}
+
+.catalog-editor-upload-progress-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.catalog-editor-upload-progress-copy strong {
+  color: var(--deep);
+}
+
+.catalog-editor-upload-progress-copy span {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.catalog-editor-upload-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(17, 72, 110, 0.12);
+}
+
+.catalog-editor-upload-progress-track span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--deep), var(--accent));
+  transition: width 180ms ease-out;
+}
+
 .spi-workbench {
   display: grid;
   gap: 18px;

@@ -410,6 +410,22 @@
             <span>Simpan</span>
           </button>
         </div>
+        <div id="catalogEditorUploadProgress" class="catalog-editor-upload-progress hidden" aria-live="polite">
+          <div class="catalog-editor-upload-progress-copy">
+            <strong id="catalogEditorUploadProgressLabel">Menyiapkan upload...</strong>
+            <span id="catalogEditorUploadProgressPercent">0%</span>
+          </div>
+          <div
+            class="catalog-editor-upload-progress-track"
+            role="progressbar"
+            aria-label="Progress upload"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <span id="catalogEditorUploadProgressBar"></span>
+          </div>
+        </div>
       </form>
     </div>
   </div>
