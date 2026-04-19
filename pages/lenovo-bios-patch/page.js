@@ -249,15 +249,14 @@
           formData.set("file", selectedFile);
 
           const result = await fetchPatchedFile("/tools/lenovo-bios-patch/patch", formData);
-          revokeDownloadUrl();
-          downloadUrl = URL.createObjectURL(result.blob);
-
           state.patchedFileName = result.fileName || `${selectedFile.name}_PATCHED.bin`;
           state.patchedFileSize = Number(result.blob.size || 0);
           state.patchedAt = new Date().toLocaleString("id-ID");
           state.message = "Patch BIOS Lenovo selesai. File hasil patch sudah siap diunduh.";
           state.errorMessage = "";
 
+          revokeDownloadUrl();
+          downloadUrl = URL.createObjectURL(result.blob);
           triggerBrowserDownload(downloadUrl, state.patchedFileName);
           notify("Patch BIOS Lenovo selesai dan file hasil sudah diunduh.");
         } catch (error) {

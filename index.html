@@ -218,6 +218,10 @@
             <div class="sidebar-card">
               <p class="label">Navigasi</p>
               <nav class="sidebar-nav">
+                <button id="navForum" type="button" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">forum</span>
+                  <span>Forum</span>
+                </button>
                 <button id="navBios" type="button" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">memory</span>
                   <span>BIOS</span>
@@ -252,6 +256,9 @@
                     <button id="toolUefi" type="button" class="sidebar-nav-button">
                       <span>UEFI Tools</span>
                     </button>
+                    <button id="toolFileHashCompare" type="button" class="sidebar-nav-button">
+                      <span>Cek Hash File</span>
+                    </button>
                     <details id="toolBiosPatchGroup" class="sidebar-subdropdown">
                       <summary>
                         <span class="summary-left">
@@ -262,6 +269,12 @@
                       <div class="sidebar-subdropdown-menu">
                         <button id="toolDumpBiosLenovo" type="button" class="sidebar-nav-button sidebar-nav-button-subitem">
                           <span>Dump Bios Lenovo</span>
+                        </button>
+                        <button id="toolAmiDecryptor" type="button" class="sidebar-nav-button sidebar-nav-button-subitem">
+                          <span>AMI Decrytor &amp; Unlocker</span>
+                        </button>
+                        <button id="toolBiosSpdRemoval" type="button" class="sidebar-nav-button sidebar-nav-button-subitem">
+                          <span>BIOS SPD Removal</span>
                         </button>
                       </div>
                     </details>
@@ -313,7 +326,9 @@
             <section id="spiFlashWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="fileHashCompareWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="lenovoBiosPatchWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="amiDecryptorWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="biosPasswordWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="microscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="alienServerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -490,6 +505,72 @@
     </div>
   </div>
 
+  <div id="forumThreadModal" class="catalog-modal hidden">
+    <div class="catalog-modal-card forum-thread-modal-card">
+      <div class="catalog-modal-head">
+        <div>
+          <p class="label">Forum</p>
+          <h3 id="forumThreadTitle">Thread forum</h3>
+        </div>
+        <button id="forumThreadCloseButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">close</span>
+          <span>Tutup</span>
+        </button>
+      </div>
+      <div class="forum-thread-meta">
+        <span id="forumThreadAuthor">Pengirim</span>
+        <span id="forumThreadDate">Tanggal</span>
+      </div>
+      <div id="forumThreadContent" class="forum-thread-content"></div>
+      <div class="forum-thread-replies-section">
+        <div class="forum-thread-replies-head">
+          <h4>Balasan</h4>
+          <span id="forumThreadReplyCount">0 balasan</span>
+        </div>
+        <div id="forumThreadReplies" class="forum-thread-replies-list"></div>
+      </div>
+      <form id="forumReplyForm" class="forum-reply-form">
+        <label for="forumReplyInput">Balas thread</label>
+        <textarea id="forumReplyInput" rows="5" placeholder="Tulis balasan untuk posting ini..."></textarea>
+        <div class="forum-reply-actions">
+          <button id="forumReplySubmitButton" type="submit">
+            <span class="material-symbols-outlined">reply</span>
+            <span>Kirim Balasan</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="forumTopicModal" class="catalog-modal hidden">
+    <div class="catalog-modal-card forum-topic-modal-card">
+      <div class="catalog-modal-head">
+        <div>
+          <p class="label">Forum</p>
+          <h3>Buat topic baru</h3>
+        </div>
+        <button id="forumTopicCloseButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">close</span>
+          <span>Tutup</span>
+        </button>
+      </div>
+      <form id="forumTopicForm" class="forum-topic-form">
+        <label for="forumTopicTitleInput">Judul topic</label>
+        <input id="forumTopicTitleInput" type="text" maxlength="128" placeholder="Contoh: Boardview mati total LA-XXXX">
+
+        <label for="forumTopicContentInput">Isi topic</label>
+        <textarea id="forumTopicContentInput" rows="7" placeholder="Tulis detail kasus, gejala, hasil ukur, atau pertanyaan di sini..."></textarea>
+
+        <div class="forum-reply-actions">
+          <button id="forumTopicSubmitButton" type="submit">
+            <span class="material-symbols-outlined">add_comment</span>
+            <span>Buat Topic</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="previousVersionsModal" class="catalog-modal hidden">
     <div class="catalog-modal-card previous-versions-modal-card">
       <div class="catalog-modal-head">
@@ -509,7 +590,9 @@
   <script src="pages/spi-flash/page.js"></script>
   <script src="pages/me-analyzer/page.js"></script>
   <script src="pages/uefi-tool/page.js"></script>
+  <script src="pages/file-hash-compare/page.js"></script>
   <script src="pages/lenovo-bios-patch/page.js"></script>
+  <script src="pages/ami-decryptor/page.js"></script>
   <script src="pages/bios-password/page.js"></script>
   <script src="pages/microscope/page.js"></script>
   <script src="pages/alien-server/page.js"></script>

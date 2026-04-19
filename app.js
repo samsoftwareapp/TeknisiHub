@@ -50,7 +50,9 @@ const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
+const fileHashCompareWorkbench = document.getElementById("fileHashCompareWorkbench");
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
+const amiDecryptorWorkbench = document.getElementById("amiDecryptorWorkbench");
 const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
 const microscopeWorkbench = document.getElementById("microscopeWorkbench");
 const alienServerWorkbench = document.getElementById("alienServerWorkbench");
@@ -100,13 +102,17 @@ const navBios = document.getElementById("navBios");
 const navBoardview = document.getElementById("navBoardview");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
+const navForum = document.getElementById("navForum");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
+const toolFileHashCompare = document.getElementById("toolFileHashCompare");
 const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
 const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
+const toolAmiDecryptor = document.getElementById("toolAmiDecryptor");
+const toolBiosSpdRemoval = document.getElementById("toolBiosSpdRemoval");
 const toolBiosPassword = document.getElementById("toolBiosPassword");
 const toolMicroscope = document.getElementById("toolMicroscope");
 const toolAlienServer = document.getElementById("toolAlienServer");
@@ -115,6 +121,23 @@ const problemSolvingViewerModal = document.getElementById("problemSolvingViewerM
 const problemSolvingViewerTitle = document.getElementById("problemSolvingViewerTitle");
 const problemSolvingViewerContent = document.getElementById("problemSolvingViewerContent");
 const problemSolvingViewerCloseButton = document.getElementById("problemSolvingViewerCloseButton");
+const forumThreadModal = document.getElementById("forumThreadModal");
+const forumThreadTitle = document.getElementById("forumThreadTitle");
+const forumThreadAuthor = document.getElementById("forumThreadAuthor");
+const forumThreadDate = document.getElementById("forumThreadDate");
+const forumThreadContent = document.getElementById("forumThreadContent");
+const forumThreadReplies = document.getElementById("forumThreadReplies");
+const forumThreadReplyCount = document.getElementById("forumThreadReplyCount");
+const forumThreadCloseButton = document.getElementById("forumThreadCloseButton");
+const forumReplyForm = document.getElementById("forumReplyForm");
+const forumReplyInput = document.getElementById("forumReplyInput");
+const forumReplySubmitButton = document.getElementById("forumReplySubmitButton");
+const forumTopicModal = document.getElementById("forumTopicModal");
+const forumTopicCloseButton = document.getElementById("forumTopicCloseButton");
+const forumTopicForm = document.getElementById("forumTopicForm");
+const forumTopicTitleInput = document.getElementById("forumTopicTitleInput");
+const forumTopicContentInput = document.getElementById("forumTopicContentInput");
+const forumTopicSubmitButton = document.getElementById("forumTopicSubmitButton");
 const previousVersionsModal = document.getElementById("previousVersionsModal");
 const previousVersionsList = document.getElementById("previousVersionsList");
 const previousVersionsCloseButton = document.getElementById("previousVersionsCloseButton");
@@ -159,11 +182,33 @@ const uefiToolPage = window.teknisiHubPages?.uefiTool || {
   refresh() {}
 };
 
+const fileHashComparePage = window.teknisiHubPages?.fileHashCompare || {
+  viewKey: "tool_file_hash_compare",
+  eyebrow: "Hash Compare",
+  title: "Cek Hash File",
+  subtitle: "Bandingkan dua file dengan MD5 dan SHA-256.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
 const lenovoBiosPatchPage = window.teknisiHubPages?.lenovoBiosPatch || {
   viewKey: "tool_lenovo_dump_bios",
   eyebrow: "Bios Patch",
   title: "Dump Bios Lenovo",
   subtitle: "Utility lokal untuk membuat file patch dari dump BIOS Lenovo.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const amiDecryptorPage = window.teknisiHubPages?.amiDecryptor || {
+  viewKey: "tool_ami_decryptor",
+  eyebrow: "Bios Patch",
+  title: "AMI Decrytor & Unlocker",
+  subtitle: "Cari AMITSESetup dan decode kandidat password supervisor dari BIOS AMI.",
   items: [],
   mount() {},
   setVisible() {},
@@ -228,23 +273,28 @@ const settingsPage = window.teknisiHubPages?.settings || {
 let catalogLoaded = false;
 let catalogItems = [];
 let catalogCache = [];
-let currentCatalogView = spiFlashPage.viewKey;
+let currentCatalogView = "Forum";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
 let currentBoardviewChannelRole = "";
 let currentProblemSolvingChannelRole = "";
 let currentDatasheetsChannelRole = "";
+let currentForumChannelRole = "";
 let currentRequiredChannelInviteLink = "";
 let currentBoardviewChannelInviteLink = "";
 let currentProblemSolvingChannelInviteLink = "";
 let currentDatasheetsChannelInviteLink = "";
+let currentForumChannelInviteLink = "";
 let isProblemSolvingMember = false;
 let isDatasheetsMember = false;
+let isForumMember = false;
+let currentForumThreadMessageId = 0;
 const catalogJoinRequiredState = {
   BIOS: false,
   Boardview: false,
   ProblemSolving: false,
-  Datasheets: false
+  Datasheets: false,
+  Forum: false
 };
 let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
@@ -312,8 +362,18 @@ uefiToolPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+fileHashComparePage.mount?.({
+  container: fileHashCompareWorkbench,
+  notify: (message) => setNotice(message)
+});
+
 lenovoBiosPatchPage.mount?.({
   container: lenovoBiosPatchWorkbench,
+  notify: (message) => setNotice(message)
+});
+
+amiDecryptorPage.mount?.({
+  container: amiDecryptorWorkbench,
   notify: (message) => setNotice(message)
 });
 
@@ -378,6 +438,15 @@ const telegramCatalogConfigs = {
     fileAccept: ".pdf",
     invalidExtensionMessage: "Format file Datasheets harus .pdf.",
     endpoint: "datasheets"
+  },
+  Forum: {
+    displayName: "Forum",
+    uploadLabel: "Buat Thread Forum",
+    editTitle: "Edit Thread Forum",
+    fileLabel: "Isi Thread",
+    fileAccept: "",
+    invalidExtensionMessage: "",
+    endpoint: "forum"
   }
 };
 
@@ -385,7 +454,8 @@ const telegramCatalogState = {
   BIOS: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
   Boardview: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
   ProblemSolving: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
-  Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false }
+  Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
+  Forum: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false }
 };
 
 const toolViewMap = {
@@ -407,10 +477,22 @@ const toolViewMap = {
     subtitle: uefiToolPage.subtitle,
     channelLink: null
   },
+  [fileHashComparePage.viewKey]: {
+    eyebrow: fileHashComparePage.eyebrow,
+    title: fileHashComparePage.title,
+    subtitle: fileHashComparePage.subtitle,
+    channelLink: null
+  },
   [lenovoBiosPatchPage.viewKey]: {
     eyebrow: lenovoBiosPatchPage.eyebrow,
     title: lenovoBiosPatchPage.title,
     subtitle: lenovoBiosPatchPage.subtitle,
+    channelLink: null
+  },
+  [amiDecryptorPage.viewKey]: {
+    eyebrow: amiDecryptorPage.eyebrow,
+    title: amiDecryptorPage.title,
+    subtitle: amiDecryptorPage.subtitle,
     channelLink: null
   },
   tool_bios_password: {
@@ -449,7 +531,9 @@ const localWorkbenchViewKeys = new Set([
   spiFlashPage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
+  fileHashComparePage.viewKey,
   lenovoBiosPatchPage.viewKey,
+  amiDecryptorPage.viewKey,
   biosPasswordPage.viewKey,
   microscopePage.viewKey,
   alienServerPage.viewKey,
@@ -462,10 +546,13 @@ const viewHashMap = {
   Boardview: "Boardview",
   ProblemSolving: "ProblemSolving",
   Datasheets: "Datasheets",
+  Forum: "Forum",
   [spiFlashPage.viewKey]: "SpiFlash",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
+  [fileHashComparePage.viewKey]: "FileHashCompare",
   [lenovoBiosPatchPage.viewKey]: "DumpBiosLenovo",
+  [amiDecryptorPage.viewKey]: "AmiDecryptor",
   [biosPasswordPage.viewKey]: "BiosPassword",
   [microscopePage.viewKey]: "Microscope",
   [alienServerPage.viewKey]: "AlienServer",
@@ -478,6 +565,7 @@ const hashRouteMap = {
   boardview: "Boardview",
   problemsolving: "ProblemSolving",
   datasheets: "Datasheets",
+  forum: "Forum",
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
   meanalyzer: meAnalyzerPage.viewKey,
@@ -485,8 +573,12 @@ const hashRouteMap = {
   uefitools: uefiToolPage.viewKey,
   tooluefitools: uefiToolPage.viewKey,
   tooluefi: uefiToolPage.viewKey,
+  filehashcompare: fileHashComparePage.viewKey,
+  toolfilehashcompare: fileHashComparePage.viewKey,
   dumpbioslenovo: lenovoBiosPatchPage.viewKey,
   tooldumpbioslenovo: lenovoBiosPatchPage.viewKey,
+  amidecryptor: amiDecryptorPage.viewKey,
+  toolamidecryptor: amiDecryptorPage.viewKey,
   biospassword: biosPasswordPage.viewKey,
   toolbiospassword: biosPasswordPage.viewKey,
   microscope: microscopePage.viewKey,
@@ -513,10 +605,13 @@ function getViewButton(viewKey) {
     Boardview: navBoardview,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
+    Forum: navForum,
     [spiFlashPage.viewKey]: toolSpiFlash,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
+    [fileHashComparePage.viewKey]: toolFileHashCompare,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
+    [amiDecryptorPage.viewKey]: toolAmiDecryptor,
     [biosPasswordPage.viewKey]: toolBiosPassword,
     [microscopePage.viewKey]: toolMicroscope,
     [boardViewerPage.viewKey]: toolOther,
@@ -586,12 +681,15 @@ function resetCatalog() {
   currentBoardviewChannelRole = "";
   currentProblemSolvingChannelRole = "";
   currentDatasheetsChannelRole = "";
+  currentForumChannelRole = "";
   isProblemSolvingMember = false;
   isDatasheetsMember = false;
+  isForumMember = false;
   setChannelJoinRequired("BIOS", false);
   setChannelJoinRequired("Boardview", false);
   setChannelJoinRequired("ProblemSolving", false);
   setChannelJoinRequired("Datasheets", false);
+  setChannelJoinRequired("Forum", false);
   telegramCatalogState.BIOS.requestToken = 0;
   telegramCatalogState.BIOS.hasMore = false;
   telegramCatalogState.BIOS.nextOffset = 0;
@@ -608,6 +706,10 @@ function resetCatalog() {
   telegramCatalogState.Datasheets.hasMore = false;
   telegramCatalogState.Datasheets.nextOffset = 0;
   telegramCatalogState.Datasheets.loadingMore = false;
+  telegramCatalogState.Forum.requestToken = 0;
+  telegramCatalogState.Forum.hasMore = false;
+  telegramCatalogState.Forum.nextOffset = 0;
+  telegramCatalogState.Forum.loadingMore = false;
   catalogEditorMode = "upload";
   if (catalogSearchDebounceId) {
     clearTimeout(catalogSearchDebounceId);
@@ -637,17 +739,19 @@ function resetCatalog() {
   toggleElement(catalogEditorModal, false);
   toggleElement(catalogContextPanel, false);
   closeProblemSolvingViewer();
+  closeForumThreadModal();
+  closeForumTopicModal();
 }
 
 async function refreshCatalogStats() {
   try {
     const stats = await fetchJson("/catalog/cache-stats");
     if (dashboardCatalogTotal) {
-      dashboardCatalogTotal.textContent = `${stats.totalCount || 0} file`;
+      dashboardCatalogTotal.textContent = `${stats.totalCount || 0} item`;
     }
   } catch {
     if (dashboardCatalogTotal) {
-      dashboardCatalogTotal.textContent = "0 file";
+      dashboardCatalogTotal.textContent = "0 item";
     }
   }
 }
@@ -661,6 +765,10 @@ function isOwnerRole() {
     return currentDatasheetsChannelRole.toLowerCase() === "owner";
   }
 
+  if (currentCatalogView === "Forum") {
+    return currentForumChannelRole.toLowerCase() === "owner";
+  }
+
   const activeRole = currentCatalogView === "Boardview" ? currentBoardviewChannelRole : currentBiosChannelRole;
   return activeRole.toLowerCase() === "owner";
 }
@@ -670,8 +778,12 @@ function canManageBiosCatalog() {
   return normalizedRole === "owner" || normalizedRole === "admin";
 }
 
+function canCreateForumTopic() {
+  return currentCatalogView === "Forum" && isForumMember && !requiresChannelJoin("Forum");
+}
+
 function isTelegramCatalogView(viewKey = currentCatalogView) {
-  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "ProblemSolving" || viewKey === "Datasheets";
+  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
 }
 
 function getTelegramCatalogConfig(viewKey = currentCatalogView) {
@@ -689,6 +801,10 @@ function getDisplayRoleForView(viewKey = currentCatalogView) {
 
   if (viewKey === "Datasheets") {
     return currentDatasheetsChannelRole || currentChannelRole;
+  }
+
+  if (viewKey === "Forum") {
+    return currentForumChannelRole || currentChannelRole;
   }
 
   if (viewKey === "Boardview") {
@@ -711,7 +827,7 @@ function isDatasheetsView(viewKey = currentCatalogView) {
 }
 
 function isJoinManagedCatalogView(viewKey = currentCatalogView) {
-  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "ProblemSolving" || viewKey === "Datasheets";
+  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
 }
 
 function requiresChannelJoin(viewKey = currentCatalogView) {
@@ -760,6 +876,17 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
     };
   }
 
+  if (viewKey === "Forum") {
+    return {
+      title: "Gabung grup Forum dulu untuk membuka diskusi.",
+      description: "Setelah berhasil join, thread forum bisa langsung dibuka dan kamu dapat membalas posting dari dashboard.",
+      buttonId: "forumJoinButton",
+      buttonLabel: "Gabung Grup Forum",
+      link: currentForumChannelInviteLink,
+      emptyMessage: "Gabung grup Forum dulu, lalu refresh daftar thread."
+    };
+  }
+
   return {
     title: "Gabung channel Problem Solving dulu untuk membuka katalog.",
     description: "Setelah berhasil join, tombol refresh akan memakai cache backend seperti katalog Telegram lainnya.",
@@ -781,8 +908,10 @@ function itemMatchesCatalogView(item, viewKey = currentCatalogView) {
 }
 
 function updateCatalogToolbar(viewKey = currentCatalogView) {
-  const canManage = isTelegramCatalogView(viewKey) && canManageBiosCatalog();
-  toggleElement(catalogUploadButton, canManage);
+  const showUploadButton = viewKey === "Forum"
+    ? isForumMember && !requiresChannelJoin("Forum")
+    : isTelegramCatalogView(viewKey) && canManageBiosCatalog();
+  toggleElement(catalogUploadButton, showUploadButton);
 
   if (!catalogUploadButton) {
     if (!catalogRefreshButton) {
@@ -806,7 +935,9 @@ function showWorkbenchOnly(viewKey) {
   spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
+  fileHashComparePage.setVisible?.(viewKey === fileHashComparePage.viewKey);
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
+  amiDecryptorPage.setVisible?.(viewKey === amiDecryptorPage.viewKey);
   biosPasswordPage.setVisible?.(viewKey === biosPasswordPage.viewKey);
   microscopePage.setVisible?.(viewKey === microscopePage.viewKey);
   alienServerPage.setVisible?.(viewKey === alienServerPage.viewKey);
@@ -825,8 +956,16 @@ function showWorkbenchOnly(viewKey) {
     uefiToolPage.refresh?.();
   }
 
+  if (viewKey === fileHashComparePage.viewKey) {
+    fileHashComparePage.refresh?.();
+  }
+
   if (viewKey === lenovoBiosPatchPage.viewKey) {
     lenovoBiosPatchPage.refresh?.();
+  }
+
+  if (viewKey === amiDecryptorPage.viewKey) {
+    amiDecryptorPage.refresh?.();
   }
 
   if (viewKey === biosPasswordPage.viewKey) {
@@ -854,7 +993,9 @@ function hideWorkbench() {
   spiFlashPage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
+  fileHashComparePage.setVisible?.(false);
   lenovoBiosPatchPage.setVisible?.(false);
+  amiDecryptorPage.setVisible?.(false);
   biosPasswordPage.setVisible?.(false);
   microscopePage.setVisible?.(false);
   alienServerPage.setVisible?.(false);
@@ -868,10 +1009,13 @@ function setActiveNav(targetKey) {
     Boardview: navBoardview,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
+    Forum: navForum,
     tool_spi_flash: toolSpiFlash,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
+    [fileHashComparePage.viewKey]: toolFileHashCompare,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
+    [amiDecryptorPage.viewKey]: toolAmiDecryptor,
     tool_bios_password: toolBiosPassword,
     tool_microscope: toolMicroscope,
     [alienServerPage.viewKey]: toolAlienServer,
@@ -892,7 +1036,22 @@ function setActiveNav(targetKey) {
   }
 
   if (toolBiosPatchGroup) {
-    toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey;
+    toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey || targetKey === amiDecryptorPage.viewKey;
+  }
+}
+
+async function openBiosSpdRemovalFromNav() {
+  setNavButtonLoading(toolBiosSpdRemoval, true);
+
+  try {
+    const result = await fetchJson("/tools/bios-spd-removal/open", {
+      method: "POST"
+    });
+    setNotice(result.message || "BIOS SPD Removal dibuka.");
+  } catch (error) {
+    setNotice(error?.message || "Gagal membuka BIOS SPD Removal.", true);
+  } finally {
+    setNavButtonLoading(toolBiosSpdRemoval, false);
   }
 }
 
@@ -962,6 +1121,16 @@ function updateCatalogHeader(viewKey) {
     setText(catalogTitle, "Koleksi file PDF datasheet komponen");
     if (catalogSearchInput) {
       catalogSearchInput.placeholder = "Cari nama file datasheet PDF...";
+    }
+    updateCatalogToolbar(viewKey);
+    return;
+  }
+
+  if (viewKey === "Forum") {
+    setText(catalogEyebrow, "Forum");
+    setText(catalogTitle, "Diskusi teknisi, tanya jawab, dan balasan thread");
+    if (catalogSearchInput) {
+      catalogSearchInput.placeholder = "Cari judul thread, isi posting, atau nama pengirim...";
     }
     updateCatalogToolbar(viewKey);
     return;
@@ -1040,6 +1209,46 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         <p>${requiresChannelJoin(viewKey) && joinPromptConfig ? escapeHtml(joinPromptConfig.emptyMessage) : "Coba kata kunci lain atau pindah ke kategori lain."}</p>
       </article>
     `;
+    toggleElement(catalogSection, true);
+    return;
+  }
+
+  if (viewKey === "Forum") {
+    catalogList.innerHTML = items.map((item) => `
+      <article class="catalog-card">
+        <div class="catalog-card-top">
+          <span class="catalog-category">${escapeHtml(item.category || "Forum")}</span>
+          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
+        </div>
+        <h4>${escapeHtml(item.title || "Thread Forum")}</h4>
+        <div class="catalog-inline-meta">
+          ${item.uploadedBy ? `
+          <div class="catalog-file-row">
+            <span class="material-symbols-outlined">person</span>
+            <span>${escapeHtml(item.uploadedBy)}</span>
+          </div>` : ""}
+          <div class="catalog-file-row">
+            <span class="material-symbols-outlined">forum</span>
+            <span>${escapeHtml(String(item.replyCount || 0))} balasan</span>
+          </div>
+          <div class="catalog-file-row">
+            <span class="material-symbols-outlined">schedule</span>
+            <span>${escapeHtml(item.postedAt || "-")}</span>
+          </div>
+        </div>
+        <div class="catalog-card-actions">
+          <button
+            type="button"
+            class="catalog-action-button catalog-forum-thread-button"
+            data-message-id="${item.messageId || ""}"
+            data-title="${escapeHtml(item.title || "Thread Forum")}">
+            <span class="material-symbols-outlined">forum</span>
+            <span>Buka Thread</span>
+          </button>
+        </div>
+      </article>
+    `).join("");
+
     toggleElement(catalogSection, true);
     return;
   }
@@ -1588,6 +1797,91 @@ function closeProblemSolvingViewer() {
   }
 }
 
+function renderForumReplies(replies = []) {
+  if (!forumThreadReplies || !forumThreadReplyCount) {
+    return;
+  }
+
+  forumThreadReplyCount.textContent = `${replies.length} balasan`;
+  if (!Array.isArray(replies) || replies.length === 0) {
+    forumThreadReplies.innerHTML = `<p class="forum-thread-empty">Belum ada balasan. Jadilah yang pertama membalas thread ini.</p>`;
+    return;
+  }
+
+  forumThreadReplies.innerHTML = replies.map((reply) => `
+    <article class="forum-thread-reply-item">
+      <div class="forum-thread-reply-meta">
+        <span>${escapeHtml(reply.uploadedBy || "Member")}</span>
+        <span>${escapeHtml((reply.authorRole || "Member").toLowerCase())}</span>
+        <span>${escapeHtml(reply.postedAt || "-")}</span>
+      </div>
+      <p class="forum-thread-reply-content">${escapeHtml(reply.content || "")}</p>
+    </article>
+  `).join("");
+}
+
+function openForumThreadModal(thread) {
+  if (!forumThreadModal) {
+    return;
+  }
+
+  currentForumThreadMessageId = Number(thread?.messageId || 0);
+  setText(forumThreadTitle, thread?.title || "Thread forum");
+  setText(forumThreadAuthor, thread?.uploadedBy || "Pengirim tidak diketahui");
+  setText(forumThreadDate, thread?.postedAt || "-");
+  if (forumThreadContent) {
+    forumThreadContent.textContent = thread?.content || "";
+  }
+  if (forumReplyInput) {
+    forumReplyInput.value = "";
+  }
+  renderForumReplies(Array.isArray(thread?.replies) ? thread.replies : []);
+  toggleElement(forumThreadModal, true);
+}
+
+function closeForumThreadModal() {
+  currentForumThreadMessageId = 0;
+  toggleElement(forumThreadModal, false);
+  setText(forumThreadTitle, "Thread forum");
+  setText(forumThreadAuthor, "Pengirim");
+  setText(forumThreadDate, "Tanggal");
+  if (forumThreadContent) {
+    forumThreadContent.textContent = "";
+  }
+  if (forumThreadReplies) {
+    forumThreadReplies.innerHTML = "";
+  }
+  if (forumThreadReplyCount) {
+    forumThreadReplyCount.textContent = "0 balasan";
+  }
+  if (forumReplyInput) {
+    forumReplyInput.value = "";
+  }
+}
+
+function openForumTopicModal() {
+  if (!forumTopicModal) {
+    return;
+  }
+
+  if (!canCreateForumTopic()) {
+    throw new Error("Gabung grup Forum dulu sebelum membuat topic baru.");
+  }
+
+  if (forumTopicForm) {
+    forumTopicForm.reset();
+  }
+  toggleElement(forumTopicModal, true);
+  forumTopicTitleInput?.focus();
+}
+
+function closeForumTopicModal() {
+  toggleElement(forumTopicModal, false);
+  if (forumTopicForm) {
+    forumTopicForm.reset();
+  }
+}
+
 function renderPreviousVersions(history = []) {
   if (!previousVersionsList) {
     return;
@@ -1650,7 +1944,8 @@ async function joinCatalogChannel(viewKey = currentCatalogView, button = null) {
       joinRequiredChannel: viewKey === "BIOS",
       joinBoardviewChannel: viewKey === "Boardview",
       joinProblemSolvingChannel: viewKey === "ProblemSolving",
-      joinDatasheetsChannel: viewKey === "Datasheets"
+      joinDatasheetsChannel: viewKey === "Datasheets",
+      joinForumChannel: viewKey === "Forum"
     };
     const result = await fetchJson("/auth/join-channels", {
       method: "POST",
@@ -1712,6 +2007,73 @@ function viewDatasheetsItem(messageId) {
   }
 }
 
+async function viewForumThread(messageId, button = null) {
+  if (!messageId) {
+    throw new Error("Thread forum tidak valid.");
+  }
+
+  const previousMarkup = button?.innerHTML || "";
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = `
+      <span class="material-symbols-outlined is-spinning">progress_activity</span>
+      <span>Membuka...</span>
+    `;
+  }
+
+  try {
+    const result = await fetchJson(`/catalog/forum/${messageId}/thread`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    openForumThreadModal(result);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = previousMarkup;
+    }
+  }
+}
+
+async function submitForumReply() {
+  if (!currentForumThreadMessageId) {
+    throw new Error("Pilih thread forum dulu sebelum membalas.");
+  }
+
+  const content = (forumReplyInput?.value || "").trim();
+  if (!content) {
+    throw new Error("Isi balasan forum wajib diisi.");
+  }
+
+  const result = await fetchJson(`/catalog/forum/${currentForumThreadMessageId}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ content })
+  });
+  setNotice(result.message || "Balasan forum berhasil dikirim.");
+  await viewForumThread(currentForumThreadMessageId);
+  await loadCatalog();
+}
+
+async function submitForumTopic() {
+  const title = (forumTopicTitleInput?.value || "").trim();
+  const content = (forumTopicContentInput?.value || "").trim();
+  if (!title) {
+    throw new Error("Judul topic forum wajib diisi.");
+  }
+
+  if (!content) {
+    throw new Error("Isi topic forum wajib diisi.");
+  }
+
+  const result = await fetchJson("/catalog/forum/topic", {
+    method: "POST",
+    body: JSON.stringify({ title, content })
+  });
+  setNotice(result.message || "Topic forum berhasil dibuat.");
+  closeForumTopicModal();
+  await loadCatalog();
+}
+
 function filterCatalogItems() {
   if (localWorkbenchViewKeys.has(currentCatalogView)) {
     renderCatalog([], currentCatalogView);
@@ -1745,14 +2107,14 @@ function filterCatalogItems() {
     ? !keyword
       ? sourceItems
       : sourceItems.filter((item) =>
-          [item.title, item.deviceModel, item.description, item.category, item.fileName, item.serialNumber, item.boardCode, item.note, item.uploadedBy]
+          [item.title, item.deviceModel, item.description, item.contentPreview, item.category, item.fileName, item.serialNumber, item.boardCode, item.note, item.uploadedBy]
             .filter(Boolean)
             .some((value) => value.toLowerCase().includes(keyword))
         )
     : !keyword
     ? sourceItems
     : sourceItems.filter((item) =>
-        [item.title, item.deviceModel, item.description, item.category, item.fileName, item.serialNumber, item.boardCode, item.note, item.uploadedBy]
+        [item.title, item.deviceModel, item.description, item.contentPreview, item.category, item.fileName, item.serialNumber, item.boardCode, item.note, item.uploadedBy]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(keyword))
       );
@@ -2571,6 +2933,7 @@ function applyStatus(status) {
   currentBoardviewChannelInviteLink = status.boardviewChannelInviteLink || "";
   currentProblemSolvingChannelInviteLink = status.problemSolvingChannelInviteLink || "";
   currentDatasheetsChannelInviteLink = status.datasheetsChannelInviteLink || "";
+  currentForumChannelInviteLink = status.forumChannelInviteLink || "";
 
   const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
   const hasBoardviewLink = Boolean(status.boardviewChannelInviteLink);
@@ -2604,6 +2967,8 @@ function applyStatus(status) {
   currentProblemSolvingChannelRole = status.problemSolvingChannelRole || "";
   isDatasheetsMember = Boolean(status.isDatasheetsChannelMember);
   currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
+  isForumMember = Boolean(status.isForumChannelMember);
+  currentForumChannelRole = status.forumChannelRole || "";
 
   toggleElement(phoneForm, showPhoneEntryForm);
   toggleElement(codeForm, showVerificationForm);
@@ -2625,6 +2990,7 @@ function applyStatus(status) {
     currentBoardviewChannelRole = status.boardviewChannelRole || "";
     currentProblemSolvingChannelRole = status.problemSolvingChannelRole || "";
     currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
+    currentForumChannelRole = status.forumChannelRole || "";
     const representativeRole = getRepresentativeRoleLabel(status);
     const connectedChannelCount = getConnectedChannelCount(status);
     setText(dashboardTitle, `Halo, ${displayName}`);
@@ -2905,9 +3271,9 @@ async function refreshStatus(options = {}) {
       setDownloadLinkState(true);
       setUpdateProgressState(false);
     }
-    if (dashboardCatalogTotal) {
-      dashboardCatalogTotal.textContent = "0 file";
-    }
+  if (dashboardCatalogTotal) {
+    dashboardCatalogTotal.textContent = "0 item";
+  }
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
     throw error;
@@ -3258,7 +3624,7 @@ if (rememberPhoneCheckbox) {
 
 loadRememberedPhone();
 syncVerificationPhoneDisplay();
-currentCatalogView = getViewFromHash() || currentCatalogView;
+currentCatalogView = getViewFromHash() || "Forum";
 refreshStatus();
 window.addEventListener("hashchange", () => {
   restoreViewFromHash().catch((error) => setNotice(error.message, true));
@@ -3324,6 +3690,17 @@ if (catalogList) {
       return;
     }
 
+    const forumButton = event.target.closest(".catalog-forum-thread-button");
+    if (forumButton) {
+      const messageId = Number(forumButton.getAttribute("data-message-id") || 0);
+      try {
+        await viewForumThread(messageId, forumButton);
+      } catch (error) {
+        setNotice(error.message, true);
+      }
+      return;
+    }
+
     const button = event.target.closest(".catalog-download-button");
     if (button) {
       const title = button.getAttribute("data-title") || "item dummy";
@@ -3385,7 +3762,7 @@ if (catalogList) {
 }
 
 catalogContextPanel?.addEventListener("click", async (event) => {
-  const joinButton = event.target.closest("#biosJoinButton, #boardviewJoinButton, #problemSolvingJoinButton, #datasheetsJoinButton");
+  const joinButton = event.target.closest("#biosJoinButton, #boardviewJoinButton, #problemSolvingJoinButton, #datasheetsJoinButton, #forumJoinButton");
   if (!joinButton) {
     return;
   }
@@ -3397,6 +3774,8 @@ catalogContextPanel?.addEventListener("click", async (event) => {
       ? "Boardview"
       : joinButton.id === "datasheetsJoinButton"
       ? "Datasheets"
+      : joinButton.id === "forumJoinButton"
+      ? "Forum"
       : "ProblemSolving";
     await joinCatalogChannel(targetView, joinButton);
   } catch (error) {
@@ -3425,6 +3804,8 @@ if (catalogLoadMoreButton) {
 async function navigateTelegramCatalog(viewKey, button) {
   currentCatalogView = viewKey;
   closeProblemSolvingViewer();
+  closeForumThreadModal();
+  closeForumTopicModal();
   setActiveNav(viewKey);
   setNavButtonLoading(button, true);
 
@@ -3494,6 +3875,11 @@ async function refreshCurrentTelegramCatalog() {
 }
 
 catalogUploadButton?.addEventListener("click", () => {
+  if (currentCatalogView === "Forum") {
+    openForumTopicModal();
+    return;
+  }
+
   openCatalogEditor("upload");
 });
 
@@ -3514,6 +3900,8 @@ aboutFooterButton?.addEventListener("click", openAboutModal);
 aboutModalCloseButton?.addEventListener("click", closeAboutModal);
 
 problemSolvingViewerCloseButton?.addEventListener("click", closeProblemSolvingViewer);
+forumThreadCloseButton?.addEventListener("click", closeForumThreadModal);
+forumTopicCloseButton?.addEventListener("click", closeForumTopicModal);
 
 viewPreviousVersionsButton?.addEventListener("click", openPreviousVersionsModal);
 
@@ -3526,7 +3914,55 @@ document.addEventListener("keydown", (event) => {
 
   closeAboutModal();
   closeProblemSolvingViewer();
+  closeForumThreadModal();
+  closeForumTopicModal();
   closePreviousVersionsModal();
+});
+
+forumReplyForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const previousMarkup = forumReplySubmitButton?.innerHTML || "";
+  if (forumReplySubmitButton) {
+    forumReplySubmitButton.disabled = true;
+    forumReplySubmitButton.innerHTML = `
+      <span class="material-symbols-outlined is-spinning">progress_activity</span>
+      <span>Mengirim...</span>
+    `;
+  }
+
+  try {
+    await submitForumReply();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    if (forumReplySubmitButton) {
+      forumReplySubmitButton.disabled = false;
+      forumReplySubmitButton.innerHTML = previousMarkup;
+    }
+  }
+});
+
+forumTopicForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const previousMarkup = forumTopicSubmitButton?.innerHTML || "";
+  if (forumTopicSubmitButton) {
+    forumTopicSubmitButton.disabled = true;
+    forumTopicSubmitButton.innerHTML = `
+      <span class="material-symbols-outlined is-spinning">progress_activity</span>
+      <span>Membuat...</span>
+    `;
+  }
+
+  try {
+    await submitForumTopic();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    if (forumTopicSubmitButton) {
+      forumTopicSubmitButton.disabled = false;
+      forumTopicSubmitButton.innerHTML = previousMarkup;
+    }
+  }
 });
 
 catalogEditorForm?.addEventListener("submit", async (event) => {
@@ -3568,6 +4004,11 @@ navDatasheets?.addEventListener("click", () => {
   navigateTelegramCatalog("Datasheets", navDatasheets);
 });
 
+navForum?.addEventListener("click", () => {
+  updateViewHash("Forum");
+  navigateTelegramCatalog("Forum", navForum);
+});
+
 toolSpiFlash?.addEventListener("click", () => {
   updateViewHash(spiFlashPage.viewKey);
   currentCatalogView = spiFlashPage.viewKey;
@@ -3589,11 +4030,29 @@ toolUefi?.addEventListener("click", () => {
   filterCatalogItems();
 });
 
+toolFileHashCompare?.addEventListener("click", () => {
+  updateViewHash(fileHashComparePage.viewKey);
+  currentCatalogView = fileHashComparePage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
 toolDumpBiosLenovo?.addEventListener("click", () => {
   updateViewHash(lenovoBiosPatchPage.viewKey);
   currentCatalogView = lenovoBiosPatchPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
+});
+
+toolAmiDecryptor?.addEventListener("click", () => {
+  updateViewHash(amiDecryptorPage.viewKey);
+  currentCatalogView = amiDecryptorPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolBiosSpdRemoval?.addEventListener("click", () => {
+  openBiosSpdRemovalFromNav();
 });
 
 toolBiosPassword?.addEventListener("click", () => {

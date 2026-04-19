@@ -1124,6 +1124,17 @@ h1 {
   gap: 8px;
   color: var(--muted);
   font-size: 0.92rem;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(22, 78, 125, 0.05);
+  white-space: nowrap;
+}
+
+.catalog-inline-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .catalog-card-actions {
@@ -1199,6 +1210,14 @@ h1 {
 
 .problem-solving-modal-card {
   width: min(880px, 100%);
+}
+
+.forum-thread-modal-card {
+  width: min(920px, 100%);
+}
+
+.forum-topic-modal-card {
+  width: min(760px, 100%);
 }
 
 .previous-versions-modal-card {
@@ -1818,6 +1837,71 @@ h1 {
   gap: 10px;
 }
 
+.bios-spd-removal-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.bios-spd-removal-layout {
+  align-items: start;
+}
+
+.bios-spd-removal-checkline {
+  margin-top: 1rem;
+}
+
+.bios-spd-removal-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 1rem;
+}
+
+.bios-spd-removal-notes {
+  display: grid;
+  gap: 10px;
+}
+
+.bios-spd-removal-notes p {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(196, 95, 32, 0.07);
+  color: var(--text);
+}
+
+.bios-spd-removal-output-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 1rem;
+}
+
+.bios-spd-removal-output-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(18, 47, 65, 0.06);
+}
+
+.bios-spd-removal-output-item strong,
+.bios-spd-removal-output-item p {
+  margin: 0;
+}
+
+.bios-spd-removal-empty {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(18, 47, 65, 0.06);
+  color: var(--text-soft);
+}
+
+.bios-spd-removal-output-link {
+  flex-shrink: 0;
+}
+
 .boardviewer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1853,6 +1937,14 @@ h1 {
   border: 0;
   background: #eef5fe;
   vertical-align: top;
+}
+
+.alien-server-frame-shell-tall {
+  height: 620px;
+}
+
+.alien-server-frame-tall {
+  height: 620px;
 }
 
 .settings-toggle-card {
@@ -2273,6 +2365,115 @@ h1 {
   word-break: break-word;
 }
 
+.forum-thread-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.forum-thread-content {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--text);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.forum-thread-replies-section {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.forum-thread-replies-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.forum-thread-replies-head h4 {
+  margin: 0;
+  color: var(--deep);
+}
+
+.forum-thread-replies-head span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.forum-thread-replies-list {
+  display: grid;
+  gap: 12px;
+}
+
+.forum-thread-reply-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.forum-thread-reply-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.forum-thread-reply-content {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.forum-reply-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.forum-topic-form {
+  display: grid;
+  gap: 12px;
+}
+
+.forum-reply-form label,
+.forum-topic-form label {
+  font-weight: 700;
+  color: var(--deep);
+}
+
+.forum-reply-form textarea,
+.forum-topic-form textarea {
+  min-height: 132px;
+  resize: vertical;
+}
+
+.forum-reply-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.forum-thread-empty {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(22, 78, 125, 0.06);
+  color: var(--muted);
+}
+
 :fullscreen#microscopePreviewPanel,
 :fullscreen #microscopePreviewPanel {
   width: 100vw;
@@ -2478,6 +2679,46 @@ button.ghost {
   color: var(--deep);
   border: 1px solid var(--line);
   box-shadow: none;
+}
+
+.ami-decryptor-download-button.is-ready {
+  background: linear-gradient(135deg, #1b9c66, #117a52);
+  color: #fff;
+  border-color: rgba(17, 122, 82, 0.3);
+  box-shadow: 0 14px 28px rgba(17, 122, 82, 0.24);
+}
+
+.ami-decryptor-download-button.is-ready:hover {
+  background: linear-gradient(135deg, #21b475, #149060);
+  color: #fff;
+}
+
+.file-hash-compare-result-card.is-identical {
+  border-color: rgba(27, 156, 102, 0.18);
+  background: linear-gradient(180deg, rgba(230, 248, 236, 0.98), rgba(205, 238, 217, 0.98));
+}
+
+.file-hash-compare-result-card.is-identical .material-symbols-outlined,
+.file-hash-compare-result-card.is-identical strong,
+.file-hash-compare-result-card.is-identical .label,
+.file-hash-compare-result-card.is-identical p,
+.file-hash-compare-result-card.is-identical span,
+.file-hash-compare-result-card.is-identical h4 {
+  color: #145c40;
+}
+
+.file-hash-compare-result-card.is-different {
+  border-color: rgba(175, 54, 54, 0.18);
+  background: linear-gradient(180deg, rgba(255, 238, 238, 0.98), rgba(248, 215, 215, 0.98));
+}
+
+.file-hash-compare-result-card.is-different .material-symbols-outlined,
+.file-hash-compare-result-card.is-different strong,
+.file-hash-compare-result-card.is-different .label,
+.file-hash-compare-result-card.is-different p,
+.file-hash-compare-result-card.is-different span,
+.file-hash-compare-result-card.is-different h4 {
+  color: #8d2f2f;
 }
 
 .checkline {

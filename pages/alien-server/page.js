@@ -18,11 +18,13 @@
     },
     {
       title: "Alien Server Cleaner",
-      url: "https://alien.raaz.info.np/server/unlock/cleaner/"
+      url: "https://alien.raaz.info.np/server/unlock/cleaner/",
+      tall: true
     },
     {
       title: "Alien Server BIOS Splitter",
-      url: "https://alien.raaz.info.np/server/unlock/bios_splitter/"
+      url: "https://alien.raaz.info.np/server/unlock/bios_splitter/",
+      tall: true
     },
     {
       title: "Alien Server 8FC8",
@@ -50,10 +52,10 @@
     return `
       <div class="alien-server-grid">
         ${cardSources.map((card) => `
-          <section class="spi-card alien-server-card">
-            <div class="alien-server-frame-shell">
+          <section class="spi-card alien-server-card${card.tall ? " alien-server-card-tall" : ""}">
+            <div class="alien-server-frame-shell${card.tall ? " alien-server-frame-shell-tall" : ""}">
               <iframe
-                class="alien-server-frame"
+                class="alien-server-frame${card.tall ? " alien-server-frame-tall" : ""}"
                 src="${card.url}"
                 title="${card.title}"
                 loading="lazy"
