@@ -92,7 +92,7 @@
       notes: [
         "Tool ini membuat file BIOS Lenovo hasil patch dari dump asli yang Anda pilih.",
         "Utamanya untuk ThinkPad generasi lama sampai Intel Gen 8, misalnya X270, T470, T480, dan T580.",
-        "Setelah patch selesai, browser akan otomatis mengunduh file output dengan suffix _PATCHED.",
+        "Setelah patch selesai, file output akan disiapkan untuk diunduh manual lewat tombol Download file patch.",
         "Flash dan penggunaan file hasil patch tetap perlu verifikasi manual di perangkat target."
       ]
     };
@@ -104,12 +104,26 @@
       .join("");
   }
 
+  function getCardStateClass(state) {
+    if (state.errorMessage) {
+      return " is-failed";
+    }
+
+    if (state.patchedAt && state.patchedAt !== "-" && !state.errorMessage) {
+      return " is-success";
+    }
+
+    return "";
+  }
+
   function createWorkbenchMarkup(state, busy, hasDownload) {
     const actionLabel = busy ? "Memproses patch..." : "Buat file patch";
     const disableAttr = busy ? " disabled" : "";
+    const downloadButtonClass = hasDownload ? "ghost ami-decryptor-download-button is-ready" : "ghost ami-decryptor-download-button";
+    const cardStateClass = getCardStateClass(state);
 
     return `
-      <section class="spi-card">
+      <section class="spi-card${cardStateClass}">
         <div class="spi-card-head">
           <div>
             <p class="label">Dump Bios Lenovo</p>
@@ -141,9 +155,9 @@
         <p class="spi-note">${escapeHtml(state.errorMessage || state.message)}</p>
         <div class="lenovo-bios-patch-notes">${createNotesMarkup(state.notes)}</div>
         <div class="boardviewer-actions lenovo-bios-patch-download">
-          <button type="button" id="lenovoBiosPatchDownloadButton" class="ghost"${hasDownload ? "" : " disabled"}>
+          <button type="button" id="lenovoBiosPatchDownloadButton" class="${downloadButtonClass}"${hasDownload ? "" : " disabled"}>
             <span class="material-symbols-outlined">download</span>
-            <span>Download ulang</span>
+            <span>Download file patch</span>
           </button>
         </div>
       </section>
@@ -213,13 +227,12 @@
           state.patchedFileName = result.fileName || `${selectedFile.name}_PATCHED.bin`;
           state.patchedFileSize = Number(result.blob.size || 0);
           state.patchedAt = new Date().toLocaleString("id-ID");
-          state.message = "Patch BIOS Lenovo selesai. File hasil patch sudah siap diunduh.";
+          state.message = "Patch BIOS Lenovo selesai. File hasil patch sudah siap untuk di-download.";
           state.errorMessage = "";
 
           revokeDownloadUrl();
           downloadUrl = URL.createObjectURL(result.blob);
-          triggerBrowserDownload(downloadUrl, state.patchedFileName);
-          notify("Patch BIOS Lenovo selesai dan file hasil sudah diunduh.");
+          notify("Patch BIOS Lenovo selesai. Tombol download sudah aktif.");
         } catch (error) {
           state.errorMessage = error?.message || "Patch BIOS Lenovo gagal dijalankan.";
           notify(state.errorMessage, true);

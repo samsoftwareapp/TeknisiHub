@@ -119,14 +119,27 @@
     };
   }
 
+  function getCardStateClass(state) {
+    if (state.errorMessage) {
+      return " is-failed";
+    }
+
+    if (state.analyzedAt && state.analyzedAt !== "-" && !state.errorMessage) {
+      return " is-success";
+    }
+
+    return "";
+  }
+
   function createWorkbenchMarkup(state, busy, hasUnlockedDownload, hasDecryptDownload) {
     const disableAttr = busy ? " disabled" : "";
     const actionLabel = busy ? "Memproses..." : "Analyze & Unlock";
     const unlockButtonClass = hasUnlockedDownload ? "ghost ami-decryptor-download-button is-ready" : "ghost ami-decryptor-download-button";
     const decryptButtonClass = hasDecryptDownload ? "ghost ami-decryptor-download-button is-ready" : "ghost ami-decryptor-download-button";
+    const cardStateClass = getCardStateClass(state);
 
     return `
-      <section class="spi-card">
+      <section class="spi-card${cardStateClass}">
         <div class="spi-card-head">
           <div>
             <p class="label">Input File</p>

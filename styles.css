@@ -1682,6 +1682,32 @@ h1 {
   min-width: 0;
 }
 
+.spi-card.is-success {
+  border-color: rgba(27, 156, 102, 0.2);
+  background: linear-gradient(180deg, rgba(230, 248, 236, 0.98), rgba(205, 238, 217, 0.98));
+}
+
+.spi-card.is-success .label,
+.spi-card.is-success h4,
+.spi-card.is-success p,
+.spi-card.is-success strong,
+.spi-card.is-success span {
+  color: #145c40;
+}
+
+.spi-card.is-failed {
+  border-color: rgba(175, 54, 54, 0.2);
+  background: linear-gradient(180deg, rgba(255, 238, 238, 0.98), rgba(248, 215, 215, 0.98));
+}
+
+.spi-card.is-failed .label,
+.spi-card.is-failed h4,
+.spi-card.is-failed p,
+.spi-card.is-failed strong,
+.spi-card.is-failed span {
+  color: #8d2f2f;
+}
+
 .spi-card-head {
   display: flex;
   align-items: flex-start;
