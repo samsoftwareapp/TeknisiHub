@@ -32,6 +32,12 @@
     }
   };
 
+  let pageNotifier = (message, tone = "success") => {
+    if (typeof globalScope.setNotice === "function") {
+      globalScope.setNotice(message, tone);
+    }
+  };
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -54,6 +60,7 @@
       chipVendor: "",
       chipModel: "",
       chipCapacity: "",
+      chipVoltage: "",
       pageSize: 0,
       jedec: "",
       startAddress: "",
@@ -64,6 +71,8 @@
       progress: 0,
       lastResult: "Status backend belum tersedia",
       lastUpdated: "Belum dijalankan",
+      hasReadBuffer: false,
+      readBufferIsAllFf: false,
       logs: [
         "[--:--:--] Local service SPI Flash belum bisa dijangkau dari Web UI."
       ],
@@ -75,7 +84,20 @@
   }
 
   function mapServiceSessionToState(session) {
-    const selectedDevice = session.selectedDevice || "CH347";
+    const hasPersistedSessionState =
+      Boolean(session.fileName) ||
+      Boolean(session.jedec) ||
+      Boolean(session.chipVendor) ||
+      Boolean(session.chipModel) ||
+      Boolean(session.startAddress) ||
+      Boolean(session.length) ||
+      Boolean(session.verifyMode);
+    const normalizedConnectionState = String(session.connectionState || "").trim().toLowerCase();
+    const shouldShowPlaceholder =
+      !hasPersistedSessionState &&
+      normalizedConnectionState.includes("belum terhubung");
+    const selectedDevice = shouldShowPlaceholder ? "" : (session.selectedDevice || "");
+
     return {
       serviceAvailable: true,
       errorMessage: "",
@@ -87,6 +109,7 @@
       chipVendor: session.chipVendor || "",
       chipModel: session.chipModel || "",
       chipCapacity: session.chipCapacity || "",
+      chipVoltage: session.chipVoltage || "",
       pageSize: Number(session.pageSize || 0),
       jedec: session.jedec || "",
       startAddress: session.startAddress || "",
@@ -97,6 +120,8 @@
       progress: Number(session.progress || 0),
       lastResult: session.lastResult || "Belum ada operasi",
       lastUpdated: session.lastUpdated || "Belum dijalankan",
+      hasReadBuffer: Boolean(session.hasReadBuffer),
+      readBufferIsAllFf: Boolean(session.readBufferIsAllFf),
       logs: Array.isArray(session.logs) ? session.logs : [],
       hexPreview: Array.isArray(session.hexPreview) ? session.hexPreview : [],
       profile: deviceProfiles[selectedDevice] || deviceProfiles.CH347
@@ -131,33 +156,40 @@
     return payload;
   }
 
+  function notifyUser(message, tone = "success") {
+    if (!message) {
+      return;
+    }
+
+    pageNotifier(message, tone);
+  }
+
   function createWorkbenchMarkup(state, busy) {
-    const profile = state.profile || deviceProfiles.CH347;
+    const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
+    const isDeviceConnected =
+      Boolean(state.selectedDevice) &&
+      !normalizedConnectionState.includes("belum terhubung") &&
+      (normalizedConnectionState.includes("terhubung") || normalizedConnectionState.includes("aktif"));
+    const profile = state.selectedDevice
+      ? (state.profile || deviceProfiles.CH347)
+      : {
+          transport: "-",
+          speed: "-",
+          note: "Pilih device programmer terlebih dahulu untuk mulai koneksi."
+        };
     const progressWidth = Math.max(0, Math.min(100, Number(state.progress) || 0));
     const controlsDisabled = !state.serviceAvailable || busy;
     const disableAttr = controlsDisabled ? " disabled" : "";
-    const chipLabel = [state.chipVendor, state.chipModel].filter(Boolean).join(" ");
-    const chipMeta = [];
-    if (state.chipCapacity) {
-      chipMeta.push(state.chipCapacity);
-    }
-    if (state.jedec) {
-      chipMeta.push(`JEDEC ${state.jedec}`);
-    }
+    const actionDisableAttr = controlsDisabled || !state.selectedDevice ? " disabled" : "";
     const pageLabel = state.pageSize > 0 ? `${state.pageSize} byte` : "Belum ada data";
     const fileNameLabel = state.fileName || "Belum ada file";
     const fileSizeLabel = state.fileSize || "-";
     const startAddressLabel = state.startAddress || "-";
     const lengthLabel = state.length || "-";
     const verifyLabel = state.verifyMode || "-";
-    const lastUpdatedLabel = state.lastUpdated || "-";
-    const normalizedConnectionState = (state.connectionState || "").trim().toLowerCase();
-    const isConnected = normalizedConnectionState.length > 0 &&
-      !normalizedConnectionState.includes("belum terhubung") &&
-      normalizedConnectionState.includes("terhubung");
-    const statsStateClass = isConnected ? " is-connected" : " is-disconnected";
 
     return `
+      <div class="spi-workbench-shell${busy ? " is-busy" : ""}">
       ${state.errorMessage ? `
         <section class="spi-card">
           <div class="spi-card-head">
@@ -170,63 +202,30 @@
         </section>
       ` : ""}
 
-      <div class="spi-stats-grid">
-        <article class="spi-stat-card${statsStateClass}">
-          <span class="material-symbols-outlined">usb</span>
-          <div>
-            <p class="label">Transport</p>
-            <strong>${escapeHtml(profile.transport)}</strong>
-            <p>${escapeHtml(state.connectionState)}</p>
-          </div>
-        </article>
-        <article class="spi-stat-card${statsStateClass}">
-          <span class="material-symbols-outlined">memory</span>
-          <div>
-            <p class="label">Chip Aktif</p>
-            <strong>${escapeHtml(chipLabel || "Belum ada data")}</strong>
-            <p>${escapeHtml(chipMeta.join(" • ") || "Belum detect")}</p>
-          </div>
-        </article>
-        <article class="spi-stat-card${statsStateClass}">
-          <span class="material-symbols-outlined">speed</span>
-          <div>
-            <p class="label">Clock & Page</p>
-            <strong>Clock belum dibaca</strong>
-            <p>Page size ${escapeHtml(pageLabel)}</p>
-          </div>
-        </article>
-        <article class="spi-stat-card${statsStateClass}">
-          <span class="material-symbols-outlined">task_alt</span>
-          <div>
-            <p class="label">Operasi Terakhir</p>
-            <strong>${escapeHtml(state.lastResult)}</strong>
-            <p>${escapeHtml(lastUpdatedLabel)}</p>
-          </div>
-        </article>
-      </div>
-
       <div class="spi-layout">
-        <section class="spi-card">
+        <section class="spi-card${isDeviceConnected ? " is-success" : ""}">
           <div class="spi-card-head">
             <div>
               <p class="label">Device Backend</p>
               <h4>Pilih programmer</h4>
             </div>
-            <button type="button" class="ghost spi-connect-button" data-spi-action="connect"${disableAttr}>
-              <span class="material-symbols-outlined">cable</span>
-              <span>${busy ? "Memproses..." : "Connect device"}</span>
-            </button>
           </div>
-          <div class="spi-device-grid">
-            ${Object.entries(deviceProfiles).map(([key, item]) => `
-              <button
-                type="button"
-                class="spi-device-button${key === state.selectedDevice ? " is-active" : ""}"
-                data-device="${escapeHtml(key)}"${disableAttr}>
-                <strong>${escapeHtml(item.label)}</strong>
-                <span>${escapeHtml(item.status)}</span>
-              </button>
-            `).join("")}
+          <label class="spi-device-select">
+            Device
+            <select id="spiFlashDeviceSelect"${disableAttr}>
+              <option value=""${state.selectedDevice ? "" : " selected"}>---Pilih Device Programmer---</option>
+              ${Object.entries(deviceProfiles).map(([key, item]) => `
+                <option value="${escapeHtml(key)}"${key === state.selectedDevice ? " selected" : ""}>
+                  ${escapeHtml(item.label)} - ${escapeHtml(item.status)}
+                </option>
+              `).join("")}
+            </select>
+          </label>
+          <div class="spi-inline-meta">
+            <span>Status <strong>${escapeHtml(state.selectedDevice ? (state.connectionState || "Belum terhubung") : "Belum ada device dipilih")}</strong></span>
+            <span>Transport <strong>${escapeHtml(profile.transport)}</strong></span>
+            <span>Clock <strong>${escapeHtml(profile.speed)}</strong></span>
+            <span>Page size <strong>${escapeHtml(pageLabel)}</strong></span>
           </div>
           <p class="spi-note">${escapeHtml(profile.note)}</p>
         </section>
@@ -237,27 +236,27 @@
               <p class="label">Chip Profile</p>
               <h4>Parameter flash</h4>
             </div>
-            <button type="button" class="ghost" data-spi-action="detect"${disableAttr}>
+            <button type="button" class="ghost" data-spi-action="detect"${actionDisableAttr}>
               <span class="material-symbols-outlined">radar</span>
               <span>Detect JEDEC</span>
             </button>
           </div>
           <div class="spi-form-grid">
             <label>
-              Vendor
-              <input data-field="chipVendor" type="text" value="${escapeHtml(state.chipVendor)}" placeholder="Contoh: Winbond" readonly${disableAttr}>
+              Manufacturer
+              <input data-field="chipVendor" type="text" value="${escapeHtml(state.chipVendor)}" placeholder="Contoh: GigaDevice" readonly${disableAttr}>
             </label>
             <label>
-              Model
-              <input data-field="chipModel" type="text" value="${escapeHtml(state.chipModel)}" placeholder="Contoh: W25Q64JV" readonly${disableAttr}>
+              Name
+              <input data-field="chipModel" type="text" value="${escapeHtml(state.chipModel)}" placeholder="Contoh: GD25LQ80C(1.8V)" readonly${disableAttr}>
             </label>
             <label>
-              Capacity
-              <input data-field="chipCapacity" type="text" value="${escapeHtml(state.chipCapacity)}" placeholder="Contoh: 8 MB" readonly${disableAttr}>
+              Size
+              <input data-field="chipCapacity" type="text" value="${escapeHtml(state.chipCapacity)}" placeholder="Contoh: 1 MB" readonly${disableAttr}>
             </label>
             <label>
-              Page Size
-              <input data-field="pageSize" type="number" min="1" value="${escapeHtml(state.pageSize > 0 ? String(state.pageSize) : "")}" placeholder="256"${disableAttr}>
+              Volt
+              <input type="text" value="${escapeHtml(state.chipVoltage || "-")}" placeholder="Contoh: 3.3 V" readonly${disableAttr}>
             </label>
           </div>
           <div class="spi-inline-meta">
@@ -307,24 +306,33 @@
               <h4>Flow operasi</h4>
             </div>
           </div>
+          ${busy ? `
+            <div class="spi-busy-inline" id="spiBusyShield" aria-live="polite">
+              <div class="spi-busy-shield-copy">
+                <span class="material-symbols-outlined is-spinning">progress_activity</span>
+                <strong>Proses SPI masih berjalan</strong>
+                <span>Tunggu sampai selesai. Operasi tidak boleh diinterupsi.</span>
+              </div>
+            </div>
+          ` : ""}
           <div class="spi-action-grid">
-            <button type="button" data-spi-action="read"${disableAttr}>
+            <button type="button" data-spi-action="read"${actionDisableAttr}>
               <span class="material-symbols-outlined">download</span>
               <span>Read</span>
             </button>
-            <button type="button" data-spi-action="erase"${disableAttr}>
+            <button type="button" data-spi-action="erase"${actionDisableAttr}>
               <span class="material-symbols-outlined">ink_eraser</span>
               <span>Erase</span>
             </button>
-            <button type="button" data-spi-action="write"${disableAttr}>
+            <button type="button" data-spi-action="write"${actionDisableAttr}>
               <span class="material-symbols-outlined">upload</span>
               <span>Write</span>
             </button>
-            <button type="button" data-spi-action="verify"${disableAttr}>
+            <button type="button" data-spi-action="verify"${actionDisableAttr}>
               <span class="material-symbols-outlined">rule</span>
               <span>Verify</span>
             </button>
-            <button type="button" data-spi-action="auto"${disableAttr}>
+            <button type="button" data-spi-action="auto"${actionDisableAttr}>
               <span class="material-symbols-outlined">smart_toy</span>
               <span>Auto</span>
             </button>
@@ -337,6 +345,7 @@
             <div class="spi-progress-copy">
               <span class="label">Session Progress</span>
               <strong>${escapeHtml(state.activeOperation || "Belum ada operasi")}</strong>
+              <span>${escapeHtml(`${progressWidth}%`)}</span>
             </div>
             <div class="spi-progress-track" aria-hidden="true">
               <span style="width: ${progressWidth}%;"></span>
@@ -352,23 +361,19 @@
               <p class="label">Hex Preview</p>
               <h4>Data baca</h4>
             </div>
-            <span class="spi-mini-badge">${escapeHtml(fileNameLabel)}</span>
+            <div class="spi-panel-actions">
+              <span class="spi-mini-badge">${escapeHtml(fileNameLabel)}</span>
+              ${state.hasReadBuffer ? `
+                <button type="button" class="ghost" id="spiFlashSaveBinButton"${disableAttr}>
+                  <span class="material-symbols-outlined">save</span>
+                  <span>Save as BIN</span>
+                </button>
+              ` : ""}
+            </div>
           </div>
           <pre class="spi-hex-preview">${escapeHtml((state.hexPreview || []).join("\n"))}</pre>
         </section>
-
-        <section class="spi-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Session Log</p>
-              <h4>Aktivitas terbaru</h4>
-            </div>
-            <span class="spi-mini-badge">${escapeHtml(state.backendMode)}</span>
-          </div>
-          <div class="spi-log-list">
-            ${(state.logs || []).map((item) => `<p>${escapeHtml(item)}</p>`).join("")}
-          </div>
-        </section>
+      </div>
       </div>
     `;
   }
@@ -377,6 +382,8 @@
     let state = createUnavailableState();
     let mountedContainer = null;
     let busy = false;
+    let sessionPollTimer = null;
+    let sessionPollInFlight = false;
 
     function collectActionPayload() {
       return {
@@ -390,6 +397,65 @@
       };
     }
 
+    async function runAction(action) {
+      if (action === "reset") {
+        return fetchJson("/spi-flash/reset", {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+      }
+
+      return fetchJson(`/spi-flash/actions/${encodeURIComponent(action)}`, {
+        method: "POST",
+        body: JSON.stringify(collectActionPayload())
+      });
+    }
+
+    async function refreshSessionSilently() {
+      if (sessionPollInFlight || !state.serviceAvailable) {
+        return;
+      }
+
+      sessionPollInFlight = true;
+      try {
+        const session = await fetchJson("/spi-flash/session");
+        state = mapServiceSessionToState(session);
+        render();
+      } catch {
+        // Ignore polling hiccups while the main action request is still running.
+      } finally {
+        sessionPollInFlight = false;
+      }
+    }
+
+    function startSessionPolling() {
+      stopSessionPolling();
+      sessionPollTimer = setInterval(() => {
+        void refreshSessionSilently();
+      }, 250);
+    }
+
+    function stopSessionPolling() {
+      if (sessionPollTimer) {
+        clearInterval(sessionPollTimer);
+        sessionPollTimer = null;
+      }
+    }
+
+    async function selectDeviceAndConnect(nextDevice) {
+      const session = await fetchJson("/spi-flash/device", {
+        method: "POST",
+        body: JSON.stringify({ deviceType: nextDevice })
+      });
+
+      state = mapServiceSessionToState(session);
+      render();
+
+      const connectedSession = await runAction("connect");
+      state = mapServiceSessionToState(connectedSession);
+      render();
+    }
+
     function render() {
       if (!mountedContainer) {
         return;
@@ -397,22 +463,40 @@
 
       mountedContainer.innerHTML = createWorkbenchMarkup(state, busy);
 
-      mountedContainer.querySelectorAll("[data-device]").forEach((button) => {
-        button.addEventListener("click", () => withBusy(async () => {
-          const nextDevice = button.getAttribute("data-device");
-          if (!nextDevice || !deviceProfiles[nextDevice] || !state.serviceAvailable) {
+      const busyShield = mountedContainer.querySelector("#spiBusyShield");
+      if (busyShield) {
+        const warnBusyInterruption = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          notifyUser("Proses SPI masih berjalan, tidak boleh diinterupsi.", "warning");
+        };
+
+        busyShield.addEventListener("click", warnBusyInterruption);
+        busyShield.addEventListener("contextmenu", warnBusyInterruption);
+      }
+
+      const deviceSelect = mountedContainer.querySelector("#spiFlashDeviceSelect");
+      if (deviceSelect) {
+        deviceSelect.addEventListener("change", () => withBusy(async () => {
+          const nextDevice = deviceSelect.value;
+          if (!state.serviceAvailable) {
             return;
           }
 
-          const session = await fetchJson("/spi-flash/device", {
-            method: "POST",
-            body: JSON.stringify({ deviceType: nextDevice })
-          });
+          if (!nextDevice) {
+            state.selectedDevice = "";
+            state.profile = deviceProfiles.CH347;
+            render();
+            return;
+          }
 
-          state = mapServiceSessionToState(session);
-          render();
+          if (!deviceProfiles[nextDevice]) {
+            return;
+          }
+
+          await selectDeviceAndConnect(nextDevice);
         }));
-      });
+      }
 
       mountedContainer.querySelectorAll("[data-field]").forEach((input) => {
         input.addEventListener("input", () => {
@@ -453,42 +537,65 @@
             return;
           }
 
-          if (action === "reset") {
-            const session = await fetchJson("/spi-flash/reset", {
-              method: "POST",
-              body: JSON.stringify({})
-            });
-
-            state = mapServiceSessionToState(session);
-            render();
+          if ((action === "read" || action === "erase" || action === "write" || action === "verify" || action === "auto") && !state.jedec) {
+            notifyUser("Chip belum detect, jalankan Detect JEDEC dulu.", "warning");
             return;
           }
 
-          const session = await fetchJson(`/spi-flash/actions/${encodeURIComponent(action)}`, {
-            method: "POST",
-            body: JSON.stringify(collectActionPayload())
-          });
-
+          const session = await runAction(action);
           state = mapServiceSessionToState(session);
           render();
+
+          if (action === "read" && state.readBufferIsAllFf) {
+            notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
+          }
         }));
       });
+
+      const saveBinButton = mountedContainer.querySelector("#spiFlashSaveBinButton");
+      if (saveBinButton) {
+        saveBinButton.addEventListener("click", () => {
+          if (!state.hasReadBuffer) {
+            notifyUser("Belum ada hasil read SPI Flash yang bisa disimpan.", "info");
+            return;
+          }
+
+          if (state.readBufferIsAllFf) {
+            notifyUser("Chip empty, isi buffer masih FF semua.", "warning");
+            return;
+          }
+
+          const downloadLink = document.createElement("a");
+          downloadLink.href = `${serviceBaseUrl}/spi-flash/read-buffer-bin`;
+          downloadLink.rel = "noopener";
+          downloadLink.style.display = "none";
+          document.body.append(downloadLink);
+          downloadLink.click();
+          downloadLink.remove();
+          notifyUser("Hasil read SPI Flash disiapkan sebagai file BIN.");
+        });
+      }
     }
 
     async function withBusy(work) {
       if (busy) {
+        notifyUser("Proses SPI masih berjalan, tidak boleh diinterupsi.", "warning");
         return;
       }
 
       busy = true;
       render();
+      startSessionPolling();
 
       try {
         await work();
       } catch (error) {
         state.errorMessage = error?.message || "Operasi SPI Flash gagal.";
+        notifyUser(state.errorMessage, "warning");
         render();
       } finally {
+        stopSessionPolling();
+        await refreshSessionSilently();
         busy = false;
         render();
       }
@@ -511,6 +618,9 @@
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;
+        if (typeof options.notify === "function") {
+          pageNotifier = options.notify;
+        }
         await loadSessionFromService();
         render();
       },

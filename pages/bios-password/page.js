@@ -106,42 +106,12 @@
     `).join("");
   }
 
-  function createWorkbenchMarkup(state, busy, loadingCatalog) {
-    const hasMatches = Array.isArray(state.results) && state.results.length > 0;
-    const statusClass = hasMatches ? " is-connected" : " is-disconnected";
-    const statusIcon = hasMatches ? "vpn_key" : "key_off";
+  function createWorkbenchMarkup(state, busy) {
     const catalogMarkup = createCatalogCards(state.catalog, state.results);
     const resultMarkup = createResultCards(state.results);
     const notesMarkup = (state.notes || []).map((note) => `<p>${escapeHtml(note)}</p>`).join("");
 
     return `
-      <div class="spi-stats-grid bios-password-stats-grid">
-        <article class="spi-stat-card${statusClass}">
-          <span class="material-symbols-outlined">${statusIcon}</span>
-          <div>
-            <p class="label">Solver Cocok</p>
-            <strong>${hasMatches ? `${state.results.length} hasil` : "Belum ada"}</strong>
-            <p>${escapeHtml(state.message)}</p>
-          </div>
-        </article>
-        <article class="spi-stat-card">
-          <span class="material-symbols-outlined">password</span>
-          <div>
-            <p class="label">Kode Aktif</p>
-            <strong>${escapeHtml(state.normalizedCode || "-")}</strong>
-            <p>Tempel persis seperti di layar lock BIOS.</p>
-          </div>
-        </article>
-        <article class="spi-stat-card">
-          <span class="material-symbols-outlined">dataset</span>
-          <div>
-            <p class="label">Catalog Solver</p>
-            <strong>${loadingCatalog ? "Memuat..." : `${state.catalog.length} solver`}</strong>
-            <p>Klik contoh untuk mengisi input lebih cepat.</p>
-          </div>
-        </article>
-      </div>
-
       <div class="spi-layout bios-password-layout">
         <section class="spi-card">
           <div class="spi-card-head">
@@ -253,7 +223,7 @@
         return;
       }
 
-      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy, loadingCatalog);
+      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy);
       const input = mountedContainer.querySelector("#biosPasswordInput");
       const generateButton = mountedContainer.querySelector("#biosPasswordGenerateButton");
       const copyButton = mountedContainer.querySelector("#biosPasswordCopyButton");

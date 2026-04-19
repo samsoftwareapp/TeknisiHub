@@ -361,7 +361,7 @@ const localToolCatalog = [
 
 spiFlashPage.mount?.({
   container: spiFlashWorkbench,
-  notify: (message) => setNotice(message)
+  notify: (message, tone) => setNotice(message, tone)
 });
 
 meAnalyzerPage.mount?.({
