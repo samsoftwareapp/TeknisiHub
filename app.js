@@ -197,8 +197,8 @@ const fileHashComparePage = window.teknisiHubPages?.fileHashCompare || {
 const lenovoBiosPatchPage = window.teknisiHubPages?.lenovoBiosPatch || {
   viewKey: "tool_lenovo_dump_bios",
   eyebrow: "Bios Patch",
-  title: "Dump Bios Lenovo",
-  subtitle: "Utility lokal untuk membuat file patch dari dump BIOS Lenovo.",
+  title: "Lenovo UEFI AutoPatcher",
+  subtitle: "Utility lokal untuk membuat file patch dari Lenovo UEFI AutoPatcher.",
   items: [],
   mount() {},
   setVisible() {},
@@ -1038,6 +1038,11 @@ function hideWorkbench() {
 }
 
 function setActiveNav(targetKey) {
+  const isToolView = targetKey.startsWith("tool_");
+  const isBiosPatchView = targetKey === lenovoBiosPatchPage.viewKey
+    || targetKey === dell8Fc8Page.viewKey
+    || targetKey === amiDecryptorPage.viewKey;
+
   const navMap = {
     BIOS: navBios,
     Boardview: navBoardview,
@@ -1067,13 +1072,13 @@ function setActiveNav(targetKey) {
   });
 
   if (navTools) {
-    navTools.open = targetKey.startsWith("tool_");
+    navTools.open = isToolView;
+    navTools.classList.toggle("is-active", isToolView);
   }
 
   if (toolBiosPatchGroup) {
-    toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey
-      || targetKey === dell8Fc8Page.viewKey
-      || targetKey === amiDecryptorPage.viewKey;
+    toolBiosPatchGroup.open = isBiosPatchView;
+    toolBiosPatchGroup.classList.toggle("is-active", isBiosPatchView);
   }
 
 }
