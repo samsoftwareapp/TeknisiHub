@@ -112,7 +112,6 @@ const toolFileHashCompare = document.getElementById("toolFileHashCompare");
 const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
 const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
 const toolAmiDecryptor = document.getElementById("toolAmiDecryptor");
-const toolBiosSpdRemoval = document.getElementById("toolBiosSpdRemoval");
 const toolBiosPassword = document.getElementById("toolBiosPassword");
 const toolMicroscope = document.getElementById("toolMicroscope");
 const toolAlienServer = document.getElementById("toolAlienServer");
@@ -1037,21 +1036,6 @@ function setActiveNav(targetKey) {
 
   if (toolBiosPatchGroup) {
     toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey || targetKey === amiDecryptorPage.viewKey;
-  }
-}
-
-async function openBiosSpdRemovalFromNav() {
-  setNavButtonLoading(toolBiosSpdRemoval, true);
-
-  try {
-    const result = await fetchJson("/tools/bios-spd-removal/open", {
-      method: "POST"
-    });
-    setNotice(result.message || "BIOS SPD Removal dibuka.");
-  } catch (error) {
-    setNotice(error?.message || "Gagal membuka BIOS SPD Removal.", true);
-  } finally {
-    setNavButtonLoading(toolBiosSpdRemoval, false);
   }
 }
 
@@ -4051,9 +4035,6 @@ toolAmiDecryptor?.addEventListener("click", () => {
   filterCatalogItems();
 });
 
-toolBiosSpdRemoval?.addEventListener("click", () => {
-  openBiosSpdRemovalFromNav();
-});
 
 toolBiosPassword?.addEventListener("click", () => {
   updateViewHash(biosPasswordPage.viewKey);
