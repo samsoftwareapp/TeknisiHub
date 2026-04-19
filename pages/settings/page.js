@@ -51,19 +51,6 @@
     const statusLabel = state.startWithWindows ? "Aktif" : "Nonaktif";
 
     return `
-      <div class="spi-workbench-hero settings-hero">
-        <div>
-          <p class="label">Pengaturan</p>
-          <h3>Kontrol perilaku local service dari dashboard</h3>
-          <p class="spi-workbench-copy">Atur opsi startup dasar untuk Windows dan jalankan maintenance cache local service langsung dari dashboard.</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill">Windows startup</span>
-          <span class="spi-status-pill">Local service</span>
-          <span class="spi-status-pill">${escapeHtml(statusLabel)}</span>
-        </div>
-      </div>
-
       <div class="spi-layout settings-layout">
         <section class="spi-card">
           <div class="spi-card-head">

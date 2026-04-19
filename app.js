@@ -888,7 +888,7 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
 
   return {
     title: "Gabung channel Problem Solving dulu untuk membuka katalog.",
-    description: "Setelah berhasil join, tombol refresh akan memakai cache backend seperti katalog Telegram lainnya.",
+    description: "Setelah berhasil join, Problem Solving akan muncul list katalog.",
     buttonId: "problemSolvingJoinButton",
     buttonLabel: "Gabung Channel",
     link: currentProblemSolvingChannelInviteLink,
@@ -1037,6 +1037,7 @@ function setActiveNav(targetKey) {
   if (toolBiosPatchGroup) {
     toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey || targetKey === amiDecryptorPage.viewKey;
   }
+
 }
 
 function setNavButtonLoading(button, loading) {
@@ -4034,7 +4035,6 @@ toolAmiDecryptor?.addEventListener("click", () => {
   catalogItems = catalogCache;
   filterCatalogItems();
 });
-
 
 toolBiosPassword?.addEventListener("click", () => {
   updateViewHash(biosPasswordPage.viewKey);

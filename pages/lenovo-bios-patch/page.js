@@ -109,83 +109,44 @@
     const disableAttr = busy ? " disabled" : "";
 
     return `
-      <div class="spi-stats-grid lenovo-bios-patch-stats-grid">
-        <article class="spi-stat-card${state.inputFileName ? " is-connected" : ""}">
-          <span class="material-symbols-outlined">upload_file</span>
+      <section class="spi-card">
+        <div class="spi-card-head">
           <div>
-            <p class="label">Input Dump</p>
-            <strong>${escapeHtml(state.inputFileName || "Belum dipilih")}</strong>
-            <p>${escapeHtml(formatBytes(state.inputFileSize))}</p>
+            <p class="label">Dump Bios Lenovo</p>
+            <h4>Upload file BIOS lalu jalankan patch</h4>
           </div>
-        </article>
-        <article class="spi-stat-card${state.patchedFileName ? " is-connected" : ""}">
-          <span class="material-symbols-outlined">construction</span>
-          <div>
-            <p class="label">Output Patch</p>
-            <strong>${escapeHtml(state.patchedFileName || "Belum dibuat")}</strong>
-            <p>${escapeHtml(state.patchedFileName ? formatBytes(state.patchedFileSize) : "Menunggu proses patch")}</p>
-          </div>
-        </article>
-        <article class="spi-stat-card${state.errorMessage ? " is-disconnected" : " is-connected"}">
-          <span class="material-symbols-outlined">${state.errorMessage ? "error" : "verified"}</span>
-          <div>
-            <p class="label">Status</p>
-            <strong>${escapeHtml(state.errorMessage ? "Perlu dicek" : "Siap dipakai")}</strong>
-            <p>${escapeHtml(state.errorMessage || state.message)}</p>
-            <p>Fungsi tool ini adalah membuat file BIOS patch dari dump .bin Lenovo untuk proses unlock supervisor password.</p>
-          </div>
-        </article>
-      </div>
-
-      <div class="spi-layout">
-        <section class="spi-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Dump Bios Lenovo</p>
-              <h4>Upload file BIOS lalu jalankan patch</h4>
-            </div>
-            <button type="button" id="lenovoBiosPatchRunButton" class="ghost"${disableAttr}>
-              <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "play_arrow"}</span>
-              <span>${actionLabel}</span>
-            </button>
-          </div>
-          <div class="spi-form-grid">
-            <label class="spi-file-field">
-              File BIOS
-              <input id="lenovoBiosPatchFileInput" type="file" accept="${acceptedExtensions}"${disableAttr}>
-            </label>
-            <label>
-              File Terpilih
-              <input type="text" value="${escapeHtml(state.inputFileName)}" placeholder="Belum ada file" readonly>
-            </label>
-            <label>
-              Ukuran Input
-              <input type="text" value="${escapeHtml(formatBytes(state.inputFileSize))}" placeholder="Belum ada file" readonly>
-            </label>
-            <label>
-              Waktu Patch
-              <input type="text" value="${escapeHtml(state.patchedAt)}" placeholder="Belum dijalankan" readonly>
-            </label>
-          </div>
-          <p class="spi-note">${escapeHtml(state.errorMessage || state.message)}</p>
-          <div class="boardviewer-actions lenovo-bios-patch-download">
-            <button type="button" id="lenovoBiosPatchDownloadButton" class="ghost"${hasDownload ? "" : " disabled"}>
-              <span class="material-symbols-outlined">download</span>
-              <span>Download ulang</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="spi-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Catatan</p>
-              <h4>Alur kerja dan perhatian</h4>
-            </div>
-          </div>
-          <div class="lenovo-bios-patch-notes">${createNotesMarkup(state.notes)}</div>
-        </section>
-      </div>
+          <button type="button" id="lenovoBiosPatchRunButton" class="ghost"${disableAttr}>
+            <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "play_arrow"}</span>
+            <span>${actionLabel}</span>
+          </button>
+        </div>
+        <div class="spi-form-grid">
+          <label class="spi-file-field">
+            File BIOS
+            <input id="lenovoBiosPatchFileInput" type="file" accept="${acceptedExtensions}"${disableAttr}>
+          </label>
+          <label>
+            File Terpilih
+            <input type="text" value="${escapeHtml(state.inputFileName)}" placeholder="Belum ada file" readonly>
+          </label>
+          <label>
+            Ukuran Input
+            <input type="text" value="${escapeHtml(formatBytes(state.inputFileSize))}" placeholder="Belum ada file" readonly>
+          </label>
+          <label>
+            Waktu Patch
+            <input type="text" value="${escapeHtml(state.patchedAt)}" placeholder="Belum dijalankan" readonly>
+          </label>
+        </div>
+        <p class="spi-note">${escapeHtml(state.errorMessage || state.message)}</p>
+        <div class="lenovo-bios-patch-notes">${createNotesMarkup(state.notes)}</div>
+        <div class="boardviewer-actions lenovo-bios-patch-download">
+          <button type="button" id="lenovoBiosPatchDownloadButton" class="ghost"${hasDownload ? "" : " disabled"}>
+            <span class="material-symbols-outlined">download</span>
+            <span>Download ulang</span>
+          </button>
+        </div>
+      </section>
     `;
   }
 
