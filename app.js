@@ -52,6 +52,7 @@ const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const fileHashCompareWorkbench = document.getElementById("fileHashCompareWorkbench");
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
+const dell8Fc8Workbench = document.getElementById("dell8Fc8Workbench");
 const amiDecryptorWorkbench = document.getElementById("amiDecryptorWorkbench");
 const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
 const microscopeWorkbench = document.getElementById("microscopeWorkbench");
@@ -111,6 +112,7 @@ const toolUefi = document.getElementById("toolUefi");
 const toolFileHashCompare = document.getElementById("toolFileHashCompare");
 const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
 const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
+const toolDell8Fc8 = document.getElementById("toolDell8Fc8");
 const toolAmiDecryptor = document.getElementById("toolAmiDecryptor");
 const toolBiosPassword = document.getElementById("toolBiosPassword");
 const toolMicroscope = document.getElementById("toolMicroscope");
@@ -197,6 +199,17 @@ const lenovoBiosPatchPage = window.teknisiHubPages?.lenovoBiosPatch || {
   eyebrow: "Bios Patch",
   title: "Dump Bios Lenovo",
   subtitle: "Utility lokal untuk membuat file patch dari dump BIOS Lenovo.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const dell8Fc8Page = window.teknisiHubPages?.dell8Fc8 || {
+  viewKey: "tool_dell_8fc8",
+  eyebrow: "Bios Patch",
+  title: "Dell 8FC8",
+  subtitle: "Patch dump BIOS Dell 8FC8 langsung dari local service.",
   items: [],
   mount() {},
   setVisible() {},
@@ -371,6 +384,11 @@ lenovoBiosPatchPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+dell8Fc8Page.mount?.({
+  container: dell8Fc8Workbench,
+  notify: (message) => setNotice(message)
+});
+
 amiDecryptorPage.mount?.({
   container: amiDecryptorWorkbench,
   notify: (message) => setNotice(message)
@@ -488,6 +506,12 @@ const toolViewMap = {
     subtitle: lenovoBiosPatchPage.subtitle,
     channelLink: null
   },
+  [dell8Fc8Page.viewKey]: {
+    eyebrow: dell8Fc8Page.eyebrow,
+    title: dell8Fc8Page.title,
+    subtitle: dell8Fc8Page.subtitle,
+    channelLink: null
+  },
   [amiDecryptorPage.viewKey]: {
     eyebrow: amiDecryptorPage.eyebrow,
     title: amiDecryptorPage.title,
@@ -532,6 +556,7 @@ const localWorkbenchViewKeys = new Set([
   uefiToolPage.viewKey,
   fileHashComparePage.viewKey,
   lenovoBiosPatchPage.viewKey,
+  dell8Fc8Page.viewKey,
   amiDecryptorPage.viewKey,
   biosPasswordPage.viewKey,
   microscopePage.viewKey,
@@ -551,6 +576,7 @@ const viewHashMap = {
   [uefiToolPage.viewKey]: "UefiTools",
   [fileHashComparePage.viewKey]: "FileHashCompare",
   [lenovoBiosPatchPage.viewKey]: "DumpBiosLenovo",
+  [dell8Fc8Page.viewKey]: "Dell8Fc8",
   [amiDecryptorPage.viewKey]: "AmiDecryptor",
   [biosPasswordPage.viewKey]: "BiosPassword",
   [microscopePage.viewKey]: "Microscope",
@@ -576,6 +602,8 @@ const hashRouteMap = {
   toolfilehashcompare: fileHashComparePage.viewKey,
   dumpbioslenovo: lenovoBiosPatchPage.viewKey,
   tooldumpbioslenovo: lenovoBiosPatchPage.viewKey,
+  dell8fc8: dell8Fc8Page.viewKey,
+  tooldell8fc8: dell8Fc8Page.viewKey,
   amidecryptor: amiDecryptorPage.viewKey,
   toolamidecryptor: amiDecryptorPage.viewKey,
   biospassword: biosPasswordPage.viewKey,
@@ -610,6 +638,7 @@ function getViewButton(viewKey) {
     [uefiToolPage.viewKey]: toolUefi,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
+    [dell8Fc8Page.viewKey]: toolDell8Fc8,
     [amiDecryptorPage.viewKey]: toolAmiDecryptor,
     [biosPasswordPage.viewKey]: toolBiosPassword,
     [microscopePage.viewKey]: toolMicroscope,
@@ -936,6 +965,7 @@ function showWorkbenchOnly(viewKey) {
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
   fileHashComparePage.setVisible?.(viewKey === fileHashComparePage.viewKey);
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
+  dell8Fc8Page.setVisible?.(viewKey === dell8Fc8Page.viewKey);
   amiDecryptorPage.setVisible?.(viewKey === amiDecryptorPage.viewKey);
   biosPasswordPage.setVisible?.(viewKey === biosPasswordPage.viewKey);
   microscopePage.setVisible?.(viewKey === microscopePage.viewKey);
@@ -961,6 +991,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === lenovoBiosPatchPage.viewKey) {
     lenovoBiosPatchPage.refresh?.();
+  }
+
+  if (viewKey === dell8Fc8Page.viewKey) {
+    dell8Fc8Page.refresh?.();
   }
 
   if (viewKey === amiDecryptorPage.viewKey) {
@@ -994,6 +1028,7 @@ function hideWorkbench() {
   uefiToolPage.setVisible?.(false);
   fileHashComparePage.setVisible?.(false);
   lenovoBiosPatchPage.setVisible?.(false);
+  dell8Fc8Page.setVisible?.(false);
   amiDecryptorPage.setVisible?.(false);
   biosPasswordPage.setVisible?.(false);
   microscopePage.setVisible?.(false);
@@ -1014,6 +1049,7 @@ function setActiveNav(targetKey) {
     tool_uefi: toolUefi,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
+    [dell8Fc8Page.viewKey]: toolDell8Fc8,
     [amiDecryptorPage.viewKey]: toolAmiDecryptor,
     tool_bios_password: toolBiosPassword,
     tool_microscope: toolMicroscope,
@@ -1035,7 +1071,9 @@ function setActiveNav(targetKey) {
   }
 
   if (toolBiosPatchGroup) {
-    toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey || targetKey === amiDecryptorPage.viewKey;
+    toolBiosPatchGroup.open = targetKey === lenovoBiosPatchPage.viewKey
+      || targetKey === dell8Fc8Page.viewKey
+      || targetKey === amiDecryptorPage.viewKey;
   }
 
 }
@@ -4025,6 +4063,13 @@ toolFileHashCompare?.addEventListener("click", () => {
 toolDumpBiosLenovo?.addEventListener("click", () => {
   updateViewHash(lenovoBiosPatchPage.viewKey);
   currentCatalogView = lenovoBiosPatchPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolDell8Fc8?.addEventListener("click", () => {
+  updateViewHash(dell8Fc8Page.viewKey);
+  currentCatalogView = dell8Fc8Page.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
