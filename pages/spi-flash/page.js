@@ -79,11 +79,93 @@
       hexPreview: [
         "Belum ada data."
       ],
+      selectedDeviceDriver: {
+        deviceType: "",
+        deviceLabel: "",
+        isPresent: false,
+        isExpectedDriver: false,
+        friendlyName: "",
+        instanceId: "",
+        deviceClass: "",
+        status: "Device belum terdeteksi",
+        manufacturer: "",
+        driverName: "",
+        driverService: "",
+        driverProvider: "",
+        driverVersion: "",
+        driverDate: "",
+        expectedService: "",
+        installUrl: "",
+        installLabel: "",
+        installHint: ""
+      },
+      driverInfoLoaded: false,
       profile
     };
   }
 
-  function mapServiceSessionToState(session) {
+  function normalizeDriverInfo(driverInfo, selectedDevice = "") {
+    if (!driverInfo || typeof driverInfo !== "object") {
+      return {
+        deviceType: selectedDevice || "",
+        deviceLabel: deviceProfiles[selectedDevice]?.label || "",
+        isPresent: false,
+        isExpectedDriver: false,
+        friendlyName: "",
+        instanceId: "",
+        deviceClass: "",
+        status: selectedDevice ? "Device belum terdeteksi" : "",
+        manufacturer: "",
+        driverName: "",
+        driverService: "",
+        driverProvider: "",
+        driverVersion: "",
+        driverDate: "",
+        expectedService: "",
+        installUrl: selectedDevice ? `/spi-flash/drivers/${encodeURIComponent(selectedDevice)}/install` : "",
+        installLabel: selectedDevice ? `Install driver ${deviceProfiles[selectedDevice]?.label || selectedDevice}` : "",
+        installHint: ""
+      };
+    }
+
+    return {
+      deviceType: driverInfo.deviceType || selectedDevice || "",
+      deviceLabel: driverInfo.deviceLabel || deviceProfiles[selectedDevice]?.label || "",
+      isPresent: Boolean(driverInfo.isPresent),
+      isExpectedDriver: Boolean(driverInfo.isExpectedDriver),
+      friendlyName: driverInfo.friendlyName || "",
+      instanceId: driverInfo.instanceId || "",
+      deviceClass: driverInfo.deviceClass || "",
+      status: driverInfo.status || (selectedDevice ? "Device belum terdeteksi" : ""),
+      manufacturer: driverInfo.manufacturer || "",
+      driverName: driverInfo.driverName || "",
+      driverService: driverInfo.driverService || "",
+      driverProvider: driverInfo.driverProvider || "",
+      driverVersion: driverInfo.driverVersion || "",
+      driverDate: driverInfo.driverDate || "",
+      expectedService: driverInfo.expectedService || "",
+      installUrl: driverInfo.installUrl || (selectedDevice ? `/spi-flash/drivers/${encodeURIComponent(selectedDevice)}/install` : ""),
+      installLabel: driverInfo.installLabel || (selectedDevice ? `Install driver ${deviceProfiles[selectedDevice]?.label || selectedDevice}` : ""),
+      installHint: driverInfo.installHint || ""
+    };
+  }
+
+  function hasDriverPayload(driverInfo) {
+    return Boolean(
+      driverInfo &&
+      typeof driverInfo === "object" &&
+      (
+        driverInfo.deviceType ||
+        driverInfo.deviceLabel ||
+        driverInfo.friendlyName ||
+        driverInfo.driverName ||
+        driverInfo.driverService ||
+        driverInfo.isPresent
+      )
+    );
+  }
+
+  function mapServiceSessionToState(session, previousState = null) {
     const hasPersistedSessionState =
       Boolean(session.fileName) ||
       Boolean(session.jedec) ||
@@ -92,11 +174,26 @@
       Boolean(session.startAddress) ||
       Boolean(session.length) ||
       Boolean(session.verifyMode);
+    const activeOperation = String(session.activeOperation || "").trim().toLowerCase();
     const normalizedConnectionState = String(session.connectionState || "").trim().toLowerCase();
-    const shouldShowPlaceholder =
+    const isFreshDefaultSession =
+      (session.selectedDevice || "") === "CH347" &&
       !hasPersistedSessionState &&
+      activeOperation === "belum ada operasi" &&
       normalizedConnectionState.includes("belum terhubung");
-    const selectedDevice = shouldShowPlaceholder ? "" : (session.selectedDevice || "");
+    const selectedDevice = isFreshDefaultSession ? "" : (session.selectedDevice || "");
+    const previousDriverInfo =
+      previousState &&
+      previousState.selectedDevice === selectedDevice
+        ? previousState.selectedDeviceDriver
+        : null;
+    const driverPayloadPresent = hasDriverPayload(session.selectedDeviceDriver);
+    const selectedDeviceDriver = driverPayloadPresent
+      ? normalizeDriverInfo(session.selectedDeviceDriver, selectedDevice)
+      : (previousDriverInfo || normalizeDriverInfo(null, selectedDevice));
+    const driverInfoLoaded = selectedDevice
+      ? (driverPayloadPresent || Boolean(previousState && previousState.selectedDevice === selectedDevice && previousState.driverInfoLoaded))
+      : false;
 
     return {
       serviceAvailable: true,
@@ -124,6 +221,8 @@
       readBufferIsAllFf: Boolean(session.readBufferIsAllFf),
       logs: Array.isArray(session.logs) ? session.logs : [],
       hexPreview: Array.isArray(session.hexPreview) ? session.hexPreview : [],
+      selectedDeviceDriver,
+      driverInfoLoaded,
       profile: deviceProfiles[selectedDevice] || deviceProfiles.CH347
     };
   }
@@ -237,6 +336,9 @@
     const lengthLabel = state.length || "-";
     const verifyLabel = state.verifyMode || "-";
     const verifyPreviewState = getVerifyPreviewState(state);
+    const selectedDriver = normalizeDriverInfo(state.selectedDeviceDriver, state.selectedDevice);
+    const driverInstallLabel = selectedDriver.installLabel || "Install driver";
+    const showDriverPanel = Boolean(state.selectedDevice) && Boolean(state.driverInfoLoaded) && !selectedDriver.isPresent;
 
     return `
       <div class="spi-workbench-shell${busy ? " is-busy" : ""}">
@@ -278,6 +380,11 @@
             <span>Page size <strong>${escapeHtml(pageLabel)}</strong></span>
           </div>
           <p class="spi-note">${escapeHtml(profile.note)}</p>
+          ${showDriverPanel ? `
+            <p class="spi-driver-link-row">
+              <a href="#" class="spi-driver-link" data-spi-install-driver="1">${escapeHtml(driverInstallLabel)}</a>
+            </p>
+          ` : ""}
         </section>
 
         <section class="spi-card">
@@ -456,6 +563,16 @@
       };
     }
 
+    async function fetchDriverInfo(deviceType) {
+      if (!deviceType || !state.serviceAvailable) {
+        return;
+      }
+
+      const driverInfo = await fetchJson(`/spi-flash/drivers/${encodeURIComponent(deviceType)}`);
+      state.selectedDeviceDriver = normalizeDriverInfo(driverInfo, deviceType);
+      state.driverInfoLoaded = true;
+    }
+
     async function runAction(action) {
       if (action === "reset") {
         return fetchJson("/spi-flash/reset", {
@@ -478,7 +595,7 @@
       sessionPollInFlight = true;
       try {
         const session = await fetchJson("/spi-flash/session");
-        state = mapServiceSessionToState(session);
+        state = mapServiceSessionToState(session, state);
         render();
       } catch {
         // Ignore polling hiccups while the main action request is still running.
@@ -507,12 +624,20 @@
         body: JSON.stringify({ deviceType: nextDevice })
       });
 
-      state = mapServiceSessionToState(session);
+      state = mapServiceSessionToState(session, state);
+      state.selectedDeviceDriver = normalizeDriverInfo(null, nextDevice);
+      state.driverInfoLoaded = false;
       render();
 
-      const connectedSession = await runAction("connect");
-      state = mapServiceSessionToState(connectedSession);
-      render();
+      try {
+        const connectedSession = await runAction("connect");
+        state = mapServiceSessionToState(connectedSession, state);
+        render();
+      } catch (error) {
+        await fetchDriverInfo(nextDevice);
+        render();
+        throw error;
+      }
     }
 
     function render() {
@@ -545,6 +670,8 @@
           if (!nextDevice) {
             state.selectedDevice = "";
             state.profile = deviceProfiles.CH347;
+            state.selectedDeviceDriver = normalizeDriverInfo(null, "");
+            state.driverInfoLoaded = false;
             render();
             return;
           }
@@ -584,7 +711,7 @@
             body: formData
           });
 
-          state = mapServiceSessionToState(session);
+          state = mapServiceSessionToState(session, state);
           render();
         }));
       }
@@ -602,7 +729,7 @@
           }
 
           const session = await runAction(action);
-          state = mapServiceSessionToState(session);
+          state = mapServiceSessionToState(session, state);
           render();
 
           if (action === "read" && state.readBufferIsAllFf) {
@@ -641,6 +768,35 @@
           notifyUser("Hasil read SPI Flash disiapkan sebagai file BIN.");
         });
       }
+
+      const installDriverLink = mountedContainer.querySelector("[data-spi-install-driver]");
+      if (installDriverLink) {
+        installDriverLink.addEventListener("click", (event) => withBusy(async () => {
+          event.preventDefault();
+
+          if (!state.serviceAvailable || !state.selectedDevice) {
+            return;
+          }
+
+          const selectedDriver = normalizeDriverInfo(state.selectedDeviceDriver, state.selectedDevice);
+          const installPath = selectedDriver.installUrl || `/spi-flash/drivers/${encodeURIComponent(state.selectedDevice)}/install`;
+          const payload = await fetchJson(installPath);
+
+          if (payload?.driver) {
+            state.selectedDeviceDriver = normalizeDriverInfo(payload.driver, state.selectedDevice);
+            state.driverInfoLoaded = true;
+          }
+
+          notifyUser(
+            payload?.message || `Permintaan install driver ${state.selectedDevice} dikirim.`,
+            payload?.success === false ? "warning" : "success"
+          );
+
+          const session = await fetchJson("/spi-flash/session");
+          state = mapServiceSessionToState(session, state);
+          render();
+        }));
+      }
     }
 
     async function withBusy(work) {
@@ -656,6 +812,13 @@
       try {
         await work();
       } catch (error) {
+        if (state.selectedDevice && !state.driverInfoLoaded) {
+          try {
+            await fetchDriverInfo(state.selectedDevice);
+          } catch {
+            // Keep the original action error as the main feedback.
+          }
+        }
         state.errorMessage = error?.message || "Operasi SPI Flash gagal.";
         notifyUser(state.errorMessage, "warning");
         render();
@@ -670,7 +833,7 @@
     async function loadSessionFromService() {
       try {
         const session = await fetchJson("/spi-flash/session");
-        state = mapServiceSessionToState(session);
+        state = mapServiceSessionToState(session, state);
       } catch (error) {
         state = createUnavailableState(error?.message || "Local service SPI Flash belum tersedia.");
       }

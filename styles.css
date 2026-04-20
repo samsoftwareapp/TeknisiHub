@@ -1735,6 +1735,21 @@ h1 {
   color: var(--muted);
 }
 
+.spi-driver-link-row {
+  margin: 10px 0 0;
+}
+
+.spi-driver-link {
+  color: var(--brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.spi-driver-link:hover,
+.spi-driver-link:focus-visible {
+  text-decoration: underline;
+}
+
 .spi-form-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
