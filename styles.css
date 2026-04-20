@@ -1839,6 +1839,21 @@ h1 {
   background: rgba(180, 91, 33, 0.14);
 }
 
+.spi-verify-subtitle {
+  margin: 14px 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.spi-verify-subtitle.is-success {
+  color: #156f61;
+}
+
+.spi-verify-subtitle.is-failed {
+  color: #8d2f2f;
+}
+
 .spi-progress-track span {
   display: block;
   height: 100%;

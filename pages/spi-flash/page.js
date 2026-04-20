@@ -175,6 +175,44 @@
     nextWindow.focus?.();
   }
 
+  function getVerifyPreviewState(state) {
+    const activeOperation = String(state.activeOperation || "").trim().toLowerCase();
+    const lastResult = String(state.lastResult || "").trim().toLowerCase();
+    const verifyFailed =
+      activeOperation.includes("verify gagal") ||
+      lastResult.includes("verify gagal") ||
+      lastResult.includes("mismatch");
+    const verifySucceeded =
+      !verifyFailed && (
+        activeOperation.includes("verify selesai") ||
+        lastResult.includes(" byte match") ||
+        lastResult.includes("verify sukses") ||
+        lastResult.includes("erase -> write -> verify")
+      );
+
+    if (verifyFailed) {
+      return {
+        cardClass: " is-failed",
+        subtitleClass: " is-failed",
+        subtitle: "Verify fail!"
+      };
+    }
+
+    if (verifySucceeded) {
+      return {
+        cardClass: "",
+        subtitleClass: " is-success",
+        subtitle: "Verify sukses"
+      };
+    }
+
+    return {
+      cardClass: "",
+      subtitleClass: "",
+      subtitle: ""
+    };
+  }
+
   function createWorkbenchMarkup(state, busy) {
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
     const isDeviceConnected =
@@ -198,6 +236,7 @@
     const startAddressLabel = state.startAddress || "-";
     const lengthLabel = state.length || "-";
     const verifyLabel = state.verifyMode || "-";
+    const verifyPreviewState = getVerifyPreviewState(state);
 
     return `
       <div class="spi-workbench-shell${busy ? " is-busy" : ""}">
@@ -372,7 +411,7 @@
       </div>
 
       <div class="spi-bottom-grid">
-        <section class="spi-card">
+        <section class="spi-card${verifyPreviewState.cardClass}">
           <div class="spi-card-head">
             <div>
               <p class="label">Hex Preview</p>
@@ -389,6 +428,9 @@
             </div>
           </div>
           <pre class="spi-hex-preview">${escapeHtml((state.hexPreview || []).join("\n"))}</pre>
+          ${verifyPreviewState.subtitle ? `
+            <p class="spi-verify-subtitle${verifyPreviewState.subtitleClass}">${escapeHtml(verifyPreviewState.subtitle)}</p>
+          ` : ""}
         </section>
       </div>
       </div>
