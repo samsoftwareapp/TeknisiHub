@@ -1,0 +1,251 @@
+.db-editor-body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(39, 199, 213, 0.18), transparent 28%),
+    linear-gradient(180deg, #eef8fb 0%, #f7fbfd 44%, #edf5f9 100%);
+  color: var(--deep);
+}
+
+.db-editor-shell {
+  width: min(1680px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 40px;
+  display: grid;
+  gap: 18px;
+}
+
+.db-editor-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px 26px;
+  border-radius: 28px;
+  border: 1px solid rgba(22, 78, 125, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 64px rgba(22, 78, 125, 0.08);
+}
+
+.db-editor-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 2.8vw, 2.8rem);
+}
+
+.db-editor-subtitle {
+  margin: 10px 0 0;
+  max-width: 760px;
+  color: var(--muted);
+}
+
+.db-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.db-editor-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.db-meta-card,
+.db-editor-toolbar,
+.db-editor-grid-card,
+.db-help-card {
+  border-radius: 22px;
+  border: 1px solid rgba(22, 78, 125, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 48px rgba(22, 78, 125, 0.06);
+}
+
+.db-meta-card {
+  padding: 18px 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.db-meta-card strong {
+  word-break: break-word;
+}
+
+.db-editor-toolbar {
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.db-editor-search {
+  min-width: min(520px, 100%);
+  flex: 1 1 360px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.db-editor-search input {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.db-editor-search input:focus {
+  outline: none;
+}
+
+.db-editor-message {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.db-editor-grid-card {
+  overflow: hidden;
+}
+
+.db-editor-table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 320px);
+}
+
+.db-editor-table {
+  width: 100%;
+  min-width: 1640px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.db-editor-table th,
+.db-editor-table td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(22, 78, 125, 0.08);
+  border-right: 1px solid rgba(22, 78, 125, 0.08);
+  vertical-align: top;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.db-editor-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: linear-gradient(180deg, #f9fdff 0%, #eef8fb 100%);
+}
+
+.db-editor-table th:first-child,
+.db-editor-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: center;
+  background: #f9fdff;
+}
+
+.db-editor-table th:first-child {
+  z-index: 3;
+}
+
+.db-editor-cell-input,
+.db-editor-cell-select {
+  min-width: 120px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(22, 78, 125, 0.12);
+  background: #fff;
+  box-shadow: none;
+  color: var(--deep);
+  font: inherit;
+}
+
+.db-editor-cell-input:focus,
+.db-editor-cell-select:focus {
+  outline: none;
+  border-color: rgba(39, 199, 213, 0.88);
+  box-shadow: 0 0 0 4px rgba(39, 199, 213, 0.12);
+}
+
+.db-editor-cell-input.is-invalid,
+.db-editor-cell-select.is-invalid {
+  border-color: rgba(180, 35, 24, 0.72);
+  background: rgba(255, 236, 234, 0.92);
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.08);
+}
+
+.db-editor-cell-input[data-field="chipType"] {
+  min-width: 140px;
+}
+
+.db-editor-cell-input[data-field="manufacturer"],
+.db-editor-cell-input[data-field="name"] {
+  min-width: 180px;
+}
+
+.db-editor-row-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.db-editor-row-actions button {
+  min-width: auto;
+  padding: 10px 12px;
+}
+
+.db-editor-empty {
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.db-editor-help {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.db-help-card {
+  padding: 18px 20px;
+}
+
+.db-help-card p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+@media (max-width: 1080px) {
+  .db-editor-shell {
+    width: min(100% - 20px, 1680px);
+    padding-top: 18px;
+  }
+
+  .db-editor-hero {
+    padding: 20px;
+    flex-direction: column;
+  }
+
+  .db-editor-actions,
+  .db-editor-meta,
+  .db-editor-help {
+    grid-template-columns: 1fr;
+  }
+
+  .db-editor-table-wrap {
+    max-height: none;
+  }
+}

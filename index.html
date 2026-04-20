@@ -429,17 +429,25 @@
             <input id="catalogEditorMd5" name="md5" type="text" placeholder="Akan terisi otomatis saat file dipilih" readonly>
           </div>
 
-          <label for="catalogEditorDeviceModel">Model Device</label>
-          <input id="catalogEditorDeviceModel" name="deviceModel" type="text" placeholder="Contoh: Lenovo ThinkPad T14" required>
+          <div class="catalog-form-field">
+            <label for="catalogEditorDeviceModel">Model Device</label>
+            <input id="catalogEditorDeviceModel" name="deviceModel" type="text" placeholder="Contoh: Lenovo ThinkPad T14" required>
+          </div>
 
-          <label for="catalogEditorSerialNumber">Serial Number</label>
-          <input id="catalogEditorSerialNumber" name="serialNumber" type="text" placeholder="Contoh: PF-123456 (Boleh Kosong)">
+          <div id="catalogEditorSerialNumberField" class="catalog-form-field">
+            <label for="catalogEditorSerialNumber">Serial Number</label>
+            <input id="catalogEditorSerialNumber" name="serialNumber" type="text" placeholder="Contoh: PF-123456 (Boleh Kosong)">
+          </div>
 
-          <label for="catalogEditorBoardCode">Code Board</label>
-          <input id="catalogEditorBoardCode" name="boardCode" type="text" placeholder="Contoh: LA-1234P" required>
+          <div class="catalog-form-field">
+            <label for="catalogEditorBoardCode">Code Board</label>
+            <input id="catalogEditorBoardCode" name="boardCode" type="text" placeholder="Contoh: LA-1234P" required>
+          </div>
 
-          <label for="catalogEditorNote">Catatan</label>
-          <input id="catalogEditorNote" name="note" type="text" placeholder="Contoh: Tested OK (Boleh Kosong)">
+          <div id="catalogEditorNoteField" class="catalog-form-field">
+            <label for="catalogEditorNote">Catatan</label>
+            <input id="catalogEditorNote" name="note" type="text" placeholder="Contoh: Tested OK (Boleh Kosong)">
+          </div>
         </div>
 
         <div class="catalog-editor-actions">

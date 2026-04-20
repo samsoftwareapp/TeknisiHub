@@ -164,6 +164,17 @@
     pageNotifier(message, tone);
   }
 
+  function openDatabaseEditor() {
+    const editorUrl = new URL("pages/spi-flash/database-editor.html", window.location.href);
+    const nextWindow = window.open(editorUrl.toString(), "_blank", "noopener");
+    if (!nextWindow) {
+      notifyUser("Popup editor database diblokir browser. Izinkan popup lalu coba lagi.", "warning");
+      return;
+    }
+
+    nextWindow.focus?.();
+  }
+
   function createWorkbenchMarkup(state, busy) {
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
     const isDeviceConnected =
@@ -336,9 +347,15 @@
               <span class="material-symbols-outlined">smart_toy</span>
               <span>Auto</span>
             </button>
+          </div>
+          <div class="spi-action-grid spi-action-grid-secondary">
             <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
               <span class="material-symbols-outlined">restart_alt</span>
               <span>Reset Session</span>
+            </button>
+            <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
+              <span class="material-symbols-outlined">edit_note</span>
+              <span>Edit Database</span>
             </button>
           </div>
           <div class="spi-progress-panel">
@@ -551,6 +568,13 @@
           }
         }));
       });
+
+      const editDatabaseButton = mountedContainer.querySelector("#spiFlashEditDatabaseButton");
+      if (editDatabaseButton) {
+        editDatabaseButton.addEventListener("click", () => {
+          openDatabaseEditor();
+        });
+      }
 
       const saveBinButton = mountedContainer.querySelector("#spiFlashSaveBinButton");
       if (saveBinButton) {

@@ -1398,6 +1398,11 @@ h1 {
   gap: 12px;
 }
 
+.catalog-form-field {
+  display: grid;
+  gap: 12px;
+}
+
 .catalog-readonly-field input[readonly] {
   color: var(--deep);
   font-weight: 700;
@@ -1753,10 +1758,25 @@ h1 {
 
 .spi-action-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.spi-action-grid-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
 }
 
 .spi-action-grid button {
-  min-height: 52px;
+  min-height: 42px;
+  min-width: 0;
+  padding: 10px 12px;
+  gap: 6px;
+  font-size: 0.92rem;
+  border-radius: 14px;
+}
+
+.spi-action-grid button .material-symbols-outlined {
+  font-size: 1.05rem;
 }
 
 .spi-progress-panel {

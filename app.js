@@ -89,8 +89,10 @@ const catalogEditorAdditionalFilesList = document.getElementById("catalogEditorA
 const catalogEditorAddFileButton = document.getElementById("catalogEditorAddFileButton");
 const catalogEditorMetadataFields = document.getElementById("catalogEditorMetadataFields");
 const catalogEditorDeviceModel = document.getElementById("catalogEditorDeviceModel");
+const catalogEditorSerialNumberField = document.getElementById("catalogEditorSerialNumberField");
 const catalogEditorSerialNumber = document.getElementById("catalogEditorSerialNumber");
 const catalogEditorBoardCode = document.getElementById("catalogEditorBoardCode");
+const catalogEditorNoteField = document.getElementById("catalogEditorNoteField");
 const catalogEditorNote = document.getElementById("catalogEditorNote");
 const catalogEditorSubmitButton = document.getElementById("catalogEditorSubmitButton");
 const catalogEditorUploadProgress = document.getElementById("catalogEditorUploadProgress");
@@ -1420,18 +1422,20 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <dt>MODEL</dt>
           <dd>${escapeHtml(item.deviceModel || "-")}</dd>
         </div>
+        ${item.category === "BIOS" ? `
         <div>
           <dt>SN</dt>
           <dd>${escapeHtml(item.serialNumber || "-")}</dd>
-        </div>
+        </div>` : ""}
         <div>
           <dt>CODE BOARD</dt>
           <dd>${escapeHtml(item.boardCode || "-")}</dd>
         </div>
+        ${item.category === "BIOS" ? `
         <div>
           <dt>NOTE</dt>
           <dd>${escapeHtml(item.note || "-")}</dd>
-        </div>
+        </div>` : ""}
         ${item.category === "BIOS" ? `
         <div>
           <dt>MD5</dt>
@@ -1551,6 +1555,10 @@ function appendCatalogAdditionalFileInput() {
 
 function isBoardCodeRequiredForCategory(category) {
   return category !== "ProblemSolving";
+}
+
+function supportsCatalogSerialNumberAndNote(category) {
+  return category === "BIOS";
 }
 
 function getCatalogMetadataRequirementMessage(config) {
@@ -1745,12 +1753,17 @@ function openCatalogEditor(mode, item = null) {
   const isEditMode = mode === "edit";
   const isSimpleFileUpload = !isEditMode && (targetCategory === "ProblemSolving" || targetCategory === "Datasheets");
   const boardCodeRequired = isBoardCodeRequiredForCategory(targetCategory);
+  const supportsSerialNumberAndNote = supportsCatalogSerialNumberAndNote(targetCategory);
   setText(catalogEditorTitle, isEditMode ? config.editTitle : config.uploadLabel);
   catalogEditorMessageId.value = isEditMode && item ? String(item.messageId || "") : "";
   catalogEditorDeviceModel.value = item?.deviceModel === "-" ? "" : (item?.deviceModel || "");
-  catalogEditorSerialNumber.value = item?.serialNumber === "-" ? "" : (item?.serialNumber || "");
+  catalogEditorSerialNumber.value = supportsSerialNumberAndNote && item?.serialNumber !== "-"
+    ? (item?.serialNumber || "")
+    : "";
   catalogEditorBoardCode.value = item?.boardCode === "-" ? "" : (item?.boardCode || "");
-  catalogEditorNote.value = item?.note === "-" ? "" : (item?.note || "");
+  catalogEditorNote.value = supportsSerialNumberAndNote && item?.note !== "-"
+    ? (item?.note || "")
+    : "";
   if (catalogEditorMd5) {
     catalogEditorMd5.value = item?.md5 || "-";
   }
@@ -1784,6 +1797,8 @@ function openCatalogEditor(mode, item = null) {
     renderCatalogBiosDuplicateCheck("hidden");
   }
   toggleElement(catalogEditorMetadataFields, !isSimpleFileUpload);
+  toggleElement(catalogEditorSerialNumberField, !isSimpleFileUpload && supportsSerialNumberAndNote);
+  toggleElement(catalogEditorNoteField, !isSimpleFileUpload && supportsSerialNumberAndNote);
   if (catalogEditorDeviceModel) {
     catalogEditorDeviceModel.required = !isSimpleFileUpload;
   }
@@ -1819,6 +1834,8 @@ function closeCatalogEditor() {
   }
   renderCatalogAdditionalFiles();
   toggleElement(catalogEditorMetadataFields, true);
+  toggleElement(catalogEditorSerialNumberField, true);
+  toggleElement(catalogEditorNoteField, true);
   if (catalogEditorDeviceModel) {
     catalogEditorDeviceModel.required = true;
   }
@@ -3349,11 +3366,12 @@ async function refreshStatus(options = {}) {
 async function submitCatalogEditor() {
   const config = getTelegramCatalogConfig();
   const isSimpleFileUpload = catalogEditorMode !== "edit" && (config.endpoint === "problem-solving" || config.endpoint === "datasheets");
+  const supportsSerialNumberAndNote = supportsCatalogSerialNumberAndNote(currentCatalogView);
   const payload = {
     deviceModel: catalogEditorDeviceModel?.value.trim() || "",
-    serialNumber: catalogEditorSerialNumber?.value.trim() || "",
+    serialNumber: supportsSerialNumberAndNote ? catalogEditorSerialNumber?.value.trim() || "" : "",
     boardCode: catalogEditorBoardCode?.value.trim() || "",
-    note: catalogEditorNote?.value.trim() || ""
+    note: supportsSerialNumberAndNote ? catalogEditorNote?.value.trim() || "" : ""
   };
 
   const boardCodeRequired = isBoardCodeRequiredForCategory(currentCatalogView);

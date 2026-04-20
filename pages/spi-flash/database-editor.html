@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPI Flash Database Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+  <link rel="stylesheet" href="../../styles.css">
+  <link rel="stylesheet" href="database-editor.css">
+</head>
+<body class="db-editor-body">
+  <main class="db-editor-shell">
+    <section class="db-editor-hero">
+      <div>
+        <p class="label">SPI Flash Database</p>
+        <h1>Editor TeknisiHub.dat</h1>
+        <p class="db-editor-subtitle">Edit, tambah, hapus, lalu simpan record chip langsung ke database SPI Flash local service.</p>
+      </div>
+      <div class="db-editor-actions">
+        <button id="databaseEditorReloadButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">refresh</span>
+          <span>Reload</span>
+        </button>
+        <button id="databaseEditorAddRowButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">add</span>
+          <span>Tambah Baris</span>
+        </button>
+        <button id="databaseEditorSaveButton" type="button">
+          <span class="material-symbols-outlined">save</span>
+          <span>Simpan Database</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="db-editor-meta">
+      <article class="db-meta-card">
+        <p class="label">Path Database</p>
+        <strong id="databaseEditorPath">Memuat...</strong>
+      </article>
+      <article class="db-meta-card">
+        <p class="label">Last Modified</p>
+        <strong id="databaseEditorLastModified">-</strong>
+      </article>
+      <article class="db-meta-card">
+        <p class="label">Total Record</p>
+        <strong id="databaseEditorRecordCount">0</strong>
+      </article>
+      <article class="db-meta-card">
+        <p class="label">Status</p>
+        <strong id="databaseEditorDirtyState">Memuat data...</strong>
+      </article>
+    </section>
+
+    <section class="db-editor-toolbar">
+      <label class="db-editor-search">
+        <span class="material-symbols-outlined">search</span>
+        <input id="databaseEditorSearchInput" type="search" placeholder="Cari type, manufacturer, nama chip, JEDEC, atau ukuran...">
+      </label>
+      <p id="databaseEditorMessage" class="db-editor-message" aria-live="polite"></p>
+    </section>
+
+    <section class="db-editor-grid-card">
+      <div class="db-editor-table-wrap">
+        <table class="db-editor-table">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Type</th>
+              <th>Manufacture</th>
+              <th>IC Name</th>
+              <th>JEDEC ID</th>
+              <th>Size</th>
+              <th>Block Size</th>
+              <th>Type HEX</th>
+              <th>Algorithm</th>
+              <th>Delay</th>
+              <th>Extend</th>
+              <th>EEPROM</th>
+              <th>EEPROM Pages</th>
+              <th>VCC</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="databaseEditorTableBody">
+            <tr>
+              <td colspan="15" class="db-editor-empty">Memuat database...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="db-editor-help">
+      <article class="db-help-card">
+        <p class="label">Format Cepat</p>
+        <p>JEDEC gunakan format seperti <code>0xEF4018</code>. Ukuran chip bisa <code>8388608</code>, <code>8192 K</code>, atau <code>8 M</code>.</p>
+      </article>
+      <article class="db-help-card">
+        <p class="label">Catatan Simpan</p>
+        <p>Saat menyimpan, local service akan membuat file backup otomatis sebelum menulis ulang <code>TeknisiHub.dat</code>.</p>
+      </article>
+    </section>
+  </main>
+
+  <script src="database-editor.js"></script>
+</body>
+</html>
