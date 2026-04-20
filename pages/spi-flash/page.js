@@ -244,19 +244,19 @@
           <div class="spi-form-grid">
             <label>
               Manufacturer
-              <input data-field="chipVendor" type="text" value="${escapeHtml(state.chipVendor)}" placeholder="Contoh: GigaDevice" readonly${disableAttr}>
+              <input data-field="chipVendor" type="text" value="${escapeHtml(state.chipVendor)}" placeholder="-" readonly${disableAttr}>
             </label>
             <label>
               Name
-              <input data-field="chipModel" type="text" value="${escapeHtml(state.chipModel)}" placeholder="Contoh: GD25LQ80C(1.8V)" readonly${disableAttr}>
+              <input data-field="chipModel" type="text" value="${escapeHtml(state.chipModel)}" placeholder="-" readonly${disableAttr}>
             </label>
             <label>
               Size
-              <input data-field="chipCapacity" type="text" value="${escapeHtml(state.chipCapacity)}" placeholder="Contoh: 1 MB" readonly${disableAttr}>
+              <input data-field="chipCapacity" type="text" value="${escapeHtml(state.chipCapacity)}" placeholder="-" readonly${disableAttr}>
             </label>
             <label>
               Volt
-              <input type="text" value="${escapeHtml(state.chipVoltage || "-")}" placeholder="Contoh: 3.3 V" readonly${disableAttr}>
+              <input type="text" value="${escapeHtml(state.chipVoltage || "-")}" placeholder="-" readonly${disableAttr}>
             </label>
           </div>
           <div class="spi-inline-meta">
