@@ -2014,6 +2014,147 @@ h1 {
   color: var(--muted);
 }
 
+.bios-vendor-detect-stats-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bios-vendor-detect-bottom-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bios-vendor-detect-notes {
+  display: grid;
+  gap: 10px;
+}
+
+.bios-vendor-detect-notes p {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(22, 78, 125, 0.06);
+  color: var(--muted);
+}
+
+.bios-vendor-detect-candidate-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.bios-vendor-detect-candidate-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(125, 73, 30, 0.12);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.bios-vendor-detect-candidate-card-empty {
+  grid-template-columns: auto 1fr;
+  align-items: flex-start;
+}
+
+.bios-vendor-detect-candidate-card-empty .material-symbols-outlined {
+  color: var(--muted);
+}
+
+.bios-vendor-detect-candidate-card-empty strong,
+.bios-vendor-detect-candidate-card-empty p {
+  display: block;
+  margin: 0;
+}
+
+.bios-vendor-detect-candidate-card-empty p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.bios-vendor-detect-candidate-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bios-vendor-detect-candidate-head strong {
+  display: block;
+  color: var(--deep);
+  font-size: 1.02rem;
+}
+
+.bios-vendor-detect-pattern {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.bios-vendor-detect-candidate-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.bios-vendor-detect-confidence {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.84rem;
+  border: 1px solid transparent;
+}
+
+.bios-vendor-detect-confidence.is-high {
+  color: #145c40;
+  background: rgba(20, 92, 64, 0.1);
+  border-color: rgba(20, 92, 64, 0.16);
+}
+
+.bios-vendor-detect-confidence.is-medium {
+  color: #8a5a0d;
+  background: rgba(235, 187, 91, 0.18);
+  border-color: rgba(196, 95, 32, 0.16);
+}
+
+.bios-vendor-detect-confidence.is-low,
+.bios-vendor-detect-confidence.is-unknown {
+  color: var(--muted);
+  background: rgba(22, 78, 125, 0.08);
+  border-color: rgba(22, 78, 125, 0.12);
+}
+
+.bios-vendor-detect-evidence-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bios-vendor-detect-evidence-chip {
+  display: inline-grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(22, 78, 125, 0.06);
+  border: 1px solid rgba(22, 78, 125, 0.08);
+}
+
+.bios-vendor-detect-evidence-chip strong {
+  color: var(--deep);
+  font-size: 0.88rem;
+}
+
+.bios-vendor-detect-evidence-chip small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.bios-vendor-detect-empty-inline {
+  margin: 0;
+  color: var(--muted);
+}
+
 .uefi-tool-console,
 .uefi-tool-warnings {
   margin: 0;
@@ -2745,6 +2886,10 @@ a {
   .spi-form-grid,
   .spi-action-grid,
   .bios-password-pattern-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bios-vendor-detect-stats-grid {
     grid-template-columns: 1fr;
   }
 

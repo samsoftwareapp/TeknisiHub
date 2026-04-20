@@ -50,6 +50,7 @@ const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
+const biosVendorDetectWorkbench = document.getElementById("biosVendorDetectWorkbench");
 const fileHashCompareWorkbench = document.getElementById("fileHashCompareWorkbench");
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
 const dell8Fc8Workbench = document.getElementById("dell8Fc8Workbench");
@@ -109,6 +110,7 @@ const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
+const toolBiosVendorDetect = document.getElementById("toolBiosVendorDetect");
 const toolFileHashCompare = document.getElementById("toolFileHashCompare");
 const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
 const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
@@ -177,6 +179,17 @@ const uefiToolPage = window.teknisiHubPages?.uefiTool || {
   eyebrow: "UEFI Tools",
   title: "UEFI Tools",
   subtitle: "Utility lokal untuk analisa manual struktur firmware UEFI.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const biosVendorDetectPage = window.teknisiHubPages?.biosVendorDetect || {
+  viewKey: "tool_bios_vendor_detect",
+  eyebrow: "BIOS Vendor",
+  title: "Deteksi Vendor BIOS",
+  subtitle: "Screening cepat untuk menebak vendor perangkat dan core BIOS dari file dump lokal.",
   items: [],
   mount() {},
   setVisible() {},
@@ -374,6 +387,11 @@ uefiToolPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+biosVendorDetectPage.mount?.({
+  container: biosVendorDetectWorkbench,
+  notify: (message) => setNotice(message)
+});
+
 fileHashComparePage.mount?.({
   container: fileHashCompareWorkbench,
   notify: (message) => setNotice(message)
@@ -494,6 +512,12 @@ const toolViewMap = {
     subtitle: uefiToolPage.subtitle,
     channelLink: null
   },
+  [biosVendorDetectPage.viewKey]: {
+    eyebrow: biosVendorDetectPage.eyebrow,
+    title: biosVendorDetectPage.title,
+    subtitle: biosVendorDetectPage.subtitle,
+    channelLink: null
+  },
   [fileHashComparePage.viewKey]: {
     eyebrow: fileHashComparePage.eyebrow,
     title: fileHashComparePage.title,
@@ -554,6 +578,7 @@ const localWorkbenchViewKeys = new Set([
   spiFlashPage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
+  biosVendorDetectPage.viewKey,
   fileHashComparePage.viewKey,
   lenovoBiosPatchPage.viewKey,
   dell8Fc8Page.viewKey,
@@ -574,6 +599,7 @@ const viewHashMap = {
   [spiFlashPage.viewKey]: "SpiFlash",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
+  [biosVendorDetectPage.viewKey]: "BiosVendorDetect",
   [fileHashComparePage.viewKey]: "FileHashCompare",
   [lenovoBiosPatchPage.viewKey]: "DumpBiosLenovo",
   [dell8Fc8Page.viewKey]: "Dell8Fc8",
@@ -598,6 +624,8 @@ const hashRouteMap = {
   uefitools: uefiToolPage.viewKey,
   tooluefitools: uefiToolPage.viewKey,
   tooluefi: uefiToolPage.viewKey,
+  biosvendordetect: biosVendorDetectPage.viewKey,
+  toolbiosvendordetect: biosVendorDetectPage.viewKey,
   filehashcompare: fileHashComparePage.viewKey,
   toolfilehashcompare: fileHashComparePage.viewKey,
   dumpbioslenovo: lenovoBiosPatchPage.viewKey,
@@ -636,6 +664,7 @@ function getViewButton(viewKey) {
     [spiFlashPage.viewKey]: toolSpiFlash,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
+    [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     [dell8Fc8Page.viewKey]: toolDell8Fc8,
@@ -963,6 +992,7 @@ function showWorkbenchOnly(viewKey) {
   spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
+  biosVendorDetectPage.setVisible?.(viewKey === biosVendorDetectPage.viewKey);
   fileHashComparePage.setVisible?.(viewKey === fileHashComparePage.viewKey);
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
   dell8Fc8Page.setVisible?.(viewKey === dell8Fc8Page.viewKey);
@@ -983,6 +1013,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === uefiToolPage.viewKey) {
     uefiToolPage.refresh?.();
+  }
+
+  if (viewKey === biosVendorDetectPage.viewKey) {
+    biosVendorDetectPage.refresh?.();
   }
 
   if (viewKey === fileHashComparePage.viewKey) {
@@ -1026,6 +1060,7 @@ function hideWorkbench() {
   spiFlashPage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
+  biosVendorDetectPage.setVisible?.(false);
   fileHashComparePage.setVisible?.(false);
   lenovoBiosPatchPage.setVisible?.(false);
   dell8Fc8Page.setVisible?.(false);
@@ -1052,6 +1087,7 @@ function setActiveNav(targetKey) {
     tool_spi_flash: toolSpiFlash,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
+    [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     [dell8Fc8Page.viewKey]: toolDell8Fc8,
@@ -1183,6 +1219,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "MEA UI"
         : viewKey === uefiToolPage.viewKey
         ? "UEFI UI"
+        : viewKey === biosVendorDetectPage.viewKey
+        ? "BVD UI"
         : viewKey === biosPasswordPage.viewKey
         ? "PWD UI"
         : viewKey === alienServerPage.viewKey
@@ -4054,6 +4092,13 @@ toolMeAnalyzer?.addEventListener("click", () => {
 toolUefi?.addEventListener("click", () => {
   updateViewHash(uefiToolPage.viewKey);
   currentCatalogView = uefiToolPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolBiosVendorDetect?.addEventListener("click", () => {
+  updateViewHash(biosVendorDetectPage.viewKey);
+  currentCatalogView = biosVendorDetectPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
