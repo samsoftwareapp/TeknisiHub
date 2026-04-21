@@ -52,6 +52,7 @@
     return {
       serviceAvailable: false,
       errorMessage: message,
+      autoProcess: true,
       previewMode: false,
       backendMode: "local-service",
       selectedDevice: "CH347",
@@ -198,6 +199,7 @@
     return {
       serviceAvailable: true,
       errorMessage: "",
+      autoProcess: session.autoProcess !== false,
       previewMode: Boolean(session.previewMode),
       backendMode: session.backendMode || "local-service",
       selectedDevice,
@@ -255,6 +257,50 @@
     return payload;
   }
 
+  function resolveDownloadFileName(contentDisposition, fallbackName = "SPIFlash_TeknisiHub.bin") {
+    const headerValue = String(contentDisposition || "").trim();
+    if (!headerValue) {
+      return fallbackName;
+    }
+
+    const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        return utf8Match[1];
+      }
+    }
+
+    const asciiMatch = headerValue.match(/filename=\"?([^\";]+)\"?/i);
+    return asciiMatch?.[1] || fallbackName;
+  }
+
+  async function saveBlobToDisk(blob, suggestedName) {
+    if (typeof window.showSaveFilePicker === "function") {
+      const extension = suggestedName.includes(".")
+        ? `.${suggestedName.split(".").pop()}`
+        : ".bin";
+      const fileHandle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [
+          {
+            description: "Binary file",
+            accept: {
+              "application/octet-stream": [extension]
+            }
+          }
+        ]
+      });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    }
+
+    return false;
+  }
+
   function notifyUser(message, tone = "success") {
     if (!message) {
       return;
@@ -274,45 +320,70 @@
     nextWindow.focus?.();
   }
 
-  function getVerifyPreviewState(state) {
+  function getHexPreviewStatusState(state, busy) {
     const activeOperation = String(state.activeOperation || "").trim().toLowerCase();
     const lastResult = String(state.lastResult || "").trim().toLowerCase();
-    const verifyFailed =
-      activeOperation.includes("verify gagal") ||
-      lastResult.includes("verify gagal") ||
-      lastResult.includes("mismatch");
-    const verifySucceeded =
-      !verifyFailed && (
-        activeOperation.includes("verify selesai") ||
-        lastResult.includes(" byte match") ||
-        lastResult.includes("verify sukses") ||
-        lastResult.includes("erase -> write -> verify")
-      );
+    const hasExplicitMismatchFailure =
+      lastResult.includes("mismatch") &&
+      !lastResult.includes("tanpa mismatch");
 
-    if (verifyFailed) {
+    if (busy) {
       return {
-        cardClass: " is-failed",
-        subtitleClass: " is-failed",
-        subtitle: "Verify fail!"
+        cardClass: "",
+        loading: true,
+        headingMarkup: `
+          <span class="material-symbols-outlined is-spinning">progress_activity</span>
+          <span>${escapeHtml(state.activeOperation || "Memproses...")}</span>
+        `
       };
     }
 
-    if (verifySucceeded) {
+    const isError =
+      activeOperation.includes("gagal") ||
+      lastResult.includes("gagal") ||
+      hasExplicitMismatchFailure;
+
+    const successLabel =
+      activeOperation.includes("read + verify selesai") ? "Read + Verify sukses" :
+      activeOperation.includes("read selesai") ? "Read sukses" :
+      activeOperation.includes("write flow selesai") ? "Erase + Write + Verify sukses" :
+      activeOperation.includes("write selesai") ? "Write sukses" :
+      activeOperation.includes("chip erase selesai") || activeOperation.includes("erase selesai") ? "Erase sukses" :
+      activeOperation.includes("verify selesai") ? "Verify sukses" :
+      "";
+
+    if (isError) {
+      const errorLabel =
+        activeOperation.includes("read") ? "Read error" :
+        activeOperation.includes("write") ? "Write error" :
+        activeOperation.includes("erase") ? "Erase error" :
+        activeOperation.includes("verify") ? "Verify error" :
+        "Status error";
+
       return {
-        cardClass: "",
-        subtitleClass: " is-success",
-        subtitle: "Verify sukses"
+        cardClass: " is-failed",
+        loading: false,
+        headingMarkup: escapeHtml(errorLabel)
+      };
+    }
+
+    if (successLabel) {
+      return {
+        cardClass: " is-success",
+        loading: false,
+        headingMarkup: escapeHtml(successLabel)
       };
     }
 
     return {
       cardClass: "",
-      subtitleClass: "",
-      subtitle: ""
+      loading: false,
+      headingMarkup: "Data baca"
     };
   }
 
   function createWorkbenchMarkup(state, busy) {
+    const autoProcessEnabled = state.autoProcess !== false;
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
     const isDeviceConnected =
       Boolean(state.selectedDevice) &&
@@ -335,13 +406,21 @@
     const startAddressLabel = state.startAddress || "-";
     const lengthLabel = state.length || "-";
     const verifyLabel = state.verifyMode || "-";
-    const verifyPreviewState = getVerifyPreviewState(state);
+    const hexPreviewStatusState = getHexPreviewStatusState(state, busy);
+    const readActionSummary = autoProcessEnabled ? "Read + Verify" : "Read";
+    const writeActionSummary = autoProcessEnabled ? "Erase + Write + Verify" : "Write";
+    const autoProcessSummary = autoProcessEnabled
+      ? "Aktif: Read=Read+Verify, Write=Erase+Write+Verify"
+      : "Nonaktif: Read=Read, Write=Write";
     const selectedDriver = normalizeDriverInfo(state.selectedDeviceDriver, state.selectedDevice);
     const driverInstallLabel = selectedDriver.installLabel || "Install driver";
     const showDriverPanel = Boolean(state.selectedDevice) && Boolean(state.driverInfoLoaded) && !selectedDriver.isPresent;
 
     return `
       <div class="spi-workbench-shell${busy ? " is-busy" : ""}">
+      ${busy ? `
+        <div class="spi-busy-overlay" id="spiBusyOverlay" aria-hidden="true"></div>
+      ` : ""}
       ${state.errorMessage ? `
         <section class="spi-card">
           <div class="spi-card-head">
@@ -463,35 +542,41 @@
               <h4>Flow operasi</h4>
             </div>
           </div>
-          ${busy ? `
-            <div class="spi-busy-inline" id="spiBusyShield" aria-live="polite">
-              <div class="spi-busy-shield-copy">
-                <span class="material-symbols-outlined is-spinning">progress_activity</span>
-                <strong>Proses SPI masih berjalan</strong>
-                <span>Tunggu sampai selesai. Operasi tidak boleh diinterupsi.</span>
-              </div>
-            </div>
-          ` : ""}
-          <div class="spi-action-grid">
+          <label class="spi-auto-toggle">
+            <input id="spiFlashAutoProcess" data-field="autoProcess" type="checkbox"${autoProcessEnabled ? " checked" : ""}${disableAttr}>
+            <span class="spi-auto-toggle-copy">
+              <strong>Auto proses</strong>
+              <small>${escapeHtml(autoProcessSummary)}</small>
+            </span>
+          </label>
+          <div class="spi-action-grid spi-action-grid-primary">
             <button type="button" data-spi-action="read"${actionDisableAttr}>
               <span class="material-symbols-outlined">download</span>
-              <span>Read</span>
+              <span class="spi-action-copy">
+                <strong>Read</strong>
+                <small>${escapeHtml(readActionSummary)}</small>
+              </span>
             </button>
             <button type="button" data-spi-action="erase"${actionDisableAttr}>
               <span class="material-symbols-outlined">ink_eraser</span>
-              <span>Erase</span>
+              <span class="spi-action-copy">
+                <strong>Erase</strong>
+                <small>Erase</small>
+              </span>
             </button>
             <button type="button" data-spi-action="write"${actionDisableAttr}>
               <span class="material-symbols-outlined">upload</span>
-              <span>Write</span>
+              <span class="spi-action-copy">
+                <strong>Write</strong>
+                <small>${escapeHtml(writeActionSummary)}</small>
+              </span>
             </button>
             <button type="button" data-spi-action="verify"${actionDisableAttr}>
               <span class="material-symbols-outlined">rule</span>
-              <span>Verify</span>
-            </button>
-            <button type="button" data-spi-action="auto"${actionDisableAttr}>
-              <span class="material-symbols-outlined">smart_toy</span>
-              <span>Auto</span>
+              <span class="spi-action-copy">
+                <strong>Verify</strong>
+                <small>Verify</small>
+              </span>
             </button>
           </div>
           <div class="spi-action-grid spi-action-grid-secondary">
@@ -518,11 +603,11 @@
       </div>
 
       <div class="spi-bottom-grid">
-        <section class="spi-card${verifyPreviewState.cardClass}">
+        <section class="spi-card${hexPreviewStatusState.cardClass}">
           <div class="spi-card-head">
             <div>
               <p class="label">Hex Preview</p>
-              <h4>Data baca</h4>
+              <h4 class="spi-status-title${hexPreviewStatusState.loading ? " is-loading" : ""}">${hexPreviewStatusState.headingMarkup}</h4>
             </div>
             <div class="spi-panel-actions">
               <span class="spi-mini-badge">${escapeHtml(fileNameLabel)}</span>
@@ -535,9 +620,6 @@
             </div>
           </div>
           <pre class="spi-hex-preview">${escapeHtml((state.hexPreview || []).join("\n"))}</pre>
-          ${verifyPreviewState.subtitle ? `
-            <p class="spi-verify-subtitle${verifyPreviewState.subtitleClass}">${escapeHtml(verifyPreviewState.subtitle)}</p>
-          ` : ""}
         </section>
       </div>
       </div>
@@ -556,6 +638,7 @@
         chipVendor: state.chipVendor,
         chipModel: state.chipModel,
         chipCapacity: state.chipCapacity,
+        autoProcess: state.autoProcess !== false,
         pageSize: Number(state.pageSize || 256),
         startAddress: state.startAddress,
         length: state.length,
@@ -585,6 +668,58 @@
         method: "POST",
         body: JSON.stringify(collectActionPayload())
       });
+    }
+
+    async function saveReadBufferToBin(options = {}) {
+      const {
+        showSuccessToast = true,
+        suppressEmptyWarning = false,
+        preferBrowserDownload = false
+      } = options;
+
+      if (!state.hasReadBuffer) {
+        notifyUser("Belum ada hasil read SPI Flash yang bisa disimpan.", "info");
+        return false;
+      }
+
+      if (state.readBufferIsAllFf && !suppressEmptyWarning) {
+        notifyUser("Chip empty, isi buffer masih FF semua.", "warning");
+        return false;
+      }
+
+      const response = await fetch(`${serviceBaseUrl}/spi-flash/read-buffer-bin`);
+      if (!response.ok) {
+        throw new Error(`Gagal menyiapkan file BIN (${response.status}).`);
+      }
+
+      const blob = await response.blob();
+      const resolvedFileName = resolveDownloadFileName(
+        response.headers.get("Content-Disposition"),
+        state.fileName || "SPIFlash_TeknisiHub.bin"
+      );
+      const savedDirectly = preferBrowserDownload
+        ? false
+        : await saveBlobToDisk(blob, resolvedFileName);
+
+      if (savedDirectly) {
+        if (showSuccessToast) {
+          notifyUser("File BIN selesai disimpan.");
+        }
+
+        return true;
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      const downloadLink = document.createElement("a");
+      downloadLink.href = objectUrl;
+      downloadLink.download = resolvedFileName;
+      downloadLink.rel = "noopener";
+      downloadLink.style.display = "none";
+      document.body.append(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      return true;
     }
 
     async function refreshSessionSilently() {
@@ -647,16 +782,13 @@
 
       mountedContainer.innerHTML = createWorkbenchMarkup(state, busy);
 
-      const busyShield = mountedContainer.querySelector("#spiBusyShield");
-      if (busyShield) {
-        const warnBusyInterruption = (event) => {
+      const busyOverlay = mountedContainer.querySelector("#spiBusyOverlay");
+      if (busyOverlay) {
+        busyOverlay.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          notifyUser("Proses SPI masih berjalan, tidak boleh diinterupsi.", "warning");
-        };
-
-        busyShield.addEventListener("click", warnBusyInterruption);
-        busyShield.addEventListener("contextmenu", warnBusyInterruption);
+          notifyUser("Progress masih berjalan. Tunggu sampai proses selesai, lalu lanjutkan aksi berikutnya.", "info");
+        });
       }
 
       const deviceSelect = mountedContainer.querySelector("#spiFlashDeviceSelect");
@@ -688,6 +820,12 @@
         input.addEventListener("input", () => {
           const field = input.getAttribute("data-field");
           if (!field) {
+            return;
+          }
+
+          if (input.type === "checkbox") {
+            state[field] = Boolean(input.checked);
+            render();
             return;
           }
 
@@ -723,7 +861,7 @@
             return;
           }
 
-          if ((action === "read" || action === "erase" || action === "write" || action === "verify" || action === "auto") && !state.jedec) {
+          if ((action === "read" || action === "erase" || action === "write" || action === "verify") && !state.jedec) {
             notifyUser("Chip belum detect, jalankan Detect JEDEC dulu.", "warning");
             return;
           }
@@ -734,6 +872,20 @@
 
           if (action === "read" && state.readBufferIsAllFf) {
             notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
+          }
+
+          if (action === "read" && state.autoProcess !== false && state.hasReadBuffer) {
+            try {
+              await saveReadBufferToBin({
+                showSuccessToast: false,
+                suppressEmptyWarning: true,
+                preferBrowserDownload: true
+              });
+            } catch (error) {
+              if (error?.name !== "AbortError") {
+                notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
+              }
+            }
           }
         }));
       });
@@ -747,25 +899,18 @@
 
       const saveBinButton = mountedContainer.querySelector("#spiFlashSaveBinButton");
       if (saveBinButton) {
-        saveBinButton.addEventListener("click", () => {
-          if (!state.hasReadBuffer) {
-            notifyUser("Belum ada hasil read SPI Flash yang bisa disimpan.", "info");
-            return;
+        saveBinButton.addEventListener("click", async () => {
+          try {
+            await saveReadBufferToBin({
+              showSuccessToast: true,
+              suppressEmptyWarning: false
+            });
+          } catch (error) {
+            if (error?.name === "AbortError") {
+              return;
+            }
+            notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
           }
-
-          if (state.readBufferIsAllFf) {
-            notifyUser("Chip empty, isi buffer masih FF semua.", "warning");
-            return;
-          }
-
-          const downloadLink = document.createElement("a");
-          downloadLink.href = `${serviceBaseUrl}/spi-flash/read-buffer-bin`;
-          downloadLink.rel = "noopener";
-          downloadLink.style.display = "none";
-          document.body.append(downloadLink);
-          downloadLink.click();
-          downloadLink.remove();
-          notifyUser("Hasil read SPI Flash disiapkan sebagai file BIN.");
         });
       }
 
@@ -801,7 +946,6 @@
 
     async function withBusy(work) {
       if (busy) {
-        notifyUser("Proses SPI masih berjalan, tidak boleh diinterupsi.", "warning");
         return;
       }
 
