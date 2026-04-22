@@ -1,5 +1,9 @@
 (function initializeSpiFlashPage(globalScope) {
   const serviceBaseUrl = "http://127.0.0.1:48721";
+  const hexPreviewLineHeight = 24;
+  const hexPreviewOverscanLines = 10;
+  const hexPreviewMinimumRequestLines = 64;
+  const hexPreviewMaxVirtualHeight = 12000000;
 
   const deviceProfiles = {
     CH341A: {
@@ -47,6 +51,22 @@
       .replaceAll("'", "&#39;");
   }
 
+  function formatInteger(value) {
+    return new Intl.NumberFormat("id-ID").format(Math.max(0, Number(value) || 0));
+  }
+
+  function getHexVirtualLineHeight(totalLines) {
+    const normalizedTotalLines = Math.max(0, Number(totalLines) || 0);
+    if (!normalizedTotalLines) {
+      return hexPreviewLineHeight;
+    }
+
+    return Math.min(
+      hexPreviewLineHeight,
+      Math.max(1, hexPreviewMaxVirtualHeight / normalizedTotalLines)
+    );
+  }
+
   function createUnavailableState(message = "") {
     const profile = deviceProfiles.CH347;
     return {
@@ -77,6 +97,9 @@
       logs: [
         "[--:--:--] Local service SPI Flash belum bisa dijangkau dari Web UI."
       ],
+      hexPreviewTotalBytes: 0,
+      hexPreviewTotalLines: 0,
+      hexPreviewScrollTop: 0,
       hexPreview: [
         "Belum ada data."
       ],
@@ -222,6 +245,9 @@
       hasReadBuffer: Boolean(session.hasReadBuffer),
       readBufferIsAllFf: Boolean(session.readBufferIsAllFf),
       logs: Array.isArray(session.logs) ? session.logs : [],
+      hexPreviewTotalBytes: Number(session.hexPreviewTotalBytes || 0),
+      hexPreviewTotalLines: Number(session.hexPreviewTotalLines || 0),
+      hexPreviewScrollTop: Number(previousState?.hexPreviewScrollTop || 0),
       hexPreview: Array.isArray(session.hexPreview) ? session.hexPreview : [],
       selectedDeviceDriver,
       driverInfoLoaded,
@@ -329,7 +355,7 @@
 
     if (busy) {
       return {
-        cardClass: "",
+        toneClass: "",
         loading: true,
         headingMarkup: `
           <span class="material-symbols-outlined is-spinning">progress_activity</span>
@@ -361,7 +387,7 @@
         "Status error";
 
       return {
-        cardClass: " is-failed",
+        toneClass: " is-failed",
         loading: false,
         headingMarkup: escapeHtml(errorLabel)
       };
@@ -369,20 +395,101 @@
 
     if (successLabel) {
       return {
-        cardClass: " is-success",
+        toneClass: " is-success",
         loading: false,
         headingMarkup: escapeHtml(successLabel)
       };
     }
 
     return {
-      cardClass: "",
+      toneClass: "",
       loading: false,
       headingMarkup: "Data baca"
     };
   }
 
-  function createWorkbenchMarkup(state, busy) {
+  function hasHexPreviewContent(state) {
+    return Number(state?.hexPreviewTotalBytes || 0) > 0 && Number(state?.hexPreviewTotalLines || 0) > 0;
+  }
+
+  function parseHexPreviewLine(line) {
+    const normalized = String(line || "");
+    const match = normalized.match(/^([0-9A-F]{8})\s{2}(.{48})\s{2}\|(.{16})\|$/);
+    if (!match) {
+      return {
+        offset: "",
+        hex: normalized,
+        ascii: ""
+      };
+    }
+
+    return {
+      offset: match[1],
+      hex: match[2],
+      ascii: match[3]
+    };
+  }
+
+  function createHexPreviewRowsMarkup(lines) {
+    return lines.map((line) => {
+      const parsedLine = parseHexPreviewLine(line);
+      return `
+        <div class="spi-hex-row" role="row">
+          <span class="spi-hex-cell spi-hex-offset" role="cell">${escapeHtml(parsedLine.offset || "--------")}</span>
+          <span class="spi-hex-cell spi-hex-bytes" role="cell">${escapeHtml(parsedLine.hex)}</span>
+          <span class="spi-hex-cell spi-hex-ascii" role="cell">${escapeHtml(parsedLine.ascii)}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function createHexPreviewMarkup(state, hexView) {
+    const hasContent = hasHexPreviewContent(state);
+    const normalizedLines = hasContent
+      ? (Array.isArray(hexView?.lines) && hexView.lines.length > 0
+          ? hexView.lines
+          : (Array.isArray(state.hexPreview) && state.hexPreview.length > 0 ? state.hexPreview : []))
+      : ["Belum ada data."];
+    const virtualLineHeight = getHexVirtualLineHeight(state.hexPreviewTotalLines);
+    const totalHeight = hasContent
+      ? Math.max(Number(state.hexPreviewTotalLines || 0) * virtualLineHeight, hexPreviewLineHeight)
+      : 0;
+    const translateY = hasContent
+      ? Math.max(0, Number(hexView?.lineStart || 0) * virtualLineHeight)
+      : 0;
+
+    return `
+      <div class="spi-hex-preview-shell${hasContent ? "" : " is-empty"}">
+        <div class="spi-hex-preview-scroll" id="spiHexPreviewViewport">
+          ${hasContent ? `
+            <div class="spi-hex-preview-sticky" aria-hidden="true">
+              <div class="spi-hex-preview-chrome">
+                <span class="spi-hex-preview-caption">Hex Editor View</span>
+              </div>
+              <div class="spi-hex-preview-head" id="spiHexPreviewHead" role="row">
+                <span class="spi-hex-cell spi-hex-preview-head-offset" role="columnheader">Offset(h)</span>
+                <span class="spi-hex-cell spi-hex-preview-head-bytes" role="columnheader">00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F</span>
+                <span class="spi-hex-cell spi-hex-preview-head-ascii" role="columnheader">ASCII</span>
+              </div>
+            </div>
+          ` : ""}
+          <div class="spi-hex-preview-body">
+            ${hasContent ? `
+              <div class="spi-hex-preview-spacer" id="spiHexPreviewSpacer" style="height: ${totalHeight}px;"></div>
+              <div class="spi-hex-preview-canvas" id="spiHexPreviewCanvas" style="transform: translateY(${translateY}px);">
+                <div class="spi-hex-preview-grid" id="spiHexPreviewContent" role="table">${createHexPreviewRowsMarkup(normalizedLines)}</div>
+              </div>
+              <div class="spi-hex-preview-loading${hexView?.loading ? " is-visible" : ""}" id="spiHexPreviewLoading">Memuat baris hex...</div>
+            ` : `
+              <pre class="spi-hex-preview">${escapeHtml(normalizedLines.join("\n"))}</pre>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function createWorkbenchMarkup(state, busy, hexView) {
     const autoProcessEnabled = state.autoProcess !== false;
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
     const isDeviceConnected =
@@ -603,13 +710,15 @@
       </div>
 
       <div class="spi-bottom-grid">
-        <section class="spi-card${hexPreviewStatusState.cardClass}">
+        <section class="spi-card">
           <div class="spi-card-head">
             <div>
               <p class="label">Hex Preview</p>
-              <h4 class="spi-status-title${hexPreviewStatusState.loading ? " is-loading" : ""}">${hexPreviewStatusState.headingMarkup}</h4>
+              <h4 class="spi-status-title${hexPreviewStatusState.loading ? " is-loading" : ""}${hexPreviewStatusState.toneClass || ""}">${hexPreviewStatusState.headingMarkup}</h4>
             </div>
             <div class="spi-panel-actions">
+              <span class="spi-mini-badge">${escapeHtml(`${formatInteger(state.hexPreviewTotalBytes)} byte`)}</span>
+              <span class="spi-mini-badge">${escapeHtml(`${formatInteger(state.hexPreviewTotalLines)} baris`)}</span>
               <span class="spi-mini-badge">${escapeHtml(fileNameLabel)}</span>
               ${state.hasReadBuffer ? `
                 <button type="button" class="ghost" id="spiFlashSaveBinButton"${disableAttr}>
@@ -619,7 +728,7 @@
               ` : ""}
             </div>
           </div>
-          <pre class="spi-hex-preview">${escapeHtml((state.hexPreview || []).join("\n"))}</pre>
+          ${createHexPreviewMarkup(state, hexView)}
         </section>
       </div>
       </div>
@@ -632,6 +741,158 @@
     let busy = false;
     let sessionPollTimer = null;
     let sessionPollInFlight = false;
+    let hexViewRequestToken = 0;
+    let hexView = {
+      requestKey: "",
+      totalBytes: 0,
+      totalLines: 0,
+      lineStart: 0,
+      lineCount: 0,
+      lines: [],
+      loading: false
+    };
+
+    function getHexViewRequestKey(nextState) {
+      return [
+        nextState.fileName || "",
+        nextState.lastUpdated || "",
+        nextState.activeOperation || "",
+        Number(nextState.hexPreviewTotalBytes || 0),
+        Number(nextState.hexPreviewTotalLines || 0)
+      ].join("|");
+    }
+
+    function syncHexViewFromState(options = {}) {
+      const { resetScroll = false } = options;
+      const nextRequestKey = getHexViewRequestKey(state);
+      const dataChanged = nextRequestKey !== hexView.requestKey;
+      const nextLines = Array.isArray(state.hexPreview) ? [...state.hexPreview] : [];
+
+      if (dataChanged) {
+        hexView = {
+          requestKey: nextRequestKey,
+          totalBytes: Number(state.hexPreviewTotalBytes || 0),
+          totalLines: Number(state.hexPreviewTotalLines || 0),
+          lineStart: 0,
+          lineCount: nextLines.length,
+          lines: nextLines,
+          loading: false
+        };
+      } else {
+        hexView.totalBytes = Number(state.hexPreviewTotalBytes || 0);
+        hexView.totalLines = Number(state.hexPreviewTotalLines || 0);
+        if (hexView.lines.length === 0 && nextLines.length > 0) {
+          hexView.lineStart = 0;
+          hexView.lineCount = nextLines.length;
+          hexView.lines = nextLines;
+        }
+      }
+
+      if (resetScroll || !hexView.totalLines) {
+        state.hexPreviewScrollTop = 0;
+      }
+    }
+
+    function applySessionState(session, options = {}) {
+      state = mapServiceSessionToState(session, state);
+      syncHexViewFromState(options);
+    }
+
+    function updateHexPreviewDom() {
+      if (!mountedContainer) {
+        return;
+      }
+
+      const virtualLineHeight = getHexVirtualLineHeight(state.hexPreviewTotalLines);
+      const spacer = mountedContainer.querySelector("#spiHexPreviewSpacer");
+      const canvas = mountedContainer.querySelector("#spiHexPreviewCanvas");
+      const content = mountedContainer.querySelector("#spiHexPreviewContent");
+      const loading = mountedContainer.querySelector("#spiHexPreviewLoading");
+
+      if (spacer) {
+        spacer.style.height = `${Math.max(0, Number(state.hexPreviewTotalLines || 0) * virtualLineHeight)}px`;
+      }
+
+      if (canvas) {
+        canvas.style.transform = `translateY(${Math.max(0, Number(hexView.lineStart || 0) * virtualLineHeight)}px)`;
+      }
+
+      if (content) {
+        content.innerHTML = createHexPreviewRowsMarkup(hexView.lines || []);
+      }
+
+      if (loading) {
+        loading.classList.toggle("is-visible", Boolean(hexView.loading));
+      }
+    }
+
+    async function loadHexPreviewRange(lineStart, lineCount) {
+      if (!state.serviceAvailable || !state.hexPreviewTotalLines) {
+        return;
+      }
+
+      const requestKey = hexView.requestKey;
+      const requestToken = ++hexViewRequestToken;
+      hexView.loading = true;
+      updateHexPreviewDom();
+
+      try {
+        const payload = await fetchJson(`/spi-flash/hex-view?lineStart=${lineStart}&lineCount=${lineCount}`);
+        if (requestToken !== hexViewRequestToken || requestKey !== hexView.requestKey) {
+          return;
+        }
+
+        hexView.totalBytes = Number(payload.totalBytes || 0);
+        hexView.totalLines = Number(payload.totalLines || 0);
+        hexView.lineStart = Number(payload.lineStart || 0);
+        hexView.lineCount = Number(payload.lineCount || 0);
+        hexView.lines = Array.isArray(payload.lines) ? payload.lines : [];
+      } finally {
+        if (requestToken === hexViewRequestToken) {
+          hexView.loading = false;
+          updateHexPreviewDom();
+        }
+      }
+    }
+
+    async function syncHexPreviewViewport(force = false) {
+      const viewport = mountedContainer?.querySelector("#spiHexPreviewViewport");
+      if (!viewport || !state.hexPreviewTotalLines) {
+        return;
+      }
+
+      const head = mountedContainer.querySelector("#spiHexPreviewHead");
+      const headHeight = head ? head.offsetHeight : 0;
+      const virtualLineHeight = getHexVirtualLineHeight(state.hexPreviewTotalLines);
+      const contentScrollTop = Math.max(0, viewport.scrollTop - headHeight);
+      const viewportHeight = Math.max(1, viewport.clientHeight - headHeight);
+      const visibleLines = Math.max(1, Math.ceil(viewportHeight / virtualLineHeight));
+      const requestedLineCount = Math.max(
+        hexPreviewMinimumRequestLines,
+        visibleLines + (hexPreviewOverscanLines * 2)
+      );
+      const unclampedLineStart = Math.max(0, Math.floor(contentScrollTop / virtualLineHeight) - hexPreviewOverscanLines);
+      const lineStart = Math.min(
+        unclampedLineStart,
+        Math.max(0, Number(state.hexPreviewTotalLines || 0) - requestedLineCount)
+      );
+      const currentRangeEnd = Number(hexView.lineStart || 0) + Number(hexView.lineCount || 0);
+      const requestedRangeEnd = lineStart + requestedLineCount;
+      const alreadyCovered =
+        !force &&
+        hexView.lines.length > 0 &&
+        lineStart >= Number(hexView.lineStart || 0) &&
+        requestedRangeEnd <= currentRangeEnd;
+
+      state.hexPreviewScrollTop = viewport.scrollTop;
+
+      if (alreadyCovered) {
+        updateHexPreviewDom();
+        return;
+      }
+
+      await loadHexPreviewRange(lineStart, requestedLineCount);
+    }
 
     function collectActionPayload() {
       return {
@@ -730,7 +991,7 @@
       sessionPollInFlight = true;
       try {
         const session = await fetchJson("/spi-flash/session");
-        state = mapServiceSessionToState(session, state);
+        applySessionState(session);
         render();
       } catch {
         // Ignore polling hiccups while the main action request is still running.
@@ -759,14 +1020,14 @@
         body: JSON.stringify({ deviceType: nextDevice })
       });
 
-      state = mapServiceSessionToState(session, state);
+      applySessionState(session, { resetScroll: true });
       state.selectedDeviceDriver = normalizeDriverInfo(null, nextDevice);
       state.driverInfoLoaded = false;
       render();
 
       try {
         const connectedSession = await runAction("connect");
-        state = mapServiceSessionToState(connectedSession, state);
+        applySessionState(connectedSession);
         render();
       } catch (error) {
         await fetchDriverInfo(nextDevice);
@@ -780,7 +1041,7 @@
         return;
       }
 
-      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy);
+      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy, hexView);
 
       const busyOverlay = mountedContainer.querySelector("#spiBusyOverlay");
       if (busyOverlay) {
@@ -849,7 +1110,7 @@
             body: formData
           });
 
-          state = mapServiceSessionToState(session, state);
+          applySessionState(session, { resetScroll: true });
           render();
         }));
       }
@@ -867,7 +1128,7 @@
           }
 
           const session = await runAction(action);
-          state = mapServiceSessionToState(session, state);
+          applySessionState(session, { resetScroll: true });
           render();
 
           if (action === "read" && state.readBufferIsAllFf) {
@@ -914,6 +1175,16 @@
         });
       }
 
+      const hexViewport = mountedContainer.querySelector("#spiHexPreviewViewport");
+      if (hexViewport) {
+        hexViewport.scrollTop = Math.max(0, Number(state.hexPreviewScrollTop) || 0);
+        hexViewport.addEventListener("scroll", () => {
+          state.hexPreviewScrollTop = hexViewport.scrollTop;
+          void syncHexPreviewViewport();
+        });
+        void syncHexPreviewViewport();
+      }
+
       const installDriverLink = mountedContainer.querySelector("[data-spi-install-driver]");
       if (installDriverLink) {
         installDriverLink.addEventListener("click", (event) => withBusy(async () => {
@@ -938,7 +1209,7 @@
           );
 
           const session = await fetchJson("/spi-flash/session");
-          state = mapServiceSessionToState(session, state);
+          applySessionState(session);
           render();
         }));
       }
@@ -977,9 +1248,10 @@
     async function loadSessionFromService() {
       try {
         const session = await fetchJson("/spi-flash/session");
-        state = mapServiceSessionToState(session, state);
+        applySessionState(session);
       } catch (error) {
         state = createUnavailableState(error?.message || "Local service SPI Flash belum tersedia.");
+        syncHexViewFromState({ resetScroll: true });
       }
     }
 
