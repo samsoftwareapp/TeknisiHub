@@ -144,6 +144,10 @@
           <input id="dashboardJoinBoardviewCheckbox" type="checkbox">
           <span>Channel TeknisiHub Boardview</span>
         </label>
+        <label class="join-option">
+          <input id="dashboardJoinSchematicsCheckbox" type="checkbox">
+          <span>Channel TeknisiHub Schematics</span>
+        </label>
         <div class="join-card-actions">
           <button id="dashboardJoinButton" type="button">
             <span class="material-symbols-outlined">group_add</span>
@@ -231,6 +235,10 @@
                   <span class="material-symbols-outlined">developer_board</span>
                   <span>Boardview</span>
                 </button>
+                <button id="navSchematics" type="button" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">schema</span>
+                  <span>Schematics</span>
+                </button>
                 <button id="navProblemSolving" type="button" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">psychology</span>
                   <span>Problem Solving</span>
@@ -238,6 +246,10 @@
                 <button id="navDatasheets" type="button" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">picture_as_pdf</span>
                   <span>Datasheets</span>
+                </button>
+                <button id="navComponentEquivalents" type="button" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">conversion_path</span>
+                  <span>Persamaan Komponen</span>
                 </button>
                 <details id="navTools" class="sidebar-dropdown" open>
                   <summary>
@@ -332,6 +344,7 @@
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="biosVendorDetectWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="fileHashCompareWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="componentEquivalentsWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="lenovoBiosPatchWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="dell8Fc8Workbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="amiDecryptorWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -345,7 +358,7 @@
               <div class="catalog-head">
                 <div>
                   <p id="catalogEyebrow" class="label">Katalog Dummy</p>
-                  <h3 id="catalogTitle">BIOS, Boardview, dan Tools</h3>
+                  <h3 id="catalogTitle">BIOS, Boardview, Schematics, dan Tools</h3>
                 </div>
               </div>
               <div class="catalog-toolbar">
@@ -606,6 +619,7 @@
   <script src="pages/uefi-tool/page.js"></script>
   <script src="pages/bios-vendor-detect/page.js"></script>
   <script src="pages/file-hash-compare/page.js"></script>
+  <script src="pages/component-equivalents/page.js"></script>
   <script src="pages/lenovo-bios-patch/page.js"></script>
   <script src="pages/dell-8fc8/page.js"></script>
   <script src="pages/ami-decryptor/page.js"></script>

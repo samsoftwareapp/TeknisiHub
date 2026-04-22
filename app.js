@@ -46,12 +46,14 @@ const accessChannelCount = document.getElementById("accessChannelCount");
 const accessState = document.getElementById("accessState");
 const dashboardJoinRequiredCheckbox = document.getElementById("dashboardJoinRequiredCheckbox");
 const dashboardJoinBoardviewCheckbox = document.getElementById("dashboardJoinBoardviewCheckbox");
+const dashboardJoinSchematicsCheckbox = document.getElementById("dashboardJoinSchematicsCheckbox");
 const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const biosVendorDetectWorkbench = document.getElementById("biosVendorDetectWorkbench");
 const fileHashCompareWorkbench = document.getElementById("fileHashCompareWorkbench");
+const componentEquivalentsWorkbench = document.getElementById("componentEquivalentsWorkbench");
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
 const dell8Fc8Workbench = document.getElementById("dell8Fc8Workbench");
 const amiDecryptorWorkbench = document.getElementById("amiDecryptorWorkbench");
@@ -104,8 +106,10 @@ const aboutModal = document.getElementById("aboutModal");
 const aboutModalCloseButton = document.getElementById("aboutModalCloseButton");
 const navBios = document.getElementById("navBios");
 const navBoardview = document.getElementById("navBoardview");
+const navSchematics = document.getElementById("navSchematics");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
+const navComponentEquivalents = document.getElementById("navComponentEquivalents");
 const navForum = document.getElementById("navForum");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
@@ -209,6 +213,17 @@ const fileHashComparePage = window.teknisiHubPages?.fileHashCompare || {
   refresh() {}
 };
 
+const componentEquivalentsPage = window.teknisiHubPages?.componentEquivalents || {
+  viewKey: "ComponentEquivalents",
+  eyebrow: "Persamaan Part",
+  title: "Persamaan Komponen",
+  subtitle: "Cari keluarga part dan donor pengganti dari database backend local service.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
 const lenovoBiosPatchPage = window.teknisiHubPages?.lenovoBiosPatch || {
   viewKey: "tool_lenovo_dump_bios",
   eyebrow: "Bios Patch",
@@ -304,14 +319,17 @@ let currentCatalogView = "Forum";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
 let currentBoardviewChannelRole = "";
+let currentSchematicsChannelRole = "";
 let currentProblemSolvingChannelRole = "";
 let currentDatasheetsChannelRole = "";
 let currentForumChannelRole = "";
 let currentRequiredChannelInviteLink = "";
 let currentBoardviewChannelInviteLink = "";
+let currentSchematicsChannelInviteLink = "";
 let currentProblemSolvingChannelInviteLink = "";
 let currentDatasheetsChannelInviteLink = "";
 let currentForumChannelInviteLink = "";
+let isSchematicsMember = false;
 let isProblemSolvingMember = false;
 let isDatasheetsMember = false;
 let isForumMember = false;
@@ -319,6 +337,7 @@ let currentForumThreadMessageId = 0;
 const catalogJoinRequiredState = {
   BIOS: false,
   Boardview: false,
+  Schematics: false,
   ProblemSolving: false,
   Datasheets: false,
   Forum: false
@@ -339,6 +358,7 @@ const catalogRefreshCooldownMs = 15000;
 let isPhoneNumberChangeRequested = false;
 const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
 const allowedBoardviewExtensions = [".brd", ".bdv", ".boardview", ".fz", ".cad", ".tvw", ".asc"];
+const allowedSchematicsExtensions = [".pdf"];
 const allowedDatasheetsExtensions = [".pdf"];
 const minCatalogFileNameLength = 15;
 const maxCatalogFileNameLength = 70;
@@ -396,6 +416,11 @@ biosVendorDetectPage.mount?.({
 
 fileHashComparePage.mount?.({
   container: fileHashCompareWorkbench,
+  notify: (message) => setNotice(message)
+});
+
+componentEquivalentsPage.mount?.({
+  container: componentEquivalentsWorkbench,
   notify: (message) => setNotice(message)
 });
 
@@ -458,6 +483,15 @@ const telegramCatalogConfigs = {
     invalidExtensionMessage: "Format file Boardview harus salah satu dari: .brd, .bdv, .boardview, .fz, .cad, .tvw, .asc.",
     endpoint: "boardview"
   },
+  Schematics: {
+    displayName: "Schematics",
+    uploadLabel: "Upload Schematics",
+    editTitle: "Edit Metadata Schematics",
+    fileLabel: "File Schematics",
+    fileAccept: allowedSchematicsExtensions.join(","),
+    invalidExtensionMessage: "Format file Schematics harus .pdf.",
+    endpoint: "schematics"
+  },
   ProblemSolving: {
     displayName: "Problem Solving",
     uploadLabel: "Upload Problem Solving",
@@ -490,6 +524,7 @@ const telegramCatalogConfigs = {
 const telegramCatalogState = {
   BIOS: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
   Boardview: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
+  Schematics: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
   ProblemSolving: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
   Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
   Forum: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false }
@@ -524,6 +559,12 @@ const toolViewMap = {
     eyebrow: fileHashComparePage.eyebrow,
     title: fileHashComparePage.title,
     subtitle: fileHashComparePage.subtitle,
+    channelLink: null
+  },
+  [componentEquivalentsPage.viewKey]: {
+    eyebrow: componentEquivalentsPage.eyebrow,
+    title: componentEquivalentsPage.title,
+    subtitle: componentEquivalentsPage.subtitle,
     channelLink: null
   },
   [lenovoBiosPatchPage.viewKey]: {
@@ -582,6 +623,7 @@ const localWorkbenchViewKeys = new Set([
   uefiToolPage.viewKey,
   biosVendorDetectPage.viewKey,
   fileHashComparePage.viewKey,
+  componentEquivalentsPage.viewKey,
   lenovoBiosPatchPage.viewKey,
   dell8Fc8Page.viewKey,
   amiDecryptorPage.viewKey,
@@ -595,8 +637,10 @@ const localWorkbenchViewKeys = new Set([
 const viewHashMap = {
   BIOS: "BIOS",
   Boardview: "Boardview",
+  Schematics: "Schematics",
   ProblemSolving: "ProblemSolving",
   Datasheets: "Datasheets",
+  [componentEquivalentsPage.viewKey]: "ComponentEquivalents",
   Forum: "Forum",
   [spiFlashPage.viewKey]: "SpiFlash",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
@@ -616,8 +660,11 @@ const viewHashMap = {
 const hashRouteMap = {
   bios: "BIOS",
   boardview: "Boardview",
+  schematics: "Schematics",
   problemsolving: "ProblemSolving",
   datasheets: "Datasheets",
+  componentequivalents: componentEquivalentsPage.viewKey,
+  persamaankomponen: componentEquivalentsPage.viewKey,
   forum: "Forum",
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
@@ -660,8 +707,10 @@ function getViewButton(viewKey) {
   const navMap = {
     BIOS: navBios,
     Boardview: navBoardview,
+    Schematics: navSchematics,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
+    [componentEquivalentsPage.viewKey]: navComponentEquivalents,
     Forum: navForum,
     [spiFlashPage.viewKey]: toolSpiFlash,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
@@ -738,14 +787,17 @@ function resetCatalog() {
   currentChannelRole = "";
   currentBiosChannelRole = "";
   currentBoardviewChannelRole = "";
+  currentSchematicsChannelRole = "";
   currentProblemSolvingChannelRole = "";
   currentDatasheetsChannelRole = "";
   currentForumChannelRole = "";
+  isSchematicsMember = false;
   isProblemSolvingMember = false;
   isDatasheetsMember = false;
   isForumMember = false;
   setChannelJoinRequired("BIOS", false);
   setChannelJoinRequired("Boardview", false);
+  setChannelJoinRequired("Schematics", false);
   setChannelJoinRequired("ProblemSolving", false);
   setChannelJoinRequired("Datasheets", false);
   setChannelJoinRequired("Forum", false);
@@ -757,6 +809,10 @@ function resetCatalog() {
   telegramCatalogState.Boardview.hasMore = false;
   telegramCatalogState.Boardview.nextOffset = 0;
   telegramCatalogState.Boardview.loadingMore = false;
+  telegramCatalogState.Schematics.requestToken = 0;
+  telegramCatalogState.Schematics.hasMore = false;
+  telegramCatalogState.Schematics.nextOffset = 0;
+  telegramCatalogState.Schematics.loadingMore = false;
   telegramCatalogState.ProblemSolving.requestToken = 0;
   telegramCatalogState.ProblemSolving.hasMore = false;
   telegramCatalogState.ProblemSolving.nextOffset = 0;
@@ -820,6 +876,10 @@ function isOwnerRole() {
     return currentProblemSolvingChannelRole.toLowerCase() === "owner";
   }
 
+  if (currentCatalogView === "Schematics") {
+    return currentSchematicsChannelRole.toLowerCase() === "owner";
+  }
+
   if (currentCatalogView === "Datasheets") {
     return currentDatasheetsChannelRole.toLowerCase() === "owner";
   }
@@ -842,7 +902,7 @@ function canCreateForumTopic() {
 }
 
 function isTelegramCatalogView(viewKey = currentCatalogView) {
-  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
+  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "Schematics" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
 }
 
 function getTelegramCatalogConfig(viewKey = currentCatalogView) {
@@ -856,6 +916,10 @@ function getTelegramCatalogState(viewKey = currentCatalogView) {
 function getDisplayRoleForView(viewKey = currentCatalogView) {
   if (viewKey === "ProblemSolving") {
     return currentProblemSolvingChannelRole || currentChannelRole;
+  }
+
+  if (viewKey === "Schematics") {
+    return currentSchematicsChannelRole || currentChannelRole;
   }
 
   if (viewKey === "Datasheets") {
@@ -885,8 +949,12 @@ function isDatasheetsView(viewKey = currentCatalogView) {
   return viewKey === "Datasheets";
 }
 
+function isSchematicsView(viewKey = currentCatalogView) {
+  return viewKey === "Schematics";
+}
+
 function isJoinManagedCatalogView(viewKey = currentCatalogView) {
-  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
+  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "Schematics" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
 }
 
 function requiresChannelJoin(viewKey = currentCatalogView) {
@@ -921,6 +989,17 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
       buttonLabel: "Gabung Channel Boardview",
       link: currentBoardviewChannelInviteLink,
       emptyMessage: "Gabung channel Boardview dulu, lalu buka ulang atau refresh katalog."
+    };
+  }
+
+  if (viewKey === "Schematics") {
+    return {
+      title: "Gabung channel Schematics dulu untuk membuka katalog.",
+      description: "Setelah berhasil join, katalog Schematics bisa langsung dibuka dan file PDF dapat dilihat dari dashboard.",
+      buttonId: "schematicsJoinButton",
+      buttonLabel: "Gabung Channel Schematics",
+      link: currentSchematicsChannelInviteLink,
+      emptyMessage: "Gabung channel Schematics dulu, lalu refresh katalog."
     };
   }
 
@@ -996,6 +1075,7 @@ function showWorkbenchOnly(viewKey) {
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
   biosVendorDetectPage.setVisible?.(viewKey === biosVendorDetectPage.viewKey);
   fileHashComparePage.setVisible?.(viewKey === fileHashComparePage.viewKey);
+  componentEquivalentsPage.setVisible?.(viewKey === componentEquivalentsPage.viewKey);
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
   dell8Fc8Page.setVisible?.(viewKey === dell8Fc8Page.viewKey);
   amiDecryptorPage.setVisible?.(viewKey === amiDecryptorPage.viewKey);
@@ -1023,6 +1103,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === fileHashComparePage.viewKey) {
     fileHashComparePage.refresh?.();
+  }
+
+  if (viewKey === componentEquivalentsPage.viewKey) {
+    componentEquivalentsPage.refresh?.();
   }
 
   if (viewKey === lenovoBiosPatchPage.viewKey) {
@@ -1064,6 +1148,7 @@ function hideWorkbench() {
   uefiToolPage.setVisible?.(false);
   biosVendorDetectPage.setVisible?.(false);
   fileHashComparePage.setVisible?.(false);
+  componentEquivalentsPage.setVisible?.(false);
   lenovoBiosPatchPage.setVisible?.(false);
   dell8Fc8Page.setVisible?.(false);
   amiDecryptorPage.setVisible?.(false);
@@ -1083,8 +1168,10 @@ function setActiveNav(targetKey) {
   const navMap = {
     BIOS: navBios,
     Boardview: navBoardview,
+    Schematics: navSchematics,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
+    [componentEquivalentsPage.viewKey]: navComponentEquivalents,
     Forum: navForum,
     tool_spi_flash: toolSpiFlash,
     tool_me_analyzer: toolMeAnalyzer,
@@ -1172,6 +1259,16 @@ function updateCatalogHeader(viewKey) {
     return;
   }
 
+  if (viewKey === "Schematics") {
+    setText(catalogEyebrow, "Schematics");
+    setText(catalogTitle, "Koleksi file PDF schematic board");
+    if (catalogSearchInput) {
+      catalogSearchInput.placeholder = "Cari file schematic PDF...";
+    }
+    updateCatalogToolbar(viewKey);
+    return;
+  }
+
   if (viewKey === "ProblemSolving") {
     setText(catalogEyebrow, "Problem Solving");
     setText(catalogTitle, "Postingan diagnosa dan solusi teknisi");
@@ -1223,6 +1320,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "UEFI UI"
         : viewKey === biosVendorDetectPage.viewKey
         ? "BVD UI"
+        : viewKey === componentEquivalentsPage.viewKey
+        ? "CMP UI"
         : viewKey === biosPasswordPage.viewKey
         ? "PWD UI"
         : viewKey === alienServerPage.viewKey
@@ -1408,6 +1507,54 @@ function renderCatalog(items, viewKey = currentCatalogView) {
     return;
   }
 
+  if (isSchematicsView(viewKey)) {
+    catalogList.innerHTML = items.map((item) => `
+      <article class="catalog-card">
+        <div class="catalog-card-top">
+          <span class="catalog-category">${escapeHtml(item.category || "Schematics")}</span>
+          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
+        </div>
+        <h4>${escapeHtml(item.fileName || item.title || "Untitled.pdf")}</h4>
+        ${item.description ? `<p class="catalog-description">${escapeHtml(item.description)}</p>` : ""}
+        <div class="catalog-file-row">
+          <span class="material-symbols-outlined">schema</span>
+          <span>${escapeHtml(item.fileName || item.title || "-")}</span>
+        </div>
+        ${item.uploadedBy ? `
+        <div class="catalog-file-row">
+          <span class="material-symbols-outlined">person</span>
+          <span>${escapeHtml(item.uploadedBy)}</span>
+        </div>` : ""}
+        <div class="catalog-file-row">
+          <span class="material-symbols-outlined">schedule</span>
+          <span>${escapeHtml(item.postedAt || "-")}</span>
+        </div>
+        <div class="catalog-card-actions">
+          <button
+            type="button"
+            class="catalog-action-button catalog-schematics-view-button"
+            data-message-id="${item.messageId || ""}"
+            data-file-name="${escapeHtml(item.fileName || item.title || "")}">
+            <span class="material-symbols-outlined">visibility</span>
+            <span>Lihat</span>
+          </button>
+          <button
+            type="button"
+            class="catalog-action-button catalog-download-button"
+            data-message-id="${item.messageId || ""}"
+            data-category="Schematics"
+            data-title="${escapeHtml(item.fileName || item.title || "")}">
+            <span class="material-symbols-outlined">download</span>
+            <span>Unduh PDF</span>
+          </button>
+        </div>
+      </article>
+    `).join("");
+
+    toggleElement(catalogSection, true);
+    return;
+  }
+
   catalogList.innerHTML = items.map((item) => `
     <article class="catalog-card">
       <div class="catalog-card-top">
@@ -1554,7 +1701,7 @@ function appendCatalogAdditionalFileInput() {
 }
 
 function isBoardCodeRequiredForCategory(category) {
-  return category !== "ProblemSolving";
+  return category !== "ProblemSolving" && category !== "Schematics";
 }
 
 function supportsCatalogSerialNumberAndNote(category) {
@@ -1562,11 +1709,15 @@ function supportsCatalogSerialNumberAndNote(category) {
 }
 
 function getCatalogMetadataRequirementMessage(config) {
+  if (config?.displayName === "Schematics") {
+    return "Model Device Schematics wajib diisi sebelum submit.";
+  }
+
   return `Model Device dan Code Board ${config.displayName} wajib diisi sebelum submit.`;
 }
 
 function supportsCatalogMd5Check(category) {
-  return category === "BIOS" || category === "Boardview";
+  return category === "BIOS" || category === "Boardview" || category === "Schematics" || category === "Datasheets";
 }
 
 function validateCatalogFileNameLength(fileName, displayName, options = {}) {
@@ -1695,6 +1846,10 @@ async function checkSelectedCatalogDuplicate() {
   const lowerFileName = selectedFile.name.toLowerCase();
   const allowedExtensions = currentCatalogView === "Boardview"
     ? allowedBoardviewExtensions
+    : currentCatalogView === "Schematics"
+    ? allowedSchematicsExtensions
+    : currentCatalogView === "Datasheets"
+    ? allowedDatasheetsExtensions
     : allowedBiosExtensions;
   const hasAllowedExtension = allowedExtensions.some((extension) => lowerFileName.endsWith(extension));
   if (!hasAllowedExtension) {
@@ -2026,6 +2181,7 @@ async function joinCatalogChannel(viewKey = currentCatalogView, button = null) {
     const payload = {
       joinRequiredChannel: viewKey === "BIOS",
       joinBoardviewChannel: viewKey === "Boardview",
+      joinSchematicsChannel: viewKey === "Schematics",
       joinProblemSolvingChannel: viewKey === "ProblemSolving",
       joinDatasheetsChannel: viewKey === "Datasheets",
       joinForumChannel: viewKey === "Forum"
@@ -2078,12 +2234,13 @@ async function viewProblemSolvingItem(messageId, button = null) {
   }
 }
 
-function viewDatasheetsItem(messageId) {
+function viewPdfCatalogItem(category, messageId) {
   if (!messageId) {
-    throw new Error("Message Datasheets tidak valid.");
+    throw new Error(`Message ${category} tidak valid.`);
   }
 
-  const targetUrl = `${serviceBaseUrl}/catalog/datasheets/${messageId}/view`;
+  const config = getTelegramCatalogConfig(category);
+  const targetUrl = `${serviceBaseUrl}/catalog/${config.endpoint}/${messageId}/view`;
   const newTab = window.open(targetUrl, "_blank", "noopener,noreferrer");
   if (!newTab) {
     throw new Error("Browser memblokir tab baru. Izinkan pop-up lalu coba lagi.");
@@ -2345,6 +2502,7 @@ function getRepresentativeRoleLabel(status) {
   const roleCandidates = [
     status.biosChannelRole,
     status.boardviewChannelRole,
+    status.schematicsChannelRole,
     status.problemSolvingChannelRole,
     status.datasheetsChannelRole,
     status.channelRole
@@ -2369,6 +2527,7 @@ function getConnectedChannelCount(status) {
   return [
     status.biosChannelRole,
     status.boardviewChannelRole,
+    status.schematicsChannelRole,
     status.problemSolvingChannelRole,
     status.datasheetsChannelRole
   ].filter((role) => String(role || "").trim()).length;
@@ -3014,18 +3173,21 @@ function applyStatus(status) {
   setError("");
   currentRequiredChannelInviteLink = status.requiredChannelInviteLink || "";
   currentBoardviewChannelInviteLink = status.boardviewChannelInviteLink || "";
+  currentSchematicsChannelInviteLink = status.schematicsChannelInviteLink || "";
   currentProblemSolvingChannelInviteLink = status.problemSolvingChannelInviteLink || "";
   currentDatasheetsChannelInviteLink = status.datasheetsChannelInviteLink || "";
   currentForumChannelInviteLink = status.forumChannelInviteLink || "";
 
   const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
   const hasBoardviewLink = Boolean(status.boardviewChannelInviteLink);
-  const hasJoinOption = hasRequiredLink || hasBoardviewLink;
+  const hasSchematicsLink = Boolean(status.schematicsChannelInviteLink);
+  const hasJoinOption = hasRequiredLink || hasBoardviewLink || hasSchematicsLink;
   const hasKnownChannelAccess = Boolean(
     status.isChannelMember ||
     status.channelRole ||
     status.biosChannelRole ||
     status.boardviewChannelRole ||
+    status.schematicsChannelRole ||
     status.problemSolvingChannelRole ||
     status.datasheetsChannelRole
   );
@@ -3045,7 +3207,13 @@ function applyStatus(status) {
     dashboardJoinBoardviewCheckbox.checked = Boolean(status.isBoardviewChannelMember);
     dashboardJoinBoardviewCheckbox.disabled = !hasBoardviewLink || Boolean(status.isBoardviewChannelMember);
   }
+  if (dashboardJoinSchematicsCheckbox) {
+    dashboardJoinSchematicsCheckbox.checked = Boolean(status.isSchematicsChannelMember);
+    dashboardJoinSchematicsCheckbox.disabled = !hasSchematicsLink || Boolean(status.isSchematicsChannelMember);
+  }
 
+  isSchematicsMember = Boolean(status.isSchematicsChannelMember);
+  currentSchematicsChannelRole = status.schematicsChannelRole || "";
   isProblemSolvingMember = Boolean(status.isProblemSolvingChannelMember);
   currentProblemSolvingChannelRole = status.problemSolvingChannelRole || "";
   isDatasheetsMember = Boolean(status.isDatasheetsChannelMember);
@@ -3066,11 +3234,13 @@ function applyStatus(status) {
     const channelRole = status.channelRole ? ` - ${status.channelRole}` : "";
     const biosRole = status.biosChannelRole || status.channelRole || "-";
     const boardviewRole = status.boardviewChannelRole || "-";
+    const schematicsRole = status.schematicsChannelRole || "-";
     const problemSolvingRole = status.problemSolvingChannelRole || "-";
     const datasheetsRole = status.datasheetsChannelRole || "-";
     currentChannelRole = status.channelRole || "";
     currentBiosChannelRole = status.biosChannelRole || status.channelRole || "";
     currentBoardviewChannelRole = status.boardviewChannelRole || "";
+    currentSchematicsChannelRole = status.schematicsChannelRole || "";
     currentProblemSolvingChannelRole = status.problemSolvingChannelRole || "";
     currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
     currentForumChannelRole = status.forumChannelRole || "";
@@ -3094,7 +3264,7 @@ function applyStatus(status) {
         ? `${Number(status.totalChannelMemberCount).toLocaleString("id-ID")} subscriber`
         : hasKnownChannelAccess
         ? `Membership channel valid${channelRole}`
-        : "Join channel dilakukan dari menu BIOS, Boardview, Problem Solving, atau Datasheets"
+        : "Join channel dilakukan dari menu BIOS, Boardview, Schematics, Problem Solving, atau Datasheets"
     );
     setText(
       dashboardAgreementStatus,
@@ -3104,7 +3274,7 @@ function applyStatus(status) {
     if (status.hasAgreed) {
       setText(
         dashboardSubtitle,
-        "Session Telegram aktif. Buka menu BIOS, Boardview, Problem Solving, atau Datasheets untuk cek akses channel saat diperlukan."
+        "Session Telegram aktif. Buka menu BIOS, Boardview, Schematics, Problem Solving, atau Datasheets untuk cek akses channel saat diperlukan."
       );
       setText(accessState, "Dashboard aktif. Join channel dilakukan per menu saat dibutuhkan.");
       setNotice("");
@@ -3403,6 +3573,8 @@ async function submitCatalogEditor() {
   const lowerFileName = selectedFile.name.toLowerCase();
   const allowedExtensions = config.endpoint === "boardview"
     ? allowedBoardviewExtensions
+    : config.endpoint === "schematics"
+    ? allowedSchematicsExtensions
     : config.endpoint === "problem-solving"
     ? [".md"]
     : config.endpoint === "datasheets"
@@ -3483,8 +3655,9 @@ async function openBoardviewCatalogItem(messageId) {
 async function joinSelectedChannels() {
   const joinRequiredChannel = Boolean(dashboardJoinRequiredCheckbox?.checked && !dashboardJoinRequiredCheckbox.disabled);
   const joinBoardviewChannel = Boolean(dashboardJoinBoardviewCheckbox?.checked && !dashboardJoinBoardviewCheckbox.disabled);
+  const joinSchematicsChannel = Boolean(dashboardJoinSchematicsCheckbox?.checked && !dashboardJoinSchematicsCheckbox.disabled);
 
-  if (!joinRequiredChannel && !joinBoardviewChannel) {
+  if (!joinRequiredChannel && !joinBoardviewChannel && !joinSchematicsChannel) {
     setNotice("Pilih minimal satu channel sebelum melanjutkan.", true);
     return;
   }
@@ -3502,7 +3675,8 @@ async function joinSelectedChannels() {
       method: "POST",
       body: JSON.stringify({
         joinRequiredChannel,
-        joinBoardviewChannel
+        joinBoardviewChannel,
+        joinSchematicsChannel
       })
     });
     setNotice(result.message);
@@ -3727,11 +3901,22 @@ if (catalogSearchInput) {
 
 if (catalogList) {
   catalogList.addEventListener("click", async (event) => {
+    const schematicsViewButton = event.target.closest(".catalog-schematics-view-button");
+    if (schematicsViewButton) {
+      const messageId = Number(schematicsViewButton.getAttribute("data-message-id") || 0);
+      try {
+        viewPdfCatalogItem("Schematics", messageId);
+      } catch (error) {
+        setNotice(error.message, true);
+      }
+      return;
+    }
+
     const datasheetsViewButton = event.target.closest(".catalog-datasheets-view-button");
     if (datasheetsViewButton) {
       const messageId = Number(datasheetsViewButton.getAttribute("data-message-id") || 0);
       try {
-        viewDatasheetsItem(messageId);
+        viewPdfCatalogItem("Datasheets", messageId);
       } catch (error) {
         setNotice(error.message, true);
       }
@@ -3846,7 +4031,7 @@ if (catalogList) {
 }
 
 catalogContextPanel?.addEventListener("click", async (event) => {
-  const joinButton = event.target.closest("#biosJoinButton, #boardviewJoinButton, #problemSolvingJoinButton, #datasheetsJoinButton, #forumJoinButton");
+  const joinButton = event.target.closest("#biosJoinButton, #boardviewJoinButton, #schematicsJoinButton, #problemSolvingJoinButton, #datasheetsJoinButton, #forumJoinButton");
   if (!joinButton) {
     return;
   }
@@ -3856,6 +4041,8 @@ catalogContextPanel?.addEventListener("click", async (event) => {
       ? "BIOS"
       : joinButton.id === "boardviewJoinButton"
       ? "Boardview"
+      : joinButton.id === "schematicsJoinButton"
+      ? "Schematics"
       : joinButton.id === "datasheetsJoinButton"
       ? "Datasheets"
       : joinButton.id === "forumJoinButton"
@@ -4078,6 +4265,11 @@ navBoardview?.addEventListener("click", () => {
   navigateTelegramCatalog("Boardview", navBoardview);
 });
 
+navSchematics?.addEventListener("click", () => {
+  updateViewHash("Schematics");
+  navigateTelegramCatalog("Schematics", navSchematics);
+});
+
 navProblemSolving?.addEventListener("click", () => {
   updateViewHash("ProblemSolving");
   navigateTelegramCatalog("ProblemSolving", navProblemSolving);
@@ -4086,6 +4278,13 @@ navProblemSolving?.addEventListener("click", () => {
 navDatasheets?.addEventListener("click", () => {
   updateViewHash("Datasheets");
   navigateTelegramCatalog("Datasheets", navDatasheets);
+});
+
+navComponentEquivalents?.addEventListener("click", () => {
+  updateViewHash(componentEquivalentsPage.viewKey);
+  currentCatalogView = componentEquivalentsPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
 });
 
 navForum?.addEventListener("click", () => {

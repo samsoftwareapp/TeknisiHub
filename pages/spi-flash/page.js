@@ -10,7 +10,7 @@
       label: "CH341A",
       transport: "USB bridge",
       status: "Legacy clip programmer",
-      speed: "0.75 MHz",
+      speed: "0.75 MHz fixed",
       note: "Backend CH341A dijalankan langsung dari local service."
     },
     CH347: {
@@ -24,17 +24,19 @@
       label: "STM32",
       transport: "USB CDC backend",
       status: "Native backend",
-      speed: "42 MHz max",
+      speed: "12 MHz max",
       note: "Backend STM32 CDC dijalankan langsung dari local service."
     },
     EZP2019: {
       label: "EZP2019+",
       transport: "Bulk USB vendor protocol",
       status: "Native backend",
-      speed: "Vendor sequence",
+      speed: "12 MHz fixed",
       note: "Backend USB EZP2019+ dijalankan langsung dari local service."
     }
   };
+
+  const disabledDeviceSelections = new Set(["CH347"]);
 
   let pageNotifier = (message, tone = "success") => {
     if (typeof globalScope.setNotice === "function") {
@@ -67,6 +69,112 @@
     );
   }
 
+  function normalizeProgressHistory(entries) {
+    if (!Array.isArray(entries)) {
+      return [];
+    }
+
+    return entries
+      .map((entry) => ({
+        sequence: Number(entry?.sequence || 0),
+        deviceLabel: String(entry?.deviceLabel || "").trim(),
+        pageSize: Math.max(0, Number(entry?.pageSize || 0)),
+        speedHz: Math.max(0, Number(entry?.speedHz || 0)),
+        chipModel: String(entry?.chipModel || "").trim(),
+        chipVoltage: String(entry?.chipVoltage || "").trim(),
+        chipCapacity: String(entry?.chipCapacity || "").trim(),
+        actionLabel: String(entry?.actionLabel || "").trim(),
+        durationMilliseconds: Math.max(0, Number(entry?.durationMilliseconds || 0))
+      }))
+      .filter((entry) => entry.sequence > 0 && entry.deviceLabel && entry.actionLabel);
+  }
+
+  function formatDurationLabel(durationMilliseconds) {
+    const totalSeconds = Math.max(1, Math.round(Math.max(0, Number(durationMilliseconds) || 0) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes <= 0) {
+      return `${seconds}detik`;
+    }
+
+    return `${minutes}m${seconds}detik`;
+  }
+
+  function formatSpeedLabel(speedHz) {
+    const normalized = Math.max(0, Number(speedHz) || 0);
+    if (!normalized) {
+      return "-";
+    }
+
+    const speedMHz = normalized / 1000000;
+    return `${Number(speedMHz.toFixed(2)).toString()}Mhz`;
+  }
+
+  function formatSpeedInputValue(speedHz) {
+    const normalized = Math.max(0, Number(speedHz) || 0);
+    if (!normalized) {
+      return "";
+    }
+
+    const speedMHz = normalized / 1000000;
+    return Number(speedMHz.toFixed(2)).toString();
+  }
+
+  function parseSpeedInputValue(rawValue) {
+    const normalized = String(rawValue || "").trim().replace(",", ".");
+    if (!normalized) {
+      return 0;
+    }
+
+    const numeric = Number(normalized);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+
+    return Math.round(numeric * 1000000);
+  }
+
+  function createChipSummary(entry) {
+    const model = String(entry?.chipModel || "").trim();
+    const voltage = String(entry?.chipVoltage || "").trim();
+    const capacity = String(entry?.chipCapacity || "").trim();
+    return [model, voltage, capacity].filter(Boolean).join(" ");
+  }
+
+  function createCompactProgressLabel(entry) {
+    return `${entry.deviceLabel} ${entry.actionLabel} ${formatDurationLabel(entry.durationMilliseconds)};`;
+  }
+
+  function createFullProgressLabel(entry) {
+    const chipSummary = createChipSummary(entry);
+    const parts = [
+      `${entry.deviceLabel}`,
+      `PageSize ${entry.pageSize || "-"}`,
+      `Speed ${formatSpeedLabel(entry.speedHz)}`,
+      chipSummary || "-",
+      `${entry.actionLabel} ${formatDurationLabel(entry.durationMilliseconds)}`
+    ];
+    return `${parts.join("; ")};`;
+  }
+
+  function createProgressHistoryMarkup(entries, emptyText = "Belum ada riwayat proses.", variant = "compact") {
+    const normalizedEntries = Array.isArray(entries) ? entries : [];
+    if (!normalizedEntries.length) {
+      return `<p class="spi-session-progress-empty">${escapeHtml(emptyText)}</p>`;
+    }
+
+    return `
+      <div class="spi-session-progress-list">
+        ${normalizedEntries.map((entry) => `
+          <div class="spi-session-progress-item">
+            <span class="spi-session-progress-seq">${escapeHtml(String(entry.sequence).padStart(3, "0"))}</span>
+            <span class="spi-session-progress-text">${escapeHtml(variant === "full" ? createFullProgressLabel(entry) : createCompactProgressLabel(entry))}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function createUnavailableState(message = "") {
     const profile = deviceProfiles.CH347;
     return {
@@ -83,12 +191,12 @@
       chipCapacity: "",
       chipVoltage: "",
       pageSize: 0,
+      speedHz: 0,
       jedec: "",
       startAddress: "",
       length: "",
       fileName: "",
       fileSize: "",
-      verifyMode: "",
       progress: 0,
       lastResult: "Status backend belum tersedia",
       lastUpdated: "Belum dijalankan",
@@ -97,6 +205,8 @@
       logs: [
         "[--:--:--] Local service SPI Flash belum bisa dijangkau dari Web UI."
       ],
+      progressHistory: [],
+      fullProgressHistory: [],
       hexPreviewTotalBytes: 0,
       hexPreviewTotalLines: 0,
       hexPreviewScrollTop: 0,
@@ -196,8 +306,7 @@
       Boolean(session.chipVendor) ||
       Boolean(session.chipModel) ||
       Boolean(session.startAddress) ||
-      Boolean(session.length) ||
-      Boolean(session.verifyMode);
+      Boolean(session.length);
     const activeOperation = String(session.activeOperation || "").trim().toLowerCase();
     const normalizedConnectionState = String(session.connectionState || "").trim().toLowerCase();
     const isFreshDefaultSession =
@@ -233,18 +342,20 @@
       chipCapacity: session.chipCapacity || "",
       chipVoltage: session.chipVoltage || "",
       pageSize: Number(session.pageSize || 0),
+      speedHz: Number(session.speedHz || 0),
       jedec: session.jedec || "",
       startAddress: session.startAddress || "",
       length: session.length || "",
       fileName: session.fileName || "",
       fileSize: session.fileSize || "",
-      verifyMode: session.verifyMode || "",
       progress: Number(session.progress || 0),
       lastResult: session.lastResult || "Belum ada operasi",
       lastUpdated: session.lastUpdated || "Belum dijalankan",
       hasReadBuffer: Boolean(session.hasReadBuffer),
       readBufferIsAllFf: Boolean(session.readBufferIsAllFf),
       logs: Array.isArray(session.logs) ? session.logs : [],
+      progressHistory: normalizeProgressHistory(session.progressHistory),
+      fullProgressHistory: normalizeProgressHistory(session.fullProgressHistory),
       hexPreviewTotalBytes: Number(session.hexPreviewTotalBytes || 0),
       hexPreviewTotalLines: Number(session.hexPreviewTotalLines || 0),
       hexPreviewScrollTop: Number(previousState?.hexPreviewScrollTop || 0),
@@ -509,10 +620,14 @@
     const actionDisableAttr = controlsDisabled || !state.selectedDevice ? " disabled" : "";
     const pageLabel = state.pageSize > 0 ? `${state.pageSize} byte` : "Belum ada data";
     const fileNameLabel = state.fileName || "Belum ada file";
-    const fileSizeLabel = state.fileSize || "-";
-    const startAddressLabel = state.startAddress || "-";
-    const lengthLabel = state.length || "-";
-    const verifyLabel = state.verifyMode || "-";
+    const showStm32SpeedField = state.selectedDevice === "STM32";
+    const showFixedSpeedField =
+      state.selectedDevice === "EZP2019" ||
+      state.selectedDevice === "CH341A";
+    const fixedSpeedLabel = state.selectedDevice === "CH341A"
+      ? "0.75 MHz"
+      : "12 MHz";
+    const speedInputValue = formatSpeedInputValue(state.speedHz || 12000000);
     const hexPreviewStatusState = getHexPreviewStatusState(state, busy);
     const readActionSummary = autoProcessEnabled ? "Read + Verify" : "Read";
     const writeActionSummary = autoProcessEnabled ? "Erase + Write + Verify" : "Write";
@@ -553,7 +668,7 @@
             <select id="spiFlashDeviceSelect"${disableAttr}>
               <option value=""${state.selectedDevice ? "" : " selected"}>---Pilih Device Programmer---</option>
               ${Object.entries(deviceProfiles).map(([key, item]) => `
-                <option value="${escapeHtml(key)}"${key === state.selectedDevice ? " selected" : ""}>
+                <option value="${escapeHtml(key)}"${key === state.selectedDevice ? " selected" : ""}${disabledDeviceSelections.has(key) ? " disabled" : ""}>
                   ${escapeHtml(item.label)} - ${escapeHtml(item.status)}
                 </option>
               `).join("")}
@@ -624,21 +739,28 @@
               Length
               <input data-field="length" type="text" value="${escapeHtml(state.length)}" placeholder="0x00800000"${disableAttr}>
             </label>
-            <label>
-              Verify Mode
-              <input data-field="verifyMode" type="text" value="${escapeHtml(state.verifyMode)}" placeholder="Smart compare"${disableAttr}>
-            </label>
             <label class="spi-file-field">
               Source File
               <input id="spiFlashFileInput" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr"${disableAttr}>
             </label>
+            ${showStm32SpeedField ? `
+              <label>
+                Speed (MHz)
+                <input data-field="speedHz" data-field-format="mhz" type="text" value="${escapeHtml(speedInputValue)}" placeholder="12"${disableAttr}>
+              </label>
+            ` : showFixedSpeedField ? `
+              <label>
+                Speed
+                <input type="text" value="${escapeHtml(fixedSpeedLabel)}" readonly${disableAttr}>
+              </label>
+            ` : ""}
           </div>
-          <div class="spi-inline-meta">
-            <span>File <strong>${escapeHtml(fileNameLabel)}</strong></span>
-            <span>Ukuran <strong>${escapeHtml(fileSizeLabel)}</strong></span>
-            <span>Start <strong>${escapeHtml(startAddressLabel)}</strong></span>
-            <span>Length <strong>${escapeHtml(lengthLabel)}</strong></span>
-            <span>Verify <strong>${escapeHtml(verifyLabel)}</strong></span>
+          <div class="spi-session-progress-log">
+            <div class="spi-session-progress-head">
+              <span class="label">Log Session Progress</span>
+              <span>${escapeHtml(`${state.progressHistory.length} item`)}</span>
+            </div>
+            ${createProgressHistoryMarkup(state.progressHistory, "Belum ada riwayat sesi aktif.", "compact")}
           </div>
         </section>
 
@@ -729,6 +851,18 @@
             </div>
           </div>
           ${createHexPreviewMarkup(state, hexView)}
+        </section>
+        <section class="spi-card">
+          <div class="spi-card-head">
+            <div>
+              <p class="label">Session History</p>
+              <h4>Full Log Session Progress</h4>
+            </div>
+            <span class="spi-mini-badge">${escapeHtml(`${state.fullProgressHistory.length} item`)}</span>
+          </div>
+          <div class="spi-session-progress-log">
+            ${createProgressHistoryMarkup(state.fullProgressHistory, "Belum ada full log session.", "full")}
+          </div>
         </section>
       </div>
       </div>
@@ -901,9 +1035,9 @@
         chipCapacity: state.chipCapacity,
         autoProcess: state.autoProcess !== false,
         pageSize: Number(state.pageSize || 256),
+        speedHz: Number(state.speedHz || 0),
         startAddress: state.startAddress,
-        length: state.length,
-        verifyMode: state.verifyMode
+        length: state.length
       };
     }
 
@@ -1073,12 +1207,18 @@
             return;
           }
 
+          if (disabledDeviceSelections.has(nextDevice)) {
+            notifyUser("CH347 sedang dinonaktifkan dan tidak bisa dipilih.", "warning");
+            deviceSelect.value = "";
+            return;
+          }
+
           await selectDeviceAndConnect(nextDevice);
         }));
       }
 
       mountedContainer.querySelectorAll("[data-field]").forEach((input) => {
-        input.addEventListener("input", () => {
+        const handleFieldChange = () => {
           const field = input.getAttribute("data-field");
           if (!field) {
             return;
@@ -1090,8 +1230,26 @@
             return;
           }
 
-          state[field] = field === "pageSize" ? Number(input.value || 0) : input.value;
-        });
+          if (field === "pageSize") {
+            state[field] = Number(input.value || 0);
+            return;
+          }
+
+          if (field === "speedHz" && input.getAttribute("data-field-format") === "mhz") {
+            state[field] = parseSpeedInputValue(input.value);
+            return;
+          }
+
+          if (field === "speedHz") {
+            state[field] = Number(input.value || 0);
+            return;
+          }
+
+          state[field] = input.value;
+        };
+
+        input.addEventListener("input", handleFieldChange);
+        input.addEventListener("change", handleFieldChange);
       });
 
       const fileInput = mountedContainer.querySelector("#spiFlashFileInput");
