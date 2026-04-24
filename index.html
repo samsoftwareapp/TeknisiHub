@@ -158,18 +158,15 @@
 
       <section id="dashboardPanel" class="dashboard hidden">
         <div class="dashboard-topbar">
-          <div>
+          <div class="dashboard-topbar-copy">
             <p class="label">Dashboard</p>
-            <h2 id="dashboardTitle">Selamat datang</h2>
-            <p id="dashboardSubtitle" class="dashboard-subtitle">
-              Akses TeknisiHub sudah aktif di local service.
-            </p>
-          </div>
-          <div class="dashboard-actions">
             <div class="dashboard-chip">
               <span id="dashboardRoleChipIcon" class="material-symbols-outlined">verified_user</span>
               <span id="dashboardRoleChip">Akses tervalidasi</span>
             </div>
+            <h2 id="dashboardTitle">Selamat datang</h2>
+          </div>
+          <div class="dashboard-actions">
             <div class="dashboard-action-buttons">
               <button id="dashboardCheckUpdateButton" type="button" class="ghost">
                 <span class="material-symbols-outlined">system_update_alt</span>
@@ -275,6 +272,9 @@
                     <button id="toolFileHashCompare" type="button" class="sidebar-nav-button">
                       <span>Cek Hash File</span>
                     </button>
+                    <button id="toolResistorCalculator" type="button" class="sidebar-nav-button">
+                      <span>Resistor Kalkulator</span>
+                    </button>
                     <details id="toolBiosPatchGroup" class="sidebar-subdropdown">
                       <summary>
                         <span class="summary-left">
@@ -344,6 +344,7 @@
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="biosVendorDetectWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="fileHashCompareWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="resistorCalculatorWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="componentEquivalentsWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="lenovoBiosPatchWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="dell8Fc8Workbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -423,7 +424,7 @@
         <input id="catalogEditorMessageId" type="hidden">
 
         <label id="catalogEditorFileLabel" for="catalogEditorFile">File BIOS</label>
-        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr,.brd,.bdv,.boardview,.fz,.cad,.tvw,.asc">
+        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr,.asc,.bdv,.brd,.bv,.cad,.cst,.gr,.f2b,.faz,.fz,.tvw">
         <div id="catalogEditorAnalysisPanel" class="catalog-analysis-panel hidden"></div>
         <div id="catalogEditorAdditionalFilesSection" class="catalog-additional-files hidden">
           <div class="catalog-additional-files-head">
@@ -434,10 +435,15 @@
             </button>
           </div>
           <div id="catalogEditorAdditionalFilesList" class="catalog-additional-files-list"></div>
-          <p class="catalog-additional-files-note">Opsional untuk EC, FULL DUMP, DLL, dan file pendukung lain. Maksimal 5 file.</p>
+          <p id="catalogEditorAdditionalFilesNote" class="catalog-additional-files-note">Opsional untuk EC, FULL DUMP, DLL, dan file pendukung lain. Maksimal 5 file.</p>
         </div>
 
         <div id="catalogEditorMetadataFields">
+          <div id="catalogEditorAliasField" class="catalog-form-field hidden">
+            <label for="catalogEditorAliasName">Nama Alias Arsip</label>
+            <input id="catalogEditorAliasName" name="aliasName" type="text" maxlength="70" placeholder="Dipakai untuk nama arsip .7z jika nama file Boardview kurang dari 15 karakter. File utama di dalam arsip tetap nama asli.">
+          </div>
+
           <div id="catalogEditorMd5Field" class="catalog-readonly-field">
             <label for="catalogEditorMd5">MD5</label>
             <input id="catalogEditorMd5" name="md5" type="text" placeholder="Akan terisi otomatis saat file dipilih" readonly>
@@ -619,6 +625,7 @@
   <script src="pages/uefi-tool/page.js"></script>
   <script src="pages/bios-vendor-detect/page.js"></script>
   <script src="pages/file-hash-compare/page.js"></script>
+  <script src="pages/resistor-calculator/page.js"></script>
   <script src="pages/component-equivalents/page.js"></script>
   <script src="pages/lenovo-bios-patch/page.js"></script>
   <script src="pages/dell-8fc8/page.js"></script>

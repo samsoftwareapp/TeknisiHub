@@ -53,6 +53,7 @@ const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const biosVendorDetectWorkbench = document.getElementById("biosVendorDetectWorkbench");
 const fileHashCompareWorkbench = document.getElementById("fileHashCompareWorkbench");
+const resistorCalculatorWorkbench = document.getElementById("resistorCalculatorWorkbench");
 const componentEquivalentsWorkbench = document.getElementById("componentEquivalentsWorkbench");
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
 const dell8Fc8Workbench = document.getElementById("dell8Fc8Workbench");
@@ -88,8 +89,11 @@ const catalogEditorFile = document.getElementById("catalogEditorFile");
 const catalogEditorAnalysisPanel = document.getElementById("catalogEditorAnalysisPanel");
 const catalogEditorAdditionalFilesSection = document.getElementById("catalogEditorAdditionalFilesSection");
 const catalogEditorAdditionalFilesList = document.getElementById("catalogEditorAdditionalFilesList");
+const catalogEditorAdditionalFilesNote = document.getElementById("catalogEditorAdditionalFilesNote");
 const catalogEditorAddFileButton = document.getElementById("catalogEditorAddFileButton");
 const catalogEditorMetadataFields = document.getElementById("catalogEditorMetadataFields");
+const catalogEditorAliasField = document.getElementById("catalogEditorAliasField");
+const catalogEditorAliasName = document.getElementById("catalogEditorAliasName");
 const catalogEditorDeviceModel = document.getElementById("catalogEditorDeviceModel");
 const catalogEditorSerialNumberField = document.getElementById("catalogEditorSerialNumberField");
 const catalogEditorSerialNumber = document.getElementById("catalogEditorSerialNumber");
@@ -118,6 +122,7 @@ const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
 const toolBiosVendorDetect = document.getElementById("toolBiosVendorDetect");
 const toolFileHashCompare = document.getElementById("toolFileHashCompare");
+const toolResistorCalculator = document.getElementById("toolResistorCalculator");
 const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
 const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
 const toolDell8Fc8 = document.getElementById("toolDell8Fc8");
@@ -207,6 +212,17 @@ const fileHashComparePage = window.teknisiHubPages?.fileHashCompare || {
   eyebrow: "Hash Compare",
   title: "Cek Hash File",
   subtitle: "Bandingkan dua file dengan MD5 dan SHA-256.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const resistorCalculatorPage = window.teknisiHubPages?.resistorCalculator || {
+  viewKey: "tool_resistor_calculator",
+  eyebrow: "Elektronika",
+  title: "Resistor Kalkulator",
+  subtitle: "Decoder resistor warna, kode SMD, dan hitung total seri atau paralel.",
   items: [],
   mount() {},
   setVisible() {},
@@ -357,7 +373,7 @@ const activeOtpPhoneStorageKey = "teknisihub_active_otp_phone";
 const catalogRefreshCooldownMs = 15000;
 let isPhoneNumberChangeRequested = false;
 const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
-const allowedBoardviewExtensions = [".brd", ".bdv", ".boardview", ".fz", ".cad", ".tvw", ".asc"];
+const allowedBoardviewExtensions = [".asc", ".bdv", ".brd", ".bv", ".cad", ".cst", ".gr", ".f2b", ".faz", ".fz", ".tvw"];
 const allowedSchematicsExtensions = [".pdf"];
 const allowedDatasheetsExtensions = [".pdf"];
 const minCatalogFileNameLength = 15;
@@ -416,6 +432,11 @@ biosVendorDetectPage.mount?.({
 
 fileHashComparePage.mount?.({
   container: fileHashCompareWorkbench,
+  notify: (message) => setNotice(message)
+});
+
+resistorCalculatorPage.mount?.({
+  container: resistorCalculatorWorkbench,
   notify: (message) => setNotice(message)
 });
 
@@ -480,7 +501,7 @@ const telegramCatalogConfigs = {
     editTitle: "Edit Metadata Boardview",
     fileLabel: "File Boardview",
     fileAccept: allowedBoardviewExtensions.join(","),
-    invalidExtensionMessage: "Format file Boardview harus salah satu dari: .brd, .bdv, .boardview, .fz, .cad, .tvw, .asc.",
+    invalidExtensionMessage: "Format file Boardview harus salah satu dari: .asc, .bdv, .brd, .bv, .cad, .cst, .gr, .f2b, .faz, .fz, .tvw.",
     endpoint: "boardview"
   },
   Schematics: {
@@ -561,6 +582,12 @@ const toolViewMap = {
     subtitle: fileHashComparePage.subtitle,
     channelLink: null
   },
+  [resistorCalculatorPage.viewKey]: {
+    eyebrow: resistorCalculatorPage.eyebrow,
+    title: resistorCalculatorPage.title,
+    subtitle: resistorCalculatorPage.subtitle,
+    channelLink: null
+  },
   [componentEquivalentsPage.viewKey]: {
     eyebrow: componentEquivalentsPage.eyebrow,
     title: componentEquivalentsPage.title,
@@ -623,6 +650,7 @@ const localWorkbenchViewKeys = new Set([
   uefiToolPage.viewKey,
   biosVendorDetectPage.viewKey,
   fileHashComparePage.viewKey,
+  resistorCalculatorPage.viewKey,
   componentEquivalentsPage.viewKey,
   lenovoBiosPatchPage.viewKey,
   dell8Fc8Page.viewKey,
@@ -647,6 +675,7 @@ const viewHashMap = {
   [uefiToolPage.viewKey]: "UefiTools",
   [biosVendorDetectPage.viewKey]: "BiosVendorDetect",
   [fileHashComparePage.viewKey]: "FileHashCompare",
+  [resistorCalculatorPage.viewKey]: "ResistorCalculator",
   [lenovoBiosPatchPage.viewKey]: "DumpBiosLenovo",
   [dell8Fc8Page.viewKey]: "Dell8Fc8",
   [amiDecryptorPage.viewKey]: "AmiDecryptor",
@@ -677,6 +706,8 @@ const hashRouteMap = {
   toolbiosvendordetect: biosVendorDetectPage.viewKey,
   filehashcompare: fileHashComparePage.viewKey,
   toolfilehashcompare: fileHashComparePage.viewKey,
+  resistorcalculator: resistorCalculatorPage.viewKey,
+  toolresistorcalculator: resistorCalculatorPage.viewKey,
   dumpbioslenovo: lenovoBiosPatchPage.viewKey,
   tooldumpbioslenovo: lenovoBiosPatchPage.viewKey,
   dell8fc8: dell8Fc8Page.viewKey,
@@ -717,6 +748,7 @@ function getViewButton(viewKey) {
     [uefiToolPage.viewKey]: toolUefi,
     [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
+    [resistorCalculatorPage.viewKey]: toolResistorCalculator,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     [dell8Fc8Page.viewKey]: toolDell8Fc8,
     [amiDecryptorPage.viewKey]: toolAmiDecryptor,
@@ -1075,6 +1107,7 @@ function showWorkbenchOnly(viewKey) {
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
   biosVendorDetectPage.setVisible?.(viewKey === biosVendorDetectPage.viewKey);
   fileHashComparePage.setVisible?.(viewKey === fileHashComparePage.viewKey);
+  resistorCalculatorPage.setVisible?.(viewKey === resistorCalculatorPage.viewKey);
   componentEquivalentsPage.setVisible?.(viewKey === componentEquivalentsPage.viewKey);
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
   dell8Fc8Page.setVisible?.(viewKey === dell8Fc8Page.viewKey);
@@ -1103,6 +1136,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === fileHashComparePage.viewKey) {
     fileHashComparePage.refresh?.();
+  }
+
+  if (viewKey === resistorCalculatorPage.viewKey) {
+    resistorCalculatorPage.refresh?.();
   }
 
   if (viewKey === componentEquivalentsPage.viewKey) {
@@ -1148,6 +1185,7 @@ function hideWorkbench() {
   uefiToolPage.setVisible?.(false);
   biosVendorDetectPage.setVisible?.(false);
   fileHashComparePage.setVisible?.(false);
+  resistorCalculatorPage.setVisible?.(false);
   componentEquivalentsPage.setVisible?.(false);
   lenovoBiosPatchPage.setVisible?.(false);
   dell8Fc8Page.setVisible?.(false);
@@ -1178,6 +1216,7 @@ function setActiveNav(targetKey) {
     tool_uefi: toolUefi,
     [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
+    [resistorCalculatorPage.viewKey]: toolResistorCalculator,
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     [dell8Fc8Page.viewKey]: toolDell8Fc8,
     [amiDecryptorPage.viewKey]: toolAmiDecryptor,
@@ -1612,6 +1651,15 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">open_in_new</span>
           <span>Buka</span>
         </button>` : ""}
+        ${item.category === "Boardview" && item.messageId && item.hasLocalCache ? `
+        <button
+          type="button"
+          class="catalog-action-button ghost catalog-open-location-button"
+          data-message-id="${item.messageId}"
+          data-file-name="${escapeHtml(item.fileName || item.title || "")}">
+          <span class="material-symbols-outlined">folder_open</span>
+          <span>Buka Lokasi File</span>
+        </button>` : ""}
         <button
           type="button"
           class="catalog-download-button"
@@ -1656,16 +1704,26 @@ function getCatalogAdditionalFileInputs() {
   return Array.from(catalogEditorAdditionalFilesList.querySelectorAll('input[type="file"]'));
 }
 
+function supportsCatalogAdditionalFiles(category) {
+  return category === "BIOS" || category === "Boardview";
+}
+
 function renderCatalogAdditionalFiles() {
   if (!catalogEditorAdditionalFilesSection || !catalogEditorAdditionalFilesList || !catalogEditorAddFileButton) {
     return;
   }
 
-  const shouldShow = currentCatalogView === "BIOS" && catalogEditorMode !== "edit";
+  const shouldShow = supportsCatalogAdditionalFiles(currentCatalogView) && catalogEditorMode !== "edit";
   toggleElement(catalogEditorAdditionalFilesSection, shouldShow);
   if (!shouldShow) {
     catalogEditorAdditionalFilesList.innerHTML = "";
     return;
+  }
+
+  if (catalogEditorAdditionalFilesNote) {
+    catalogEditorAdditionalFilesNote.textContent = currentCatalogView === "Boardview"
+      ? "Opsional untuk file pendukung boardview, foto referensi, PDF, dump terkait, atau file lain. Maksimal 5 file."
+      : "Opsional untuk EC, FULL DUMP, DLL, dan file pendukung lain. Maksimal 5 file.";
   }
 
   catalogEditorAddFileButton.disabled = getCatalogAdditionalFileInputs().length >= maxCatalogAdditionalFiles;
@@ -1727,8 +1785,65 @@ function validateCatalogFileNameLength(fileName, displayName, options = {}) {
     const minimumMessage = options.skipMinimumLength
       ? "minimal 1 karakter"
       : `minimal ${minCatalogFileNameLength} karakter`;
-    throw new Error(`Nama file ${displayName} ${minimumMessage} dan maksimal ${maxCatalogFileNameLength} karakter.`);
+    const label = options.label || "Nama file";
+    throw new Error(`${label} ${displayName} ${minimumMessage} dan maksimal ${maxCatalogFileNameLength} karakter.`);
   }
+}
+
+function getCatalogFileExtension(fileName) {
+  const normalizedFileName = String(fileName || "").trim();
+  const lastDotIndex = normalizedFileName.lastIndexOf(".");
+  return lastDotIndex >= 0 ? normalizedFileName.slice(lastDotIndex) : "";
+}
+
+function shouldRequireBoardviewAlias(fileName, category = currentCatalogView) {
+  const normalizedFileName = String(fileName || "").trim();
+  return category === "Boardview" && normalizedFileName.length > 0 && normalizedFileName.length < minCatalogFileNameLength;
+}
+
+function validateBoardviewAliasName(aliasName, originalFileName, displayName) {
+  const trimmedAliasName = String(aliasName || "").trim();
+  if (!trimmedAliasName) {
+    throw new Error(`Nama alias arsip ${displayName} wajib diisi jika nama file kurang dari ${minCatalogFileNameLength} karakter.`);
+  }
+
+  const extension = getCatalogFileExtension(originalFileName);
+  const removableSuffixes = [".7z", extension].filter(Boolean);
+  let normalizedAliasName = trimmedAliasName;
+  for (const suffix of removableSuffixes) {
+    if (!normalizedAliasName.toLowerCase().endsWith(suffix.toLowerCase())) {
+      continue;
+    }
+
+    normalizedAliasName = normalizedAliasName.slice(0, -suffix.length).trim();
+    break;
+  }
+  if (!normalizedAliasName) {
+    throw new Error(`Nama alias arsip ${displayName} wajib diisi tanpa ekstensi file.`);
+  }
+  if (/[\\/:*?"<>|]/.test(normalizedAliasName)) {
+    throw new Error(`Nama alias arsip ${displayName} mengandung karakter yang tidak valid untuk nama file.`);
+  }
+
+  validateCatalogFileNameLength(`${normalizedAliasName}.7z`, displayName, { label: "Nama arsip" });
+  return normalizedAliasName;
+}
+
+function updateCatalogAliasField(selectedFileName = "", category = currentCatalogView) {
+  if (!catalogEditorAliasField || !catalogEditorAliasName) {
+    return;
+  }
+
+  const requiresAlias = shouldRequireBoardviewAlias(selectedFileName, category) && catalogEditorMode !== "edit";
+  toggleElement(catalogEditorAliasField, requiresAlias);
+  catalogEditorAliasName.required = requiresAlias;
+  if (!requiresAlias) {
+    catalogEditorAliasName.value = "";
+    return;
+  }
+
+  const config = getTelegramCatalogConfig(category);
+  catalogEditorAliasName.placeholder = `Wajib diisi untuk nama arsip .7z karena nama file ${config.displayName} kurang dari ${minCatalogFileNameLength} karakter. File utama di dalam arsip tetap nama asli.`;
 }
 
 function resetCatalogBiosDuplicateCheck() {
@@ -1834,7 +1949,7 @@ async function checkSelectedCatalogDuplicate() {
   const config = getTelegramCatalogConfig(currentCatalogView);
   const selectedFile = catalogEditorFile.files[0];
   validateCatalogFileNameLength(selectedFile.name, config.displayName, {
-    skipMinimumLength: currentCatalogView === "Datasheets"
+    skipMinimumLength: currentCatalogView === "Datasheets" || shouldRequireBoardviewAlias(selectedFile.name, currentCatalogView)
   });
   try {
     validateCatalogFileSize(selectedFile, currentCatalogView);
@@ -1919,6 +2034,9 @@ function openCatalogEditor(mode, item = null) {
   catalogEditorNote.value = supportsSerialNumberAndNote && item?.note !== "-"
     ? (item?.note || "")
     : "";
+  if (catalogEditorAliasName) {
+    catalogEditorAliasName.value = "";
+  }
   if (catalogEditorMd5) {
     catalogEditorMd5.value = item?.md5 || "-";
   }
@@ -1937,6 +2055,7 @@ function openCatalogEditor(mode, item = null) {
   if (fileLabel) {
     fileLabel.textContent = config.fileLabel;
   }
+  updateCatalogAliasField("", targetCategory);
   toggleElement(catalogEditorMd5Field, supportsCatalogMd5Check(targetCategory));
   renderCatalogAdditionalFiles();
   if (isEditMode && supportsCatalogMd5Check(targetCategory) && catalogEditorMd5?.value) {
@@ -1983,6 +2102,7 @@ function closeCatalogEditor() {
     catalogEditorFile.disabled = false;
     catalogEditorFile.required = false;
   }
+  updateCatalogAliasField("", currentCatalogView);
   toggleElement(catalogEditorMd5Field, true);
   if (catalogEditorAdditionalFilesList) {
     catalogEditorAdditionalFilesList.innerHTML = "";
@@ -3274,7 +3394,7 @@ function applyStatus(status) {
     if (status.hasAgreed) {
       setText(
         dashboardSubtitle,
-        "Session Telegram aktif. Buka menu BIOS, Boardview, Schematics, Problem Solving, atau Datasheets untuk cek akses channel saat diperlukan."
+        "Session Telegram aktif."
       );
       setText(accessState, "Dashboard aktif. Join channel dilakukan per menu saat dibutuhkan.");
       setNotice("");
@@ -3566,9 +3686,13 @@ async function submitCatalogEditor() {
   }
 
   const selectedFile = catalogEditorFile.files[0];
+  const requiresBoardviewAlias = shouldRequireBoardviewAlias(selectedFile.name, currentCatalogView);
   validateCatalogFileNameLength(selectedFile.name, config.displayName, {
-    skipMinimumLength: config.endpoint === "datasheets"
+    skipMinimumLength: config.endpoint === "datasheets" || requiresBoardviewAlias
   });
+  const aliasName = requiresBoardviewAlias
+    ? validateBoardviewAliasName(catalogEditorAliasName?.value, selectedFile.name, config.displayName)
+    : "";
   validateCatalogFileSize(selectedFile, currentCatalogView);
   const lowerFileName = selectedFile.name.toLowerCase();
   const allowedExtensions = config.endpoint === "boardview"
@@ -3588,6 +3712,9 @@ async function submitCatalogEditor() {
   const formData = new FormData();
   formData.set("file", selectedFile);
   formData.set("md5", catalogEditorMd5?.value.trim() || "");
+  if (aliasName) {
+    formData.set("aliasName", aliasName);
+  }
   getCatalogAdditionalFileInputs().forEach((input) => {
     const extraFile = input.files?.[0];
     if (extraFile) {
@@ -3650,6 +3777,37 @@ async function openBoardviewCatalogItem(messageId) {
     body: JSON.stringify({})
   });
   setNotice(result.message);
+  return result;
+}
+
+async function openBoardviewCacheLocation(messageId) {
+  const result = await fetchJson(`/catalog/boardview/${messageId}/open-cache-location`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  setNotice(result.message);
+  return result;
+}
+
+function markBoardviewItemHasLocalCache(messageId) {
+  const normalizedMessageId = Number(messageId || 0);
+  if (normalizedMessageId <= 0) {
+    return false;
+  }
+
+  let updated = false;
+  catalogItems.forEach((item) => {
+    if (Number(item?.messageId) !== normalizedMessageId || item.category !== "Boardview") {
+      return;
+    }
+
+    if (!item.hasLocalCache) {
+      item.hasLocalCache = true;
+      updated = true;
+    }
+  });
+
+  return updated;
 }
 
 async function joinSelectedChannels() {
@@ -3934,12 +4092,38 @@ if (catalogList) {
       return;
     }
 
+    const openLocationButton = event.target.closest(".catalog-open-location-button");
+    if (openLocationButton) {
+      const messageId = Number(openLocationButton.getAttribute("data-message-id") || 0);
+      const fileName = openLocationButton.getAttribute("data-file-name") || "Boardview";
+      if (messageId > 0) {
+        const previousMarkup = openLocationButton.innerHTML;
+        openLocationButton.disabled = true;
+        openLocationButton.innerHTML = `
+          <span class="material-symbols-outlined is-spinning">progress_activity</span>
+          <span>Membuka folder...</span>
+        `;
+
+        try {
+          setNotice(`Membuka lokasi cache lokal Boardview untuk ${fileName}.`);
+          await openBoardviewCacheLocation(messageId);
+        } catch (error) {
+          setNotice(error.message, true);
+        } finally {
+          openLocationButton.disabled = false;
+          openLocationButton.innerHTML = previousMarkup;
+        }
+      }
+      return;
+    }
+
     const openButton = event.target.closest(".catalog-open-button");
     if (openButton) {
       const messageId = Number(openButton.getAttribute("data-message-id") || 0);
       const fileName = openButton.getAttribute("data-file-name") || "Boardview";
       if (messageId > 0) {
         const previousMarkup = openButton.innerHTML;
+        let shouldRefreshCatalog = false;
         openButton.disabled = true;
         openButton.innerHTML = `
           <span class="material-symbols-outlined is-spinning">progress_activity</span>
@@ -3949,11 +4133,15 @@ if (catalogList) {
         try {
           setNotice(`Mengecek cache Boardview untuk ${fileName}, lalu membuka file lewat Boardviewer jika tersedia.`);
           await openBoardviewCatalogItem(messageId);
+          shouldRefreshCatalog = markBoardviewItemHasLocalCache(messageId);
         } catch (error) {
           setNotice(error.message, true);
         } finally {
           openButton.disabled = false;
           openButton.innerHTML = previousMarkup;
+          if (shouldRefreshCatalog) {
+            filterCatalogItems();
+          }
         }
       }
       return;
@@ -4159,6 +4347,7 @@ catalogRefreshButton?.addEventListener("click", refreshCurrentTelegramCatalog);
 catalogEditorCloseButton?.addEventListener("click", closeCatalogEditor);
 
 catalogEditorFile?.addEventListener("change", () => {
+  updateCatalogAliasField(catalogEditorFile.files?.[0]?.name || "", currentCatalogView);
   checkSelectedCatalogDuplicate().catch((error) => {
     renderCatalogBiosDuplicateCheck("error", { message: error.message });
   });
@@ -4323,6 +4512,13 @@ toolBiosVendorDetect?.addEventListener("click", () => {
 toolFileHashCompare?.addEventListener("click", () => {
   updateViewHash(fileHashComparePage.viewKey);
   currentCatalogView = fileHashComparePage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolResistorCalculator?.addEventListener("click", () => {
+  updateViewHash(resistorCalculatorPage.viewKey);
+  currentCatalogView = resistorCalculatorPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });

@@ -606,6 +606,11 @@ h1 {
   color: rgba(240, 250, 255, 0.8);
 }
 
+.dashboard-topbar-copy {
+  display: grid;
+  gap: 8px;
+}
+
 .dashboard-actions {
   display: flex;
   align-items: center;
@@ -625,14 +630,19 @@ h1 {
 .dashboard-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  justify-self: start;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #fff;
   font-weight: 600;
-  margin-left: auto;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+}
+
+.dashboard-chip .material-symbols-outlined {
+  font-size: 1.1rem;
 }
 
 .dashboard-actions .ghost {
@@ -1767,6 +1777,23 @@ h1 {
   color: var(--muted);
 }
 
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 150px) minmax(0, 1fr);
+  gap: 10px 14px;
+  align-items: start;
+}
+
+.note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(180, 91, 33, 0.14);
+  background: rgba(255, 248, 237, 0.72);
+  color: var(--text);
+  line-height: 1.6;
+}
+
 .spi-session-progress-log {
   margin-top: 14px;
   display: grid;
@@ -2577,6 +2604,112 @@ h1 {
 
 .settings-layout {
   grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+}
+
+.resistor-calculator-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.resistor-calculator-hero {
+  background:
+    radial-gradient(circle at top right, rgba(244, 185, 66, 0.22), transparent 34%),
+    linear-gradient(145deg, rgba(110, 54, 12, 0.08), rgba(22, 78, 125, 0.08));
+}
+
+.resistor-calculator-copy {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.resistor-calculator-layout {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+}
+
+.resistor-band-count-row,
+.resistor-quick-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.resistor-band-count-button.is-active {
+  background: rgba(196, 95, 32, 0.12);
+  border-color: rgba(196, 95, 32, 0.18);
+  color: var(--deep);
+}
+
+.resistor-band-list {
+  display: grid;
+  gap: 14px;
+}
+
+.resistor-band-card {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(125, 73, 30, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.resistor-band-card-head {
+  margin-bottom: 12px;
+}
+
+.resistor-band-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.resistor-band-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 33, 48, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+}
+
+.resistor-band-chip:hover,
+.resistor-band-chip.is-active {
+  border-color: rgba(196, 95, 32, 0.22);
+  box-shadow: 0 10px 22px rgba(65, 43, 24, 0.08);
+}
+
+.resistor-band-chip.is-active {
+  background: rgba(255, 248, 237, 0.98);
+}
+
+.resistor-band-chip-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--band-color);
+  box-shadow: inset 0 0 0 1px rgba(17, 33, 48, 0.16);
+}
+
+.resistor-result-card {
+  background:
+    radial-gradient(circle at top right, rgba(53, 199, 139, 0.12), transparent 30%),
+    rgba(255, 252, 248, 0.92);
+}
+
+.resistor-highlight-value {
+  font-size: clamp(1.7rem, 1.35rem + 1.1vw, 2.5rem);
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--deep);
+}
+
+.resistor-detail-grid {
+  margin-top: 16px;
+}
+
+.resistor-example-chip {
+  border-radius: 999px;
 }
 
 .alien-server-grid {
