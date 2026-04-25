@@ -67,6 +67,7 @@ const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
 const toastAutoHideDelayMs = 4000;
 const minBiosFileSizeBytes = 512 * 1024;
+const minOptionalBiosFileSizeBytes = 15 * 1024;
 const maxBiosFileSizeBytes = 50 * 1024 * 1024;
 const catalogContextPanel = document.getElementById("catalogContextPanel");
 const catalogList = document.getElementById("catalogList");
@@ -1928,14 +1929,15 @@ function formatFileSize(bytes) {
   return `${bytes} B`;
 }
 
-function validateCatalogFileSize(file, category) {
+function validateCatalogFileSize(file, category, options = {}) {
   if (!file || category !== "BIOS") {
     return;
   }
 
-  if (file.size < minBiosFileSizeBytes || file.size > maxBiosFileSizeBytes) {
+  const minimumSize = options.isAdditionalFile ? minOptionalBiosFileSizeBytes : minBiosFileSizeBytes;
+  if (file.size < minimumSize || file.size > maxBiosFileSizeBytes) {
     throw new Error(
-      `Ukuran file BIOS ${file.name} tidak didukung. Ukuran file saat ini ${formatFileSize(file.size)}, sedangkan batas upload BIOS adalah ${formatFileSize(minBiosFileSizeBytes)} sampai ${formatFileSize(maxBiosFileSizeBytes)}.`
+      `Ukuran file BIOS ${file.name} tidak didukung. Ukuran file saat ini ${formatFileSize(file.size)}, sedangkan batas upload BIOS adalah ${formatFileSize(minimumSize)} sampai ${formatFileSize(maxBiosFileSizeBytes)}.`
     );
   }
 }
@@ -3718,7 +3720,7 @@ async function submitCatalogEditor() {
   getCatalogAdditionalFileInputs().forEach((input) => {
     const extraFile = input.files?.[0];
     if (extraFile) {
-      validateCatalogFileSize(extraFile, currentCatalogView);
+      validateCatalogFileSize(extraFile, currentCatalogView, { isAdditionalFile: true });
       formData.append("additionalFiles", extraFile);
     }
   });
