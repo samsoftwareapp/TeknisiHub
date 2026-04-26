@@ -893,13 +893,13 @@ function resetCatalog() {
 
 async function refreshCatalogStats() {
   try {
-    const stats = await fetchJson("/catalog/cache-stats");
+    const stats = await fetchJson("/catalog/telegram-stats");
     if (dashboardCatalogTotal) {
-      dashboardCatalogTotal.textContent = `${stats.totalCount || 0} item`;
+      dashboardCatalogTotal.textContent = `${stats.totalCount || 0} file`;
     }
   } catch {
     if (dashboardCatalogTotal) {
-      dashboardCatalogTotal.textContent = "0 item";
+      dashboardCatalogTotal.textContent = "0 file";
     }
   }
 }
