@@ -368,6 +368,8 @@ let catalogRefreshLoading = false;
 let catalogRefreshCooldownUntil = 0;
 let catalogRefreshCooldownTimerId = 0;
 let catalogSearchLoading = false;
+let catalogEventSource = null;
+let catalogEventReconnectTimerId = 0;
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
 const activeOtpPhoneStorageKey = "teknisihub_active_otp_phone";
@@ -551,6 +553,7 @@ const telegramCatalogState = {
   Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
   Forum: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false }
 };
+const pendingCatalogRealtimeReloads = new Map();
 
 const toolViewMap = {
   tool_spi_flash: {
@@ -858,6 +861,7 @@ function resetCatalog() {
   telegramCatalogState.Forum.hasMore = false;
   telegramCatalogState.Forum.nextOffset = 0;
   telegramCatalogState.Forum.loadingMore = false;
+  clearCatalogRealtimeReloads();
   catalogEditorMode = "upload";
   if (catalogSearchDebounceId) {
     clearTimeout(catalogSearchDebounceId);
@@ -893,7 +897,7 @@ function resetCatalog() {
 
 async function refreshCatalogStats() {
   try {
-    const stats = await fetchJson("/catalog/telegram-stats");
+    const stats = await fetchJson("/catalog/cache-stats");
     if (dashboardCatalogTotal) {
       dashboardCatalogTotal.textContent = `${stats.totalCount || 0} file`;
     }
@@ -902,6 +906,101 @@ async function refreshCatalogStats() {
       dashboardCatalogTotal.textContent = "0 file";
     }
   }
+}
+
+function clearCatalogRealtimeReloads() {
+  for (const timerId of pendingCatalogRealtimeReloads.values()) {
+    window.clearTimeout(timerId);
+  }
+
+  pendingCatalogRealtimeReloads.clear();
+}
+
+function closeCatalogEventStream() {
+  if (catalogEventReconnectTimerId) {
+    window.clearTimeout(catalogEventReconnectTimerId);
+    catalogEventReconnectTimerId = 0;
+  }
+
+  if (catalogEventSource) {
+    catalogEventSource.close();
+    catalogEventSource = null;
+  }
+}
+
+function scheduleCatalogEventReconnect() {
+  if (catalogEventReconnectTimerId || catalogEventSource) {
+    return;
+  }
+
+  catalogEventReconnectTimerId = window.setTimeout(() => {
+    catalogEventReconnectTimerId = 0;
+    ensureCatalogEventStreamConnected();
+  }, 3000);
+}
+
+function scheduleCatalogRealtimeReload(category) {
+  if (!category) {
+    return;
+  }
+
+  const previousTimerId = pendingCatalogRealtimeReloads.get(category);
+  if (previousTimerId) {
+    window.clearTimeout(previousTimerId);
+  }
+
+  const timerId = window.setTimeout(async () => {
+    pendingCatalogRealtimeReloads.delete(category);
+
+    try {
+      await refreshCatalogStats();
+      if (currentCatalogView === category && isTelegramCatalogView(category)) {
+        await loadCatalog();
+      }
+    } catch (error) {
+      console.warn(`Gagal memuat ulang cache ${category} dari event realtime`, error);
+    }
+  }, 250);
+
+  pendingCatalogRealtimeReloads.set(category, timerId);
+}
+
+function ensureCatalogEventStreamConnected() {
+  if (catalogEventSource || typeof EventSource !== "function") {
+    return;
+  }
+
+  const eventStreamUrl = `${serviceBaseUrl}/catalog/events`;
+  const eventSource = new EventSource(eventStreamUrl);
+
+  eventSource.addEventListener("catalog-cache-changed", (event) => {
+    let payload;
+    try {
+      payload = JSON.parse(event.data || "{}");
+    } catch {
+      return;
+    }
+
+    const category = String(payload?.category || "").trim();
+    if (!category) {
+      return;
+    }
+
+    scheduleCatalogRealtimeReload(category);
+  });
+
+  eventSource.onerror = () => {
+    if (catalogEventSource !== eventSource) {
+      return;
+    }
+
+    if (eventSource.readyState === EventSource.CLOSED) {
+      closeCatalogEventStream();
+      scheduleCatalogEventReconnect();
+    }
+  };
+
+  catalogEventSource = eventSource;
 }
 
 function isOwnerRole() {
@@ -1578,6 +1677,16 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">visibility</span>
             <span>Lihat</span>
           </button>
+          ${item.messageId && item.hasLocalCache ? `
+          <button
+            type="button"
+            class="catalog-action-button ghost catalog-open-location-button"
+            data-message-id="${item.messageId}"
+            data-category="Schematics"
+            data-file-name="${escapeHtml(item.fileName || item.title || "")}">
+            <span class="material-symbols-outlined">folder_open</span>
+            <span>Buka Lokasi File</span>
+          </button>` : ""}
           <button
             type="button"
             class="catalog-action-button catalog-download-button"
@@ -1652,11 +1761,12 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">open_in_new</span>
           <span>Buka</span>
         </button>` : ""}
-        ${item.category === "Boardview" && item.messageId && item.hasLocalCache ? `
+        ${(item.category === "Boardview" || item.category === "Schematics") && item.messageId && item.hasLocalCache ? `
         <button
           type="button"
           class="catalog-action-button ghost catalog-open-location-button"
           data-message-id="${item.messageId}"
+          data-category="${escapeHtml(item.category || "")}"
           data-file-name="${escapeHtml(item.fileName || item.title || "")}">
           <span class="material-symbols-outlined">folder_open</span>
           <span>Buka Lokasi File</span>
@@ -2646,6 +2756,10 @@ function getRepresentativeRoleLabel(status) {
 }
 
 function getConnectedChannelCount(status) {
+  if (!status || typeof status !== "object") {
+    return 0;
+  }
+
   return [
     status.biosChannelRole,
     status.boardviewChannelRole,
@@ -3282,8 +3396,75 @@ function applyUpdateRequirement(health) {
   return true;
 }
 
+function summarizeServiceStatusError(message) {
+  const normalizedMessage = String(message || "").trim();
+  if (!normalizedMessage) {
+    return "Perlu perhatian pada sesi Telegram.";
+  }
+
+  return normalizedMessage.length > 96
+    ? `${normalizedMessage.slice(0, 93).trimEnd()}...`
+    : normalizedMessage;
+}
+
+function buildServiceStatusMessage(status, options = {}) {
+  const phase = String(options.phase || "").trim().toLowerCase();
+  const normalizedState = String(status?.state || "").trim().toLowerCase();
+  const connectedChannelCount = Number(getConnectedChannelCount(status)) || 0;
+
+  if (phase === "checking-auth") {
+    return "Local service aktif, memeriksa sesi Telegram...";
+  }
+
+  if (phase === "loading-stats") {
+    return "Login Telegram aktif, memuat statistik dashboard...";
+  }
+
+  if (phase === "loading-catalog") {
+    return "Dashboard aktif, memuat katalog Telegram...";
+  }
+
+  if (!status?.serviceReady) {
+    return "Konfigurasi Telegram local service belum lengkap.";
+  }
+
+  if (status?.lastError) {
+    return `Butuh perhatian: ${summarizeServiceStatusError(status.lastError)}`;
+  }
+
+  if (status?.requiresVerificationCode || normalizedState === "awaiting_code") {
+    return "Menunggu kode verifikasi Telegram.";
+  }
+
+  if (status?.requiresPassword || normalizedState === "awaiting_password") {
+    return "Menunggu password 2FA Telegram.";
+  }
+
+  if (status?.isLoggedIn && !status?.hasAgreed) {
+    return "Login Telegram aktif, menunggu persetujuan dashboard.";
+  }
+
+  if (status?.isLoggedIn && status?.hasAgreed) {
+    if (connectedChannelCount > 0) {
+      return `Dashboard aktif, ${connectedChannelCount} channel siap dipakai.`;
+    }
+
+    return "Dashboard aktif, session Telegram sudah login.";
+  }
+
+  if (status?.requiresPhoneNumber || normalizedState === "idle") {
+    return "Menunggu nomor Telegram untuk login.";
+  }
+
+  if (normalizedState === "authenticated" || status?.isLoggedIn) {
+    return "Login Telegram aktif.";
+  }
+
+  return "Local service aktif.";
+}
+
 function applyStatus(status) {
-  setText(serviceStatus, "Terhubung");
+  setText(serviceStatus, buildServiceStatusMessage(status));
   toggleElement(mainPanel, true);
   setLocalUpdateButtonState(false);
   setDownloadLinkState(false);
@@ -3394,13 +3575,21 @@ function applyStatus(status) {
     );
 
     if (status.hasAgreed) {
+      setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-catalog" }));
       setText(
         dashboardSubtitle,
         "Session Telegram aktif."
       );
       setText(accessState, "Dashboard aktif. Join channel dilakukan per menu saat dibutuhkan.");
       setNotice("");
-      loadCatalog().catch((error) => setNotice(error.message, true));
+      loadCatalog()
+        .then(() => {
+          setText(serviceStatus, buildServiceStatusMessage(status));
+        })
+        .catch((error) => {
+          setText(serviceStatus, "Dashboard aktif, tetapi katalog gagal dimuat.");
+          setNotice(error.message, true);
+        });
       return;
     }
 
@@ -3610,24 +3799,31 @@ async function refreshStatus(options = {}) {
   const forceUpdateCheck = Boolean(options.forceUpdateCheck);
   toggleElement(mainPanel, false);
   setError("");
-  setText(serviceStatus, "Mengecek koneksi...");
+  setText(serviceStatus, "Menghubungi local service...");
   setText(serviceVersion, "Versi: mengecek...");
 
   try {
     const healthUrl = forceUpdateCheck ? "/health?forceUpdateCheck=true" : "/health";
     const health = await fetchJson(healthUrl);
-    setText(serviceStatus, health.ready ? "Siap" : "Belum siap");
+    setText(serviceStatus, "Local service aktif, memeriksa sesi Telegram...");
     setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
 
     if (applyUpdateRequirement(health)) {
       return health;
     }
 
+    setText(serviceStatus, buildServiceStatusMessage(null, { phase: "checking-auth" }));
     const status = await fetchJson("/auth/status");
+    if (status?.isLoggedIn && status?.hasAgreed) {
+      setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-stats" }));
+      await refreshCatalogStats();
+    }
     applyStatus(status);
-    await refreshCatalogStats();
+    ensureCatalogEventStreamConnected();
     return health;
   } catch (error) {
+    closeCatalogEventStream();
+    clearCatalogRealtimeReloads();
     setText(serviceStatus, "Tidak aktif");
     setText(serviceVersion, "Versi: offline");
     setServiceUpdateNotice("");
@@ -3791,6 +3987,15 @@ async function openBoardviewCacheLocation(messageId) {
   return result;
 }
 
+async function openSchematicsCacheLocation(messageId) {
+  const result = await fetchJson(`/catalog/schematics/${messageId}/open-cache-location`, {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  setNotice(result.message);
+  return result;
+}
+
 function markBoardviewItemHasLocalCache(messageId) {
   const normalizedMessageId = Number(messageId || 0);
   if (normalizedMessageId <= 0) {
@@ -3800,6 +4005,27 @@ function markBoardviewItemHasLocalCache(messageId) {
   let updated = false;
   catalogItems.forEach((item) => {
     if (Number(item?.messageId) !== normalizedMessageId || item.category !== "Boardview") {
+      return;
+    }
+
+    if (!item.hasLocalCache) {
+      item.hasLocalCache = true;
+      updated = true;
+    }
+  });
+
+  return updated;
+}
+
+function markSchematicsItemHasLocalCache(messageId) {
+  const normalizedMessageId = Number(messageId || 0);
+  if (normalizedMessageId <= 0) {
+    return false;
+  }
+
+  let updated = false;
+  catalogItems.forEach((item) => {
+    if (Number(item?.messageId) !== normalizedMessageId || item.category !== "Schematics") {
       return;
     }
 
@@ -4065,7 +4291,10 @@ if (catalogList) {
     if (schematicsViewButton) {
       const messageId = Number(schematicsViewButton.getAttribute("data-message-id") || 0);
       try {
-        viewPdfCatalogItem("Schematics", messageId);
+        await viewPdfCatalogItem("Schematics", messageId);
+        if (markSchematicsItemHasLocalCache(messageId)) {
+          filterCatalogItems();
+        }
       } catch (error) {
         setNotice(error.message, true);
       }
@@ -4097,7 +4326,8 @@ if (catalogList) {
     const openLocationButton = event.target.closest(".catalog-open-location-button");
     if (openLocationButton) {
       const messageId = Number(openLocationButton.getAttribute("data-message-id") || 0);
-      const fileName = openLocationButton.getAttribute("data-file-name") || "Boardview";
+      const category = openLocationButton.getAttribute("data-category") || "Boardview";
+      const fileName = openLocationButton.getAttribute("data-file-name") || category;
       if (messageId > 0) {
         const previousMarkup = openLocationButton.innerHTML;
         openLocationButton.disabled = true;
@@ -4107,8 +4337,12 @@ if (catalogList) {
         `;
 
         try {
-          setNotice(`Membuka lokasi cache lokal Boardview untuk ${fileName}.`);
-          await openBoardviewCacheLocation(messageId);
+          setNotice(`Membuka lokasi cache lokal ${category} untuk ${fileName}.`);
+          if (category === "Schematics") {
+            await openSchematicsCacheLocation(messageId);
+          } else {
+            await openBoardviewCacheLocation(messageId);
+          }
         } catch (error) {
           setNotice(error.message, true);
         } finally {
