@@ -18,7 +18,16 @@
       <div class="status-card">
         <div>
           <p class="label">Local service</p>
-          <p id="serviceVersion" class="service-version">Versi: mengecek...</p>
+          <div class="service-version-row">
+            <p id="serviceVersion" class="service-version">Versi: mengecek...</p>
+            <span
+              id="serviceTrafficIndicator"
+              class="service-traffic-indicator"
+              aria-label="Indikator trafik API"
+              title="API idle"
+            ></span>
+            <span id="serviceApiActivity" class="service-api-activity"></span>
+          </div>
           <strong id="serviceStatus">Mengecek koneksi...</strong>
         </div>
         <div class="status-card-actions">
@@ -178,41 +187,6 @@
               </button>
             </div>
           </div>
-        </div>
-
-        <div class="dashboard-stats">
-          <article class="stat-card stat-login">
-            <div>
-              <p class="label">Status Login</p>
-              <strong id="dashboardLoginStatus">Belum login</strong>
-            </div>
-            <span class="material-symbols-outlined">shield_person</span>
-          </article>
-
-          <article class="stat-card stat-channel">
-            <div>
-              <p class="label">Akses Channel</p>
-              <strong id="dashboardChannelStatus">Total member channel belum tersedia</strong>
-            </div>
-            <span class="material-symbols-outlined">groups</span>
-          </article>
-
-          <article class="stat-card stat-agreement">
-            <div>
-              <p class="label">Persetujuan</p>
-              <strong id="dashboardAgreementStatus">Belum disimpan</strong>
-            </div>
-            <span class="material-symbols-outlined">task_alt</span>
-          </article>
-
-          <article class="stat-card stat-total-files">
-            <div>
-              <p class="label">Total File</p>
-              <strong id="dashboardCatalogTotal">0 file</strong>
-            </div>
-            <span class="material-symbols-outlined">inventory_2</span>
-          </article>
-
         </div>
 
         <div class="dashboard-layout">

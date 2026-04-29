@@ -2,6 +2,8 @@ const serviceBaseUrl = "http://127.0.0.1:48721";
 
 const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
+const serviceTrafficIndicator = document.getElementById("serviceTrafficIndicator");
+const serviceApiActivity = document.getElementById("serviceApiActivity");
 const downloadLocalServiceLink = document.getElementById("downloadLocalServiceLink");
 const runLocalUpdateButton = document.getElementById("runLocalUpdateButton");
 const viewPreviousVersionsButton = document.getElementById("viewPreviousVersionsButton");
@@ -37,7 +39,6 @@ const dashboardSubtitle = document.getElementById("dashboardSubtitle");
 const dashboardLoginStatus = document.getElementById("dashboardLoginStatus");
 const dashboardChannelStatus = document.getElementById("dashboardChannelStatus");
 const dashboardAgreementStatus = document.getElementById("dashboardAgreementStatus");
-const dashboardCatalogTotal = document.getElementById("dashboardCatalogTotal");
 const dashboardRoleChip = document.getElementById("dashboardRoleChip");
 const dashboardRoleChipIcon = document.getElementById("dashboardRoleChipIcon");
 const accessDisplayName = document.getElementById("accessDisplayName");
@@ -546,14 +547,18 @@ const telegramCatalogConfigs = {
 };
 
 const telegramCatalogState = {
-  BIOS: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
-  Boardview: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
-  Schematics: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
-  ProblemSolving: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
-  Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false },
-  Forum: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false }
+  BIOS: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
+  Boardview: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
+  Schematics: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
+  ProblemSolving: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
+  Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
+  Forum: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" }
 };
 const pendingCatalogRealtimeReloads = new Map();
+let activeTelegramCategorySync = null;
+let activeApiRequestCount = 0;
+let nextApiTrafficToken = 1;
+const activeApiTrafficRequests = new Map();
 
 const toolViewMap = {
   tool_spi_flash: {
@@ -817,6 +822,7 @@ async function restoreViewFromHash() {
 }
 
 function resetCatalog() {
+  cancelActiveTelegramCategorySync();
   catalogLoaded = false;
   catalogItems = [];
   catalogCache = [];
@@ -841,26 +847,50 @@ function resetCatalog() {
   telegramCatalogState.BIOS.hasMore = false;
   telegramCatalogState.BIOS.nextOffset = 0;
   telegramCatalogState.BIOS.loadingMore = false;
+  telegramCatalogState.BIOS.cachedFirstPageItems = [];
+  telegramCatalogState.BIOS.cachedFirstPageHasMore = false;
+  telegramCatalogState.BIOS.cachedFirstPageNextOffset = 0;
+  telegramCatalogState.BIOS.lastStatsCacheKey = "";
   telegramCatalogState.Boardview.requestToken = 0;
   telegramCatalogState.Boardview.hasMore = false;
   telegramCatalogState.Boardview.nextOffset = 0;
   telegramCatalogState.Boardview.loadingMore = false;
+  telegramCatalogState.Boardview.cachedFirstPageItems = [];
+  telegramCatalogState.Boardview.cachedFirstPageHasMore = false;
+  telegramCatalogState.Boardview.cachedFirstPageNextOffset = 0;
+  telegramCatalogState.Boardview.lastStatsCacheKey = "";
   telegramCatalogState.Schematics.requestToken = 0;
   telegramCatalogState.Schematics.hasMore = false;
   telegramCatalogState.Schematics.nextOffset = 0;
   telegramCatalogState.Schematics.loadingMore = false;
+  telegramCatalogState.Schematics.cachedFirstPageItems = [];
+  telegramCatalogState.Schematics.cachedFirstPageHasMore = false;
+  telegramCatalogState.Schematics.cachedFirstPageNextOffset = 0;
+  telegramCatalogState.Schematics.lastStatsCacheKey = "";
   telegramCatalogState.ProblemSolving.requestToken = 0;
   telegramCatalogState.ProblemSolving.hasMore = false;
   telegramCatalogState.ProblemSolving.nextOffset = 0;
   telegramCatalogState.ProblemSolving.loadingMore = false;
+  telegramCatalogState.ProblemSolving.cachedFirstPageItems = [];
+  telegramCatalogState.ProblemSolving.cachedFirstPageHasMore = false;
+  telegramCatalogState.ProblemSolving.cachedFirstPageNextOffset = 0;
+  telegramCatalogState.ProblemSolving.lastStatsCacheKey = "";
   telegramCatalogState.Datasheets.requestToken = 0;
   telegramCatalogState.Datasheets.hasMore = false;
   telegramCatalogState.Datasheets.nextOffset = 0;
   telegramCatalogState.Datasheets.loadingMore = false;
+  telegramCatalogState.Datasheets.cachedFirstPageItems = [];
+  telegramCatalogState.Datasheets.cachedFirstPageHasMore = false;
+  telegramCatalogState.Datasheets.cachedFirstPageNextOffset = 0;
+  telegramCatalogState.Datasheets.lastStatsCacheKey = "";
   telegramCatalogState.Forum.requestToken = 0;
   telegramCatalogState.Forum.hasMore = false;
   telegramCatalogState.Forum.nextOffset = 0;
   telegramCatalogState.Forum.loadingMore = false;
+  telegramCatalogState.Forum.cachedFirstPageItems = [];
+  telegramCatalogState.Forum.cachedFirstPageHasMore = false;
+  telegramCatalogState.Forum.cachedFirstPageNextOffset = 0;
+  telegramCatalogState.Forum.lastStatsCacheKey = "";
   clearCatalogRealtimeReloads();
   catalogEditorMode = "upload";
   if (catalogSearchDebounceId) {
@@ -869,10 +899,6 @@ function resetCatalog() {
   }
   if (catalogCount) {
     catalogCount.textContent = "0 item";
-  }
-
-  if (dashboardCatalogTotal) {
-    dashboardCatalogTotal.textContent = "0 file";
   }
 
   if (catalogList) {
@@ -895,19 +921,6 @@ function resetCatalog() {
   closeForumTopicModal();
 }
 
-async function refreshCatalogStats() {
-  try {
-    const stats = await fetchJson("/catalog/cache-stats");
-    if (dashboardCatalogTotal) {
-      dashboardCatalogTotal.textContent = `${stats.totalCount || 0} file`;
-    }
-  } catch {
-    if (dashboardCatalogTotal) {
-      dashboardCatalogTotal.textContent = "0 file";
-    }
-  }
-}
-
 function clearCatalogRealtimeReloads() {
   for (const timerId of pendingCatalogRealtimeReloads.values()) {
     window.clearTimeout(timerId);
@@ -926,6 +939,8 @@ function closeCatalogEventStream() {
     catalogEventSource.close();
     catalogEventSource = null;
   }
+
+  updateServiceTrafficIndicator();
 }
 
 function scheduleCatalogEventReconnect() {
@@ -951,9 +966,13 @@ function scheduleCatalogRealtimeReload(category) {
 
   const timerId = window.setTimeout(async () => {
     pendingCatalogRealtimeReloads.delete(category);
+    const state = getTelegramCatalogState(category);
+    state.cachedFirstPageItems = [];
+    state.cachedFirstPageHasMore = false;
+    state.cachedFirstPageNextOffset = 0;
+    state.lastStatsCacheKey = "";
 
     try {
-      await refreshCatalogStats();
       if (currentCatalogView === category && isTelegramCatalogView(category)) {
         await loadCatalog();
       }
@@ -1001,6 +1020,7 @@ function ensureCatalogEventStreamConnected() {
   };
 
   catalogEventSource = eventSource;
+  updateServiceTrafficIndicator();
 }
 
 function isOwnerRole() {
@@ -1043,6 +1063,124 @@ function getTelegramCatalogConfig(viewKey = currentCatalogView) {
 
 function getTelegramCatalogState(viewKey = currentCatalogView) {
   return telegramCatalogState[viewKey] || telegramCatalogState.BIOS;
+}
+
+function supportsCategoryTelegramStatsSync(viewKey = currentCatalogView) {
+  return viewKey === "BIOS" ||
+    viewKey === "Boardview" ||
+    viewKey === "Schematics" ||
+    viewKey === "ProblemSolving" ||
+    viewKey === "Datasheets" ||
+    viewKey === "Forum";
+}
+
+function buildTelegramCategoryStatsCacheKey(stats) {
+  if (!stats || typeof stats !== "object") {
+    return "";
+  }
+
+  return String(stats.cacheVersion || "").trim();
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError" || error?.isAbortError === true;
+}
+
+function cancelActiveTelegramCategorySync(nextViewKey = "") {
+  if (!activeTelegramCategorySync?.controller) {
+    return;
+  }
+
+  if (nextViewKey && activeTelegramCategorySync.viewKey === nextViewKey) {
+    return;
+  }
+
+  activeTelegramCategorySync.controller.abort();
+  activeTelegramCategorySync = null;
+}
+
+function applyTelegramCatalogPage(viewKey, state, catalog) {
+  catalogItems = Array.isArray(catalog?.items) ? catalog.items : [];
+  state.hasMore = Boolean(catalog?.hasMore);
+  state.nextOffset = Number(catalog?.nextOffset || catalogItems.length || 0);
+  state.cachedFirstPageItems = [...catalogItems];
+  state.cachedFirstPageHasMore = state.hasMore;
+  state.cachedFirstPageNextOffset = state.nextOffset;
+  if (catalog?.cacheVersion) {
+    state.lastStatsCacheKey = String(catalog.cacheVersion);
+  }
+}
+
+async function loadTelegramCatalogCachePreview(viewKey, state, requestToken) {
+  if (Array.isArray(state.cachedFirstPageItems) && state.cachedFirstPageItems.length > 0) {
+    catalogItems = [...state.cachedFirstPageItems];
+    state.hasMore = Boolean(state.cachedFirstPageHasMore);
+    state.nextOffset = Number(state.cachedFirstPageNextOffset || catalogItems.length || 0);
+    return { cacheAvailable: true, cacheVersion: state.lastStatsCacheKey || "" };
+  }
+
+  const path = `/catalog?category=${encodeURIComponent(viewKey)}&limit=5&cacheOnly=true`;
+  const catalog = await fetchJson(path);
+  if (requestToken !== state.requestToken) {
+    return { cacheAvailable: false, cacheVersion: "" };
+  }
+
+  if (!catalog?.cacheAvailable) {
+    return { cacheAvailable: false, cacheVersion: "" };
+  }
+
+  applyTelegramCatalogPage(viewKey, state, catalog);
+  return { cacheAvailable: true, cacheVersion: String(catalog.cacheVersion || "") };
+}
+
+async function syncTelegramCategoryInBackground(viewKey, state, requestToken, currentCacheVersion) {
+  if (!supportsCategoryTelegramStatsSync(viewKey)) {
+    return;
+  }
+
+  cancelActiveTelegramCategorySync();
+  const abortController = new AbortController();
+  activeTelegramCategorySync = {
+    viewKey,
+    requestToken,
+    controller: abortController
+  };
+
+  try {
+    const stats = await fetchJson(`/catalog/telegram-stats?category=${encodeURIComponent(viewKey)}`, {
+      signal: abortController.signal
+    });
+    if (requestToken !== state.requestToken || currentCatalogView !== viewKey) {
+      return;
+    }
+
+    const statsCacheKey = buildTelegramCategoryStatsCacheKey(stats);
+    if (!statsCacheKey || statsCacheKey === currentCacheVersion) {
+      if (statsCacheKey) {
+        state.lastStatsCacheKey = statsCacheKey;
+      }
+      return;
+    }
+
+    const catalog = await fetchJson(`/catalog?category=${encodeURIComponent(viewKey)}&limit=5&cacheOnly=true`, {
+      signal: abortController.signal
+    });
+    if (requestToken !== state.requestToken || currentCatalogView !== viewKey || !catalog?.cacheAvailable) {
+      return;
+    }
+
+    applyTelegramCatalogPage(viewKey, state, catalog);
+    filterCatalogItems();
+  } catch (error) {
+    if (isAbortError(error)) {
+      return;
+    }
+    console.warn(`Gagal sinkronisasi background ${viewKey}`, error);
+  } finally {
+    if (activeTelegramCategorySync?.controller === abortController) {
+      activeTelegramCategorySync = null;
+    }
+  }
 }
 
 function getDisplayRoleForView(viewKey = currentCatalogView) {
@@ -2611,6 +2749,18 @@ async function loadTelegramCatalog(viewKey = currentCatalogView) {
   state.nextOffset = 0;
   setCatalogSearchLoading(Boolean(query));
   try {
+    if (!query) {
+      const preview = await loadTelegramCatalogCachePreview(viewKey, state, requestToken);
+      if (requestToken !== state.requestToken) {
+        return;
+      }
+
+      if (preview.cacheAvailable) {
+        void syncTelegramCategoryInBackground(viewKey, state, requestToken, preview.cacheVersion || "");
+        return;
+      }
+    }
+
     const path = `/catalog?category=${encodeURIComponent(viewKey)}&limit=5${query ? `&query=${encodeURIComponent(query)}` : ""}`;
     const catalog = await fetchJson(path);
 
@@ -2621,6 +2771,14 @@ async function loadTelegramCatalog(viewKey = currentCatalogView) {
     catalogItems = catalog.items || [];
     state.hasMore = Boolean(catalog.hasMore);
     state.nextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
+    if (!query) {
+      state.cachedFirstPageItems = [...catalogItems];
+      state.cachedFirstPageHasMore = state.hasMore;
+      state.cachedFirstPageNextOffset = state.nextOffset;
+      if (catalog?.cacheVersion) {
+        state.lastStatsCacheKey = String(catalog.cacheVersion);
+      }
+    }
   } finally {
     if (requestToken === state.requestToken) {
       setCatalogSearchLoading(false);
@@ -2663,6 +2821,7 @@ async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
 
 async function loadCatalog() {
   if (localWorkbenchViewKeys.has(currentCatalogView)) {
+    cancelActiveTelegramCategorySync();
     renderCatalog([], currentCatalogView);
     return;
   }
@@ -2719,6 +2878,42 @@ function setText(element, value) {
   if (element) {
     element.textContent = value;
   }
+}
+
+function updateServiceTrafficIndicator() {
+  if (!serviceTrafficIndicator) {
+    return;
+  }
+
+  const isActive = activeApiRequestCount > 0;
+  serviceTrafficIndicator.classList.toggle("is-active", isActive);
+  serviceTrafficIndicator.title = isActive ? "API aktif" : "API idle";
+  serviceTrafficIndicator.setAttribute("aria-label", isActive ? "Indikator trafik API aktif" : "Indikator trafik API idle");
+
+  if (serviceApiActivity) {
+    const activeRequestLabels = Array.from(activeApiTrafficRequests.values());
+    const latestActiveLabel = activeRequestLabels.length > 0
+      ? activeRequestLabels[activeRequestLabels.length - 1]
+      : "";
+    const fallbackLabel = catalogEventSource ? "/catalog/events..." : "";
+    serviceApiActivity.textContent = latestActiveLabel || fallbackLabel;
+  }
+}
+
+function beginApiTraffic(label = "") {
+  const token = nextApiTrafficToken++;
+  activeApiRequestCount += 1;
+  activeApiTrafficRequests.set(token, String(label || "").trim());
+  updateServiceTrafficIndicator();
+  return token;
+}
+
+function endApiTraffic(token) {
+  activeApiRequestCount = Math.max(0, activeApiRequestCount - 1);
+  if (token) {
+    activeApiTrafficRequests.delete(token);
+  }
+  updateServiceTrafficIndicator();
 }
 
 function setCatalogSearchLoading(loading) {
@@ -2923,7 +3118,7 @@ function applyCatalogTelegramUploadProgress(progress = {}) {
     ? "Upload dibatalkan"
     : percent > 0
     ? `Upload Telegram ${percent}%`
-    : "Menyiapkan upload Telegram...";
+    : "Menyiapkan upload ";
 
   setCatalogEditorSubmitting(true, {
     percent,
@@ -3413,15 +3608,11 @@ function buildServiceStatusMessage(status, options = {}) {
   const connectedChannelCount = Number(getConnectedChannelCount(status)) || 0;
 
   if (phase === "checking-auth") {
-    return "Local service aktif, memeriksa sesi Telegram...";
-  }
-
-  if (phase === "loading-stats") {
-    return "Login Telegram aktif, memuat statistik dashboard...";
+    return "Local service aktif, memeriksa sesi ";
   }
 
   if (phase === "loading-catalog") {
-    return "Dashboard aktif, memuat katalog Telegram...";
+    return "Memuat katalog ";
   }
 
   if (!status?.serviceReady) {
@@ -3445,11 +3636,7 @@ function buildServiceStatusMessage(status, options = {}) {
   }
 
   if (status?.isLoggedIn && status?.hasAgreed) {
-    if (connectedChannelCount > 0) {
-      return `Dashboard aktif, ${connectedChannelCount} channel siap dipakai.`;
-    }
-
-    return "Dashboard aktif, session Telegram sudah login.";
+    return "Terhubung.";
   }
 
   if (status?.requiresPhoneNumber || normalizedState === "idle") {
@@ -3581,7 +3768,7 @@ function applyStatus(status) {
       );
       setText(
         accessState,
-        "Dashboard aktif. Join channel dilakukan per menu saat dibutuhkan."
+        "Terhubung. Silahkan Join channel."
       );
       setNotice("");
 
@@ -3592,7 +3779,7 @@ function applyStatus(status) {
             setText(serviceStatus, buildServiceStatusMessage(status));
           })
           .catch((error) => {
-            setText(serviceStatus, "Dashboard aktif, tetapi katalog gagal dimuat.");
+            setText(serviceStatus, "Terhubung, tetapi katalog gagal dimuat.");
             setNotice(error.message, true);
           });
         return;
@@ -3659,13 +3846,20 @@ async function fetchJson(path, options = {}) {
         "Content-Type": "application/json"
       };
 
+  const trafficToken = beginApiTraffic(path);
   try {
     response = await fetch(requestUrl, {
       headers,
       ...options
     });
   } catch (error) {
+    if (error?.name === "AbortError") {
+      error.isAbortError = true;
+      throw error;
+    }
     throw new Error(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
+  } finally {
+    endApiTraffic(trafficToken);
   }
 
   const rawText = await response.text();
@@ -3699,6 +3893,7 @@ function uploadFormData(path, formData, options = {}) {
   const operationId = String(options.operationId || "").trim();
 
   return new Promise((resolve, reject) => {
+    const trafficToken = beginApiTraffic(path);
     const xhr = new XMLHttpRequest();
     xhr.open(options.method || "POST", requestUrl, true);
     let pollingTimerId = 0;
@@ -3786,6 +3981,7 @@ function uploadFormData(path, formData, options = {}) {
     };
 
     xhr.onloadend = () => {
+      endApiTraffic(trafficToken);
       const canPollFinalState = Boolean(operationId) && typeof options.onServerProgress === "function";
       stopPolling();
       if (!canPollFinalState) {
@@ -3815,7 +4011,7 @@ async function refreshStatus(options = {}) {
   try {
     const healthUrl = forceUpdateCheck ? "/health?forceUpdateCheck=true" : "/health";
     const health = await fetchJson(healthUrl);
-    setText(serviceStatus, "Local service aktif, memeriksa sesi Telegram...");
+    setText(serviceStatus, "Local service aktif, memeriksa sesi ");
     setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
 
     if (applyUpdateRequirement(health)) {
@@ -3824,10 +4020,6 @@ async function refreshStatus(options = {}) {
 
     setText(serviceStatus, buildServiceStatusMessage(null, { phase: "checking-auth" }));
     const status = await fetchJson("/auth/status");
-    if (status?.isLoggedIn && status?.hasAgreed) {
-      setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-stats" }));
-      await refreshCatalogStats();
-    }
     applyStatus(status);
     ensureCatalogEventStreamConnected();
     return health;
@@ -3852,9 +4044,6 @@ async function refreshStatus(options = {}) {
       setDownloadLinkState(true);
       setUpdateProgressState(false);
     }
-  if (dashboardCatalogTotal) {
-    dashboardCatalogTotal.textContent = "0 item";
-  }
     setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
     throw error;
@@ -4507,6 +4696,7 @@ if (catalogLoadMoreButton) {
 }
 
 async function navigateTelegramCatalog(viewKey, button) {
+  cancelActiveTelegramCategorySync(viewKey);
   currentCatalogView = viewKey;
   closeProblemSolvingViewer();
   closeForumThreadModal();
