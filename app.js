@@ -3575,21 +3575,31 @@ function applyStatus(status) {
     );
 
     if (status.hasAgreed) {
-      setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-catalog" }));
       setText(
         dashboardSubtitle,
         "Session Telegram aktif."
       );
-      setText(accessState, "Dashboard aktif. Join channel dilakukan per menu saat dibutuhkan.");
+      setText(
+        accessState,
+        "Dashboard aktif. Join channel dilakukan per menu saat dibutuhkan."
+      );
       setNotice("");
-      loadCatalog()
-        .then(() => {
-          setText(serviceStatus, buildServiceStatusMessage(status));
-        })
-        .catch((error) => {
-          setText(serviceStatus, "Dashboard aktif, tetapi katalog gagal dimuat.");
-          setNotice(error.message, true);
-        });
+
+      if (isTelegramCatalogView(currentCatalogView)) {
+        setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-catalog" }));
+        loadCatalog()
+          .then(() => {
+            setText(serviceStatus, buildServiceStatusMessage(status));
+          })
+          .catch((error) => {
+            setText(serviceStatus, "Dashboard aktif, tetapi katalog gagal dimuat.");
+            setNotice(error.message, true);
+          });
+        return;
+      }
+
+      renderCatalog([], currentCatalogView);
+      setText(serviceStatus, buildServiceStatusMessage(status));
       return;
     }
 
