@@ -35,13 +35,31 @@
       loading: true,
       saving: false,
       cleaning: false,
+      membersLoading: false,
       startWithWindows: false,
       openWebUiOnStartup: true,
       minimizeToTrayOnClose: true,
       checkUpdateOnStartup: true,
       launchCommand: "-",
+      members: [],
       message: "Memuat pengaturan local service..."
     };
+  }
+
+  function formatDateTime(value) {
+    if (!value) {
+      return "-";
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+
+    return new Intl.DateTimeFormat("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(date);
   }
 
   function createWorkbenchMarkup(state) {
@@ -49,6 +67,29 @@
     const actionLabel = state.saving ? "Menyimpan..." : "Simpan Pengaturan";
     const cleanupLabel = state.cleaning ? "Membersihkan..." : "Bersihkan Cache/File Temporary";
     const statusLabel = state.startWithWindows ? "Aktif" : "Nonaktif";
+    const membersMarkup = state.members.length
+      ? state.members.map((member) => `
+          <article class="catalog-card">
+            <div class="catalog-card-top">
+              <span class="catalog-category">${escapeHtml(member.role || "Member")}</span>
+              <span class="catalog-access">${escapeHtml(member.provider || "google")}</span>
+            </div>
+            <h4>${escapeHtml(member.displayName || member.email || "User")}</h4>
+            <div class="catalog-file-row">
+              <span class="material-symbols-outlined">mail</span>
+              <span>${escapeHtml(member.email || "-")}</span>
+            </div>
+            <div class="catalog-file-row">
+              <span class="material-symbols-outlined">schedule</span>
+              <span>Login terakhir: ${escapeHtml(formatDateTime(member.lastLoginUtc))}</span>
+            </div>
+            <div class="catalog-file-row">
+              <span class="material-symbols-outlined">history</span>
+              <span>Terdaftar: ${escapeHtml(formatDateTime(member.firstSeenUtc))}</span>
+            </div>
+          </article>
+        `).join("")
+      : `<p class="settings-maintenance-copy">${escapeHtml(state.membersLoading ? "Memuat daftar member lokal..." : "Belum ada akun yang pernah login di mesin ini.")}</p>`;
 
     return `
       <div class="spi-layout settings-layout">
@@ -116,6 +157,26 @@
             </button>
           </div>
         </section>
+
+        <section class="spi-card">
+          <div class="spi-card-head">
+            <div>
+              <p class="label">Member Lokal</p>
+              <h4>Daftar akun Google yang pernah login di PC ini</h4>
+            </div>
+            <span class="spi-mini-badge">${escapeHtml(String(state.members.length))}</span>
+          </div>
+          <p class="settings-maintenance-copy">Owner dan Admin diambil dari mapping email pada konfigurasi local service. Akun lain otomatis menjadi Member.</p>
+          <div class="catalog-list">
+            ${membersMarkup}
+          </div>
+          <div class="settings-actions">
+            <button id="settingsRefreshMembersButton" type="button" class="ghost"${disabledAttr}>
+              <span class="material-symbols-outlined${state.membersLoading ? " is-spinning" : ""}">${state.membersLoading ? "progress_activity" : "refresh"}</span>
+              <span>${escapeHtml(state.membersLoading ? "Memuat..." : "Refresh Daftar Member")}</span>
+            </button>
+          </div>
+        </section>
       </div>
     `;
   }
@@ -147,6 +208,25 @@
         state.message = error.message || "Pengaturan local service belum bisa dimuat.";
       } finally {
         state.loading = false;
+        render();
+      }
+    }
+
+    async function loadMembers() {
+      if (!mountedContainer) {
+        return;
+      }
+
+      state.membersLoading = true;
+      render();
+
+      try {
+        const members = await fetchJson("/auth/members");
+        state.members = Array.isArray(members) ? members : [];
+      } catch (error) {
+        state.message = error.message || "Daftar member lokal belum bisa dimuat.";
+      } finally {
+        state.membersLoading = false;
         render();
       }
     }
@@ -216,6 +296,7 @@
       const checkUpdateOnStartupCheckbox = mountedContainer.querySelector("#settingsCheckUpdateOnStartupCheckbox");
       const saveButton = mountedContainer.querySelector("#settingsSaveButton");
       const cleanupButton = mountedContainer.querySelector("#settingsCleanupButton");
+      const refreshMembersButton = mountedContainer.querySelector("#settingsRefreshMembersButton");
 
       startupCheckbox?.addEventListener("change", () => {
         state.startWithWindows = Boolean(startupCheckbox.checked);
@@ -240,6 +321,10 @@
       cleanupButton?.addEventListener("click", () => {
         void cleanupTemporaryFiles();
       });
+
+      refreshMembersButton?.addEventListener("click", () => {
+        void loadMembers();
+      });
     }
 
     return {
@@ -261,6 +346,7 @@
       },
       refresh() {
         void loadSettings();
+        void loadMembers();
       }
     };
   }
