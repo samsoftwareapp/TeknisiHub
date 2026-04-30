@@ -334,6 +334,9 @@ let catalogLoaded = false;
 let catalogItems = [];
 let catalogCache = [];
 let currentCatalogView = "Forum";
+let googleAuthPollTimerId = 0;
+let googleAuthPopup = null;
+let activeToastSignature = "";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
 let currentBoardviewChannelRole = "";
@@ -1242,12 +1245,12 @@ function setChannelJoinRequired(viewKey, required) {
 function getJoinPromptConfig(viewKey = currentCatalogView) {
   if (viewKey === "BIOS") {
     return {
-      title: "Gabung channel BIOS dulu untuk membuka katalog.",
-      description: "Setelah berhasil join, katalog BIOS bisa langsung dibuka dan tombol refresh akan memakai cache backend.",
+      title: "Akses BIOS belum aktif.",
+      description: "Minta Owner atau Admin membuka akses BIOS untuk akun ini, lalu refresh katalog.",
       buttonId: "biosJoinButton",
-      buttonLabel: "Gabung Channel BIOS",
+      buttonLabel: "Aktifkan Akses BIOS",
       link: currentRequiredChannelInviteLink,
-      emptyMessage: "Gabung channel BIOS dulu, lalu buka ulang atau refresh katalog."
+      emptyMessage: "Akses BIOS untuk akun ini belum aktif. Minta Owner atau Admin mengaktifkannya lalu refresh katalog."
     };
   }
 
@@ -1918,7 +1921,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">download</span>
           <span>Download</span>
         </button>
-        ${isTelegramCatalogView(viewKey) && canManageBiosCatalog() && item.messageId ? `
+        ${isTelegramCatalogView(viewKey) && item.category !== "BIOS" && canManageBiosCatalog() && item.messageId ? `
         <button
           type="button"
           class="catalog-action-button ghost catalog-edit-button"
@@ -1926,7 +1929,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">edit</span>
           <span>Edit</span>
         </button>` : ""}
-        ${isTelegramCatalogView(viewKey) && isOwnerRole() && item.messageId ? `
+        ${isTelegramCatalogView(viewKey) && item.category !== "BIOS" && isOwnerRole() && item.messageId ? `
         <button
           type="button"
           class="catalog-action-button ghost catalog-delete-button"
@@ -2126,7 +2129,7 @@ function renderCatalogBiosDuplicateCheck(state, analysis = null) {
   if (state === "loading") {
     icon = "progress_activity";
     title = "Sedang hitung MD5";
-    body = "<p>File sedang dihitung hash MD5 dan dicek langsung ke Telegram.</p>";
+    body = "<p>File sedang dihitung hash MD5 dan dicek ke katalog BIOS.</p>";
   } else if (state === "error") {
     toneClass = "is-warning";
     icon = "warning";
@@ -2300,7 +2303,7 @@ function openCatalogEditor(mode, item = null) {
   const modalLabel = document.getElementById("catalogEditorLabel");
   const fileLabel = document.getElementById("catalogEditorFileLabel");
   if (modalLabel) {
-    modalLabel.textContent = `${config.displayName} Telegram`;
+    modalLabel.textContent = `Manajemen ${config.displayName}`;
   }
   if (fileLabel) {
     fileLabel.textContent = config.fileLabel;
@@ -2561,7 +2564,7 @@ async function joinCatalogChannel(viewKey = currentCatalogView, button = null) {
       body: JSON.stringify(payload)
     });
     setChannelJoinRequired(viewKey, false);
-    setNotice(result.message || "Berhasil gabung channel.");
+    setNotice(result.message || "Akses berhasil diperbarui.");
     await refreshStatus();
     if (currentCatalogView === viewKey) {
       await loadCatalog();
@@ -2858,7 +2861,7 @@ function queueCatalogSearch() {
       setChannelJoinRequired(currentCatalogView, true);
       catalogItems = [];
       renderCatalog([], currentCatalogView);
-      setNotice(`Akses ${getTelegramCatalogConfig(currentCatalogView).displayName} belum aktif. Klik tombol gabung channel untuk melanjutkan.`, "info");
+      setNotice(`Akses ${getTelegramCatalogConfig(currentCatalogView).displayName} belum aktif untuk akun ini.`, "info");
       return;
     }
 
@@ -3107,9 +3110,9 @@ function createCatalogUploadOperationId() {
 function applyCatalogTelegramUploadProgress(progress = {}) {
   const percent = Math.max(0, Math.min(100, Math.round(Number(progress.progressPercent) || 0)));
   const stage = String(progress.stage || "").toLowerCase();
-  const message = progress.message || "Upload ke Telegram sedang berjalan...";
+  const message = progress.message || "Upload file sedang berjalan...";
   const buttonLabel = stage === "sending"
-    ? "Mengirim ke channel..."
+    ? "Mengirim file..."
     : stage === "completed"
     ? "Upload selesai"
     : stage === "failed"
@@ -3117,8 +3120,8 @@ function applyCatalogTelegramUploadProgress(progress = {}) {
     : stage === "cancelled"
     ? "Upload dibatalkan"
     : percent > 0
-    ? `Upload Telegram ${percent}%`
-    : "Menyiapkan upload ";
+    ? `Upload ${percent}%`
+    : "Menyiapkan upload...";
 
   setCatalogEditorSubmitting(true, {
     percent,
@@ -3205,6 +3208,7 @@ function setNotice(message, toneOrWarning = false) {
   }
 
   if (!message) {
+    activeToastSignature = "";
     toastContainer.innerHTML = "";
     return;
   }
@@ -3219,8 +3223,21 @@ function setNotice(message, toneOrWarning = false) {
     : tone === "info"
     ? "info"
     : "check_circle";
+  const signature = `${tone}:${message}`;
+  const hasMatchingActiveToast = Array.from(
+    toastContainer.querySelectorAll(".toast:not(.is-leaving)")
+  ).some((toast) => toast.getAttribute("data-toast-signature") === signature);
+  if (
+    signature === activeToastSignature &&
+    hasMatchingActiveToast
+  ) {
+    return;
+  }
+
+  activeToastSignature = signature;
   const toast = document.createElement("div");
   toast.className = `toast is-${tone}`;
+  toast.setAttribute("data-toast-signature", signature);
   toast.innerHTML = `
     <span class="material-symbols-outlined toast-icon">${icon}</span>
     <span class="toast-message">${escapeHtml(message)}</span>
@@ -3233,6 +3250,10 @@ function setNotice(message, toneOrWarning = false) {
   const dismissToast = () => {
     if (!toast.isConnected) {
       return;
+    }
+
+    if (activeToastSignature === signature) {
+      activeToastSignature = "";
     }
 
     if (dismissTimeoutId) {
@@ -3272,6 +3293,34 @@ function toggleElement(element, visible) {
   }
 
   element.classList.toggle("hidden", !visible);
+}
+
+function stopGoogleAuthPolling() {
+  if (googleAuthPollTimerId) {
+    window.clearInterval(googleAuthPollTimerId);
+    googleAuthPollTimerId = 0;
+  }
+}
+
+function startGoogleAuthPolling() {
+  stopGoogleAuthPolling();
+  googleAuthPollTimerId = window.setInterval(async () => {
+    try {
+      const status = await refreshStatus();
+      if (status?.isLoggedIn) {
+        stopGoogleAuthPolling();
+        if (googleAuthPopup && googleAuthPopup.closed === false) {
+          googleAuthPopup.close();
+        }
+      } else if (googleAuthPopup?.closed) {
+        stopGoogleAuthPolling();
+      }
+    } catch {
+      if (googleAuthPopup?.closed) {
+        stopGoogleAuthPolling();
+      }
+    }
+  }, 1200);
 }
 
 function hideInteractivePanels() {
@@ -3594,7 +3643,7 @@ function applyUpdateRequirement(health) {
 function summarizeServiceStatusError(message) {
   const normalizedMessage = String(message || "").trim();
   if (!normalizedMessage) {
-    return "Perlu perhatian pada sesi Telegram.";
+    return "Perlu perhatian pada sesi login.";
   }
 
   return normalizedMessage.length > 96
@@ -3608,31 +3657,23 @@ function buildServiceStatusMessage(status, options = {}) {
   const connectedChannelCount = Number(getConnectedChannelCount(status)) || 0;
 
   if (phase === "checking-auth") {
-    return "Local service aktif, memeriksa sesi ";
+    return "Local service aktif, memeriksa sesi login.";
   }
 
   if (phase === "loading-catalog") {
-    return "Memuat katalog ";
+    return "Memuat katalog.";
   }
 
   if (!status?.serviceReady) {
-    return "Konfigurasi Telegram local service belum lengkap.";
+    return "Konfigurasi login Google local service belum lengkap.";
   }
 
   if (status?.lastError) {
     return `Butuh perhatian: ${summarizeServiceStatusError(status.lastError)}`;
   }
 
-  if (status?.requiresVerificationCode || normalizedState === "awaiting_code") {
-    return "Menunggu kode verifikasi Telegram.";
-  }
-
-  if (status?.requiresPassword || normalizedState === "awaiting_password") {
-    return "Menunggu password 2FA Telegram.";
-  }
-
   if (status?.isLoggedIn && !status?.hasAgreed) {
-    return "Login Telegram aktif, menunggu persetujuan dashboard.";
+    return "Login Google aktif, menunggu persetujuan dashboard.";
   }
 
   if (status?.isLoggedIn && status?.hasAgreed) {
@@ -3640,11 +3681,11 @@ function buildServiceStatusMessage(status, options = {}) {
   }
 
   if (status?.requiresPhoneNumber || normalizedState === "idle") {
-    return "Menunggu nomor Telegram untuk login.";
+    return "Menunggu login Google.";
   }
 
   if (normalizedState === "authenticated" || status?.isLoggedIn) {
-    return "Login Telegram aktif.";
+    return "Login Google aktif.";
   }
 
   return "Local service aktif.";
@@ -3661,46 +3702,13 @@ function applyStatus(status) {
     setUpdateProgressState(false);
   }
   setError("");
-  currentRequiredChannelInviteLink = status.requiredChannelInviteLink || "";
-  currentBoardviewChannelInviteLink = status.boardviewChannelInviteLink || "";
-  currentSchematicsChannelInviteLink = status.schematicsChannelInviteLink || "";
-  currentProblemSolvingChannelInviteLink = status.problemSolvingChannelInviteLink || "";
-  currentDatasheetsChannelInviteLink = status.datasheetsChannelInviteLink || "";
-  currentForumChannelInviteLink = status.forumChannelInviteLink || "";
-
-  const hasRequiredLink = Boolean(status.requiredChannelInviteLink);
-  const hasBoardviewLink = Boolean(status.boardviewChannelInviteLink);
-  const hasSchematicsLink = Boolean(status.schematicsChannelInviteLink);
-  const hasJoinOption = hasRequiredLink || hasBoardviewLink || hasSchematicsLink;
-  const hasKnownChannelAccess = Boolean(
-    status.isChannelMember ||
-    status.channelRole ||
-    status.biosChannelRole ||
-    status.boardviewChannelRole ||
-    status.schematicsChannelRole ||
-    status.problemSolvingChannelRole ||
-    status.datasheetsChannelRole
-  );
   const showJoinPanel = false;
   const showAgreementPanel = status.isLoggedIn && !status.hasAgreed;
   const showDashboard = status.isLoggedIn && status.hasAgreed;
   const blockAuthForms = showJoinPanel || showAgreementPanel || showDashboard;
-  const showPhoneEntryForm = (status.requiresPhoneNumber || isPhoneNumberChangeRequested) && !blockAuthForms;
-  const showVerificationForm = status.requiresVerificationCode && !isPhoneNumberChangeRequested && !blockAuthForms;
-  const showPasswordForm = status.requiresPassword && !isPhoneNumberChangeRequested && !blockAuthForms;
-
-  if (dashboardJoinRequiredCheckbox) {
-    dashboardJoinRequiredCheckbox.checked = Boolean(status.isRequiredChannelMember);
-    dashboardJoinRequiredCheckbox.disabled = !hasRequiredLink || Boolean(status.isRequiredChannelMember);
-  }
-  if (dashboardJoinBoardviewCheckbox) {
-    dashboardJoinBoardviewCheckbox.checked = Boolean(status.isBoardviewChannelMember);
-    dashboardJoinBoardviewCheckbox.disabled = !hasBoardviewLink || Boolean(status.isBoardviewChannelMember);
-  }
-  if (dashboardJoinSchematicsCheckbox) {
-    dashboardJoinSchematicsCheckbox.checked = Boolean(status.isSchematicsChannelMember);
-    dashboardJoinSchematicsCheckbox.disabled = !hasSchematicsLink || Boolean(status.isSchematicsChannelMember);
-  }
+  const showPhoneEntryForm = !status.isLoggedIn && !blockAuthForms;
+  const showVerificationForm = false;
+  const showPasswordForm = false;
 
   isSchematicsMember = Boolean(status.isSchematicsChannelMember);
   currentSchematicsChannelRole = status.schematicsChannelRole || "";
@@ -3720,13 +3728,8 @@ function applyStatus(status) {
   syncVerificationPhoneDisplay();
 
   if (showDashboard) {
-    const displayName = status.displayName || "TeknisiHub User";
-    const channelRole = status.channelRole ? ` - ${status.channelRole}` : "";
-    const biosRole = status.biosChannelRole || status.channelRole || "-";
-    const boardviewRole = status.boardviewChannelRole || "-";
-    const schematicsRole = status.schematicsChannelRole || "-";
-    const problemSolvingRole = status.problemSolvingChannelRole || "-";
-    const datasheetsRole = status.datasheetsChannelRole || "-";
+    const displayName = status.displayName || status.email || "TeknisiHub User";
+    const email = status.email || "Email akun belum tersedia";
     currentChannelRole = status.channelRole || "";
     currentBiosChannelRole = status.biosChannelRole || status.channelRole || "";
     currentBoardviewChannelRole = status.boardviewChannelRole || "";
@@ -3735,56 +3738,23 @@ function applyStatus(status) {
     currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
     currentForumChannelRole = status.forumChannelRole || "";
     const representativeRole = getRepresentativeRoleLabel(status);
-    const connectedChannelCount = getConnectedChannelCount(status);
     setText(dashboardTitle, `Halo, ${displayName}`);
-    setText(dashboardLoginStatus, "Login Telegram aktif");
+    setText(dashboardLoginStatus, "Login Google aktif");
     setText(dashboardRoleChipIcon, representativeRole.icon);
     setText(dashboardRoleChip, representativeRole.label);
     setText(accessDisplayName, displayName);
-    setText(accessRole, `Role utama: ${representativeRole.label}`);
-    setText(
-      accessChannelCount,
-      connectedChannelCount > 0
-        ? `${connectedChannelCount} channel aktif`
-        : "Belum ada channel aktif"
-    );
-    setText(
-      dashboardChannelStatus,
-      status.totalChannelMemberCount > 0
-        ? `${Number(status.totalChannelMemberCount).toLocaleString("id-ID")} subscriber`
-        : hasKnownChannelAccess
-        ? `Membership channel valid${channelRole}`
-        : "Join channel dilakukan dari menu BIOS, Boardview, Schematics, Problem Solving, atau Datasheets"
-    );
+    setText(accessRole, `Role: ${representativeRole.label} | ${email}`);
+    setText(accessChannelCount, "Provider login: Google");
+    setText(dashboardChannelStatus, "Akses akun dikelola otomatis. Akun baru masuk sebagai Member sampai peran diperbarui.");
     setText(
       dashboardAgreementStatus,
       status.hasAgreed ? "Persetujuan tersimpan" : "Menunggu persetujuan"
     );
 
     if (status.hasAgreed) {
-      setText(
-        dashboardSubtitle,
-        "Session Telegram aktif."
-      );
-      setText(
-        accessState,
-        "Terhubung. Silahkan Join channel."
-      );
+      setText(dashboardSubtitle, "Sesi login tersimpan aman di local service.");
+      setText(accessState, `Terhubung. Akun aktif dengan role ${representativeRole.label}.`);
       setNotice("");
-
-      if (isTelegramCatalogView(currentCatalogView)) {
-        setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-catalog" }));
-        loadCatalog()
-          .then(() => {
-            setText(serviceStatus, buildServiceStatusMessage(status));
-          })
-          .catch((error) => {
-            setText(serviceStatus, "Terhubung, tetapi katalog gagal dimuat.");
-            setNotice(error.message, true);
-          });
-        return;
-      }
-
       renderCatalog([], currentCatalogView);
       setText(serviceStatus, buildServiceStatusMessage(status));
       return;
@@ -3794,24 +3764,19 @@ function applyStatus(status) {
 
     setText(
       dashboardSubtitle,
-      "Session Telegram aktif. Simpan persetujuan lokal untuk membuka akses dashboard penuh."
+      "Sesi login aktif. Simpan persetujuan lokal untuk membuka akses dashboard penuh."
     );
-    setText(accessState, "Login aktif. Setelah persetujuan tersimpan, channel bisa digabung dari tiap menu.");
-    setText(dashboardLoginStatus, "Login Telegram aktif");
+    setText(accessState, "Login aktif. Simpan persetujuan untuk membuka dashboard.");
+    setText(dashboardLoginStatus, "Login Google aktif");
     setNotice("User sudah login lokal. Simpan persetujuan untuk membuka dashboard.");
     return;
   }
 
   currentChannelRole = "";
   resetCatalog();
-
-  if (!status.requiresVerificationCode) {
-    isPhoneNumberChangeRequested = false;
-    if (!status.requiresPassword && !status.isLoggedIn) {
-      sessionStorage.removeItem(activeOtpPhoneStorageKey);
-      syncVerificationPhoneDisplay();
-    }
-  }
+  isPhoneNumberChangeRequested = false;
+  sessionStorage.removeItem(activeOtpPhoneStorageKey);
+  syncVerificationPhoneDisplay();
 
   if (showAgreementPanel) {
     setNotice("Login berhasil. Simpan persetujuan untuk membuka dashboard.", true);
@@ -3824,16 +3789,16 @@ function applyStatus(status) {
   }
 
   if (status.requiresVerificationCode) {
-    setNotice("Masukkan kode verifikasi Telegram yang diterima user.");
+    setNotice("Status verifikasi lama sudah tidak dipakai lagi.", true);
     return;
   }
 
   if (status.requiresPassword) {
-    setNotice("Akun menggunakan 2FA. Lanjutkan dengan password Telegram.");
+    setNotice("Status password lama sudah tidak dipakai lagi.", true);
     return;
   }
 
-  setNotice("Masukkan nomor Telegram untuk memulai login lewat local service.");
+  setNotice("Klik Login dengan Google untuk memulai sesi.");
 }
 
 async function fetchJson(path, options = {}) {
@@ -4011,7 +3976,7 @@ async function refreshStatus(options = {}) {
   try {
     const healthUrl = forceUpdateCheck ? "/health?forceUpdateCheck=true" : "/health";
     const health = await fetchJson(healthUrl);
-    setText(serviceStatus, "Local service aktif, memeriksa sesi ");
+    setText(serviceStatus, "Local service aktif, memeriksa sesi.");
     setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
 
     if (applyUpdateRequirement(health)) {
@@ -4021,6 +3986,10 @@ async function refreshStatus(options = {}) {
     setText(serviceStatus, buildServiceStatusMessage(null, { phase: "checking-auth" }));
     const status = await fetchJson("/auth/status");
     applyStatus(status);
+    if (status?.isLoggedIn && status?.hasAgreed) {
+      setActiveNav(currentCatalogView);
+      await loadCatalog();
+    }
     ensureCatalogEventStreamConnected();
     return health;
   } catch (error) {
@@ -4243,7 +4212,7 @@ async function joinSelectedChannels() {
   const joinSchematicsChannel = Boolean(dashboardJoinSchematicsCheckbox?.checked && !dashboardJoinSchematicsCheckbox.disabled);
 
   if (!joinRequiredChannel && !joinBoardviewChannel && !joinSchematicsChannel) {
-    setNotice("Pilih minimal satu channel sebelum melanjutkan.", true);
+    setNotice("Pilih minimal satu akses sebelum melanjutkan.", true);
     return;
   }
 
@@ -4251,8 +4220,8 @@ async function joinSelectedChannels() {
     dashboardJoinButton,
     true,
     "group_add",
-    "Gabung channel terpilih",
-    "Sedang gabung..."
+    "Aktifkan akses terpilih",
+    "Menyimpan akses..."
   );
 
   try {
@@ -4273,70 +4242,38 @@ async function joinSelectedChannels() {
       dashboardJoinButton,
       false,
       "group_add",
-      "Gabung channel terpilih",
-      "Sedang gabung..."
+      "Aktifkan akses terpilih",
+      "Menyimpan akses..."
     );
   }
 }
 
-phoneForm.addEventListener("submit", async (event) => {
+phoneForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const phoneNumber = buildInternationalPhoneNumber(phoneNumberInput?.value || "");
-  isPhoneNumberChangeRequested = false;
-  sessionStorage.setItem(activeOtpPhoneStorageKey, phoneNumber);
-  syncVerificationPhoneDisplay();
-  setButtonLoading(phoneSubmitButton, true, "send_to_mobile", "Minta kode login", "Meminta kode...");
+  setButtonLoading(phoneSubmitButton, true, "login", "Login dengan Google", "Membuka Google...");
 
   try {
-    const result = await fetchJson("/auth/start", {
+    const result = await fetchJson("/auth/google/start", {
       method: "POST",
-      body: JSON.stringify({ phoneNumber })
+      body: JSON.stringify({})
     });
-    persistRememberedPhone();
-    setNotice(result.message);
-    await refreshStatus();
+
+    googleAuthPopup = window.open(
+      result.authorizationUrl,
+      "teknisihub-google-login",
+      "popup=yes,width=560,height=760,left=120,top=80"
+    );
+
+    if (!googleAuthPopup) {
+      window.location.href = result.authorizationUrl;
+      return;
+    }
+
+    startGoogleAuthPolling();
   } catch (error) {
     setNotice(error.message, true);
   } finally {
-    setButtonLoading(phoneSubmitButton, false, "send_to_mobile", "Minta kode login", "Meminta kode...");
-  }
-});
-
-codeForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const verificationCode = document.getElementById("verificationCode").value.trim();
-  setButtonLoading(codeSubmitButton, true, "password", "Kirim kode", "Mengirim kode...");
-
-  try {
-    const result = await fetchJson("/auth/code", {
-      method: "POST",
-      body: JSON.stringify({ verificationCode })
-    });
-    setNotice(result.message);
-    await refreshStatus();
-  } catch (error) {
-    setNotice(error.message, true);
-  } finally {
-    setButtonLoading(codeSubmitButton, false, "password", "Kirim kode", "Mengirim kode...");
-  }
-});
-
-passwordForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const password = document.getElementById("password").value.trim();
-  setButtonLoading(passwordSubmitButton, true, "lock_open_right", "Selesaikan login", "Memverifikasi...");
-
-  try {
-    const result = await fetchJson("/auth/password", {
-      method: "POST",
-      body: JSON.stringify({ password })
-    });
-    setNotice(result.message);
-    await refreshStatus();
-  } catch (error) {
-    setNotice(error.message, true);
-  } finally {
-    setButtonLoading(passwordSubmitButton, false, "lock_open_right", "Selesaikan login", "Memverifikasi...");
+    setButtonLoading(phoneSubmitButton, false, "login", "Login dengan Google", "Membuka Google...");
   }
 });
 
@@ -4361,30 +4298,11 @@ if (logoutButton) {
         body: JSON.stringify({})
       });
 
-      const phoneInput = document.getElementById("phoneNumber");
-      const codeInput = document.getElementById("verificationCode");
-      const passwordInput = document.getElementById("password");
-
-      if (phoneInput) {
-        if (rememberPhoneCheckbox?.checked) {
-          phoneInput.value = localStorage.getItem(rememberedPhoneStorageKey) || "";
-        } else {
-          phoneInput.value = "";
-        }
-      }
-
-      if (codeInput) {
-        codeInput.value = "";
-      }
-
-      if (passwordInput) {
-        passwordInput.value = "";
-      }
-
       if (agreeCheckbox) {
         agreeCheckbox.checked = true;
       }
 
+      stopGoogleAuthPolling();
       isPhoneNumberChangeRequested = false;
       sessionStorage.removeItem(activeOtpPhoneStorageKey);
       syncVerificationPhoneDisplay();
@@ -4433,44 +4351,19 @@ if (refreshButton) {
 
 dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
 
-if (phoneNumberInput) {
-  phoneNumberInput.addEventListener("input", () => {
-    phoneNumberInput.value = normalizeLocalPhoneNumber(phoneNumberInput.value);
-    if (!sessionStorage.getItem(activeOtpPhoneStorageKey)) {
-      syncVerificationPhoneDisplay();
-    }
-  });
-}
-
-if (changePhoneButton) {
-  changePhoneButton.addEventListener("click", () => {
-    const codeInput = document.getElementById("verificationCode");
-    isPhoneNumberChangeRequested = true;
-
-    if (codeInput) {
-      codeInput.value = "";
-    }
-
-    toggleElement(codeForm, false);
-    toggleElement(passwordForm, false);
-    toggleElement(phoneForm, true);
-    phoneNumberInput?.focus();
-    setNotice("Ganti nomor aktif. Masukkan nomor Telegram lain lalu minta kode login baru.", "info");
-  });
-}
-
-if (rememberPhoneCheckbox) {
-  rememberPhoneCheckbox.addEventListener("change", () => {
-    persistRememberedPhone();
-  });
-}
-
 loadRememberedPhone();
 syncVerificationPhoneDisplay();
 currentCatalogView = getViewFromHash() || "Forum";
 refreshStatus();
 window.addEventListener("hashchange", () => {
   restoreViewFromHash().catch((error) => setNotice(error.message, true));
+});
+window.addEventListener("message", (event) => {
+  if (event?.data?.source !== "teknisihub-google-auth") {
+    return;
+  }
+
+  void refreshStatus();
 });
 
 if (catalogSearchInput) {
@@ -4606,7 +4499,7 @@ if (catalogList) {
           <span class="material-symbols-outlined is-spinning">progress_activity</span>
           <span>Downloading...</span>
         `;
-        setNotice(`Pilih folder tujuan di dialog Windows yang muncul, lalu tunggu proses download dan extract ${config.displayName} selesai.`);
+        setNotice(`Pilih folder tujuan di dialog Windows yang muncul, lalu tunggu proses download ${config.displayName} selesai.`);
 
         try {
           await downloadCatalogItem(category, messageId);
@@ -4640,7 +4533,7 @@ if (catalogList) {
     const messageId = Number(deleteButton.getAttribute("data-message-id"));
     const item = findCatalogItemByMessageId(messageId);
     const displayName = item?.category || currentCatalogView;
-    const confirmed = window.confirm(`Hapus posting ${displayName} ini dari channel Telegram?`);
+    const confirmed = window.confirm(`Hapus data ${displayName} ini?`);
     if (!confirmed) {
       return;
     }
@@ -4711,7 +4604,7 @@ async function navigateTelegramCatalog(viewKey, button) {
       setChannelJoinRequired(viewKey, true);
       catalogItems = [];
       renderCatalog([], viewKey);
-      setNotice(`Akses ${getTelegramCatalogConfig(viewKey).displayName} belum aktif. Klik tombol gabung channel untuk melanjutkan.`, "info");
+      setNotice(`Akses ${getTelegramCatalogConfig(viewKey).displayName} belum aktif untuk akun ini.`, "info");
     } else {
       setNotice(error.message, true);
     }
@@ -4726,7 +4619,7 @@ async function refreshCurrentTelegramCatalog() {
   }
 
   if (requiresChannelJoin(currentCatalogView)) {
-    setNotice(`Gabung channel ${getTelegramCatalogConfig(currentCatalogView).displayName} dulu sebelum refresh katalog.`, "info");
+    setNotice(`Akses ${getTelegramCatalogConfig(currentCatalogView).displayName} untuk akun ini belum aktif.`, "info");
     return;
   }
 
@@ -4759,7 +4652,7 @@ async function refreshCurrentTelegramCatalog() {
       setChannelJoinRequired(currentCatalogView, true);
       catalogItems = [];
       renderCatalog([], currentCatalogView);
-      setNotice(`Akses ${getTelegramCatalogConfig(currentCatalogView).displayName} belum aktif. Klik tombol gabung channel untuk melanjutkan.`, "info");
+      setNotice(`Akses ${getTelegramCatalogConfig(currentCatalogView).displayName} belum aktif untuk akun ini.`, "info");
     } else {
       setNotice(error.message, true);
     }

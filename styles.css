@@ -81,6 +81,35 @@ body {
   flex-shrink: 0;
 }
 
+.site-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.site-footer-link {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 13px 18px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: none;
+}
+
+.site-footer-link:hover {
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .hero,
 .panel {
   background: var(--panel);
@@ -3677,7 +3706,8 @@ a {
   .spi-workbench-hero,
   .spi-card-head,
   .spi-progress-copy,
-  .site-footer {
+  .site-footer,
+  .site-footer-actions {
     flex-direction: column;
     align-items: flex-start;
   }
