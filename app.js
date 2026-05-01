@@ -1,4 +1,4 @@
-const serviceBaseUrl = "http://127.0.0.1:48721";
+const serviceBaseUrl = window.resolveTeknisiHubServiceBaseUrl();
 
 const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
@@ -49,6 +49,7 @@ const dashboardJoinRequiredCheckbox = document.getElementById("dashboardJoinRequ
 const dashboardJoinBoardviewCheckbox = document.getElementById("dashboardJoinBoardviewCheckbox");
 const dashboardJoinSchematicsCheckbox = document.getElementById("dashboardJoinSchematicsCheckbox");
 const dashboardJoinButton = document.getElementById("dashboardJoinButton");
+const dashboardHomeWorkbench = document.getElementById("dashboardHomeWorkbench");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
@@ -107,6 +108,22 @@ const catalogEditorUploadProgress = document.getElementById("catalogEditorUpload
 const catalogEditorUploadProgressLabel = document.getElementById("catalogEditorUploadProgressLabel");
 const catalogEditorUploadProgressPercent = document.getElementById("catalogEditorUploadProgressPercent");
 const catalogEditorUploadProgressBar = document.getElementById("catalogEditorUploadProgressBar");
+const catalogUploadTaskPanel = document.getElementById("catalogUploadTaskPanel");
+const catalogUploadTaskSummary = document.getElementById("catalogUploadTaskSummary");
+const catalogUploadTaskToggleButton = document.getElementById("catalogUploadTaskToggleButton");
+const catalogUploadTaskToggleIcon = document.getElementById("catalogUploadTaskToggleIcon");
+const catalogUploadTaskCloseButton = document.getElementById("catalogUploadTaskCloseButton");
+const catalogUploadTaskBody = document.getElementById("catalogUploadTaskBody");
+const catalogUploadTaskList = document.getElementById("catalogUploadTaskList");
+const catalogDeleteModal = document.getElementById("catalogDeleteModal");
+const catalogDeleteTitle = document.getElementById("catalogDeleteTitle");
+const catalogDeleteDescription = document.getElementById("catalogDeleteDescription");
+const catalogDeleteTargetName = document.getElementById("catalogDeleteTargetName");
+const catalogDeleteCategoryValue = document.getElementById("catalogDeleteCategoryValue");
+const catalogDeleteModelValue = document.getElementById("catalogDeleteModelValue");
+const catalogDeleteBoardValue = document.getElementById("catalogDeleteBoardValue");
+const catalogDeleteCancelButton = document.getElementById("catalogDeleteCancelButton");
+const catalogDeleteConfirmButton = document.getElementById("catalogDeleteConfirmButton");
 const aboutFooterButton = document.getElementById("aboutFooterButton");
 const aboutModal = document.getElementById("aboutModal");
 const aboutModalCloseButton = document.getElementById("aboutModalCloseButton");
@@ -116,6 +133,7 @@ const navSchematics = document.getElementById("navSchematics");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
 const navComponentEquivalents = document.getElementById("navComponentEquivalents");
+const navDashboard = document.getElementById("navDashboard");
 const navForum = document.getElementById("navForum");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
@@ -330,12 +348,24 @@ const settingsPage = window.teknisiHubPages?.settings || {
   refresh() {}
 };
 
+const dashboardHomePage = window.teknisiHubPages?.dashboardHome || {
+  viewKey: "dashboard_home",
+  eyebrow: "Dashboard",
+  title: "Dashboard",
+  subtitle: "Ringkasan akses akun, status local service, dan pintasan kerja utama.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
 let catalogLoaded = false;
 let catalogItems = [];
 let catalogCache = [];
-let currentCatalogView = "Forum";
+let currentCatalogView = dashboardHomePage.viewKey;
 let googleAuthPollTimerId = 0;
 let googleAuthPopup = null;
+let googleAuthPopupAwaitingResult = false;
 let activeToastSignature = "";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
@@ -367,6 +397,9 @@ let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
 let catalogBiosDuplicateCheckToken = 0;
 let catalogBiosDuplicateFound = false;
+let pendingCatalogDeleteItem = null;
+let pendingCatalogDeleteTriggerButton = null;
+let catalogDeleteSubmitting = false;
 const maxCatalogAdditionalFiles = 5;
 let catalogRefreshLoading = false;
 let catalogRefreshCooldownUntil = 0;
@@ -374,6 +407,12 @@ let catalogRefreshCooldownTimerId = 0;
 let catalogSearchLoading = false;
 let catalogEventSource = null;
 let catalogEventReconnectTimerId = 0;
+const catalogUploadTasks = new Map();
+const maxCatalogUploadTasks = 4;
+let catalogUploadTaskCollapsed = false;
+let catalogUploadTaskDismissed = false;
+let catalogUploadTaskSyncTimerId = 0;
+const catalogDeleteConfirmDefaultMarkup = catalogDeleteConfirmButton?.innerHTML || "";
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
 const activeOtpPhoneStorageKey = "teknisihub_active_otp_phone";
@@ -416,6 +455,17 @@ const localToolCatalog = [
     uploadedBy: "TeknisiHub Local"
   }
 ];
+
+dashboardHomePage.mount?.({
+  container: dashboardHomeWorkbench,
+  notify: (message, tone) => setNotice(message, tone),
+  navigate: (viewKey) => {
+    updateViewHash(viewKey);
+    currentCatalogView = viewKey;
+    catalogItems = catalogCache;
+    filterCatalogItems();
+  }
+});
 
 spiFlashPage.mount?.({
   container: spiFlashWorkbench,
@@ -564,6 +614,12 @@ let nextApiTrafficToken = 1;
 const activeApiTrafficRequests = new Map();
 
 const toolViewMap = {
+  [dashboardHomePage.viewKey]: {
+    eyebrow: dashboardHomePage.eyebrow,
+    title: dashboardHomePage.title,
+    subtitle: dashboardHomePage.subtitle,
+    channelLink: null
+  },
   tool_spi_flash: {
     eyebrow: spiFlashPage.eyebrow,
     title: spiFlashPage.title,
@@ -657,6 +713,7 @@ const toolViewMap = {
 };
 
 const localWorkbenchViewKeys = new Set([
+  dashboardHomePage.viewKey,
   spiFlashPage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
@@ -675,6 +732,7 @@ const localWorkbenchViewKeys = new Set([
 ]);
 
 const viewHashMap = {
+  [dashboardHomePage.viewKey]: "Dashboard",
   BIOS: "BIOS",
   Boardview: "Boardview",
   Schematics: "Schematics",
@@ -699,6 +757,8 @@ const viewHashMap = {
 };
 
 const hashRouteMap = {
+  dashboard: dashboardHomePage.viewKey,
+  dashboardhome: dashboardHomePage.viewKey,
   bios: "BIOS",
   boardview: "Boardview",
   schematics: "Schematics",
@@ -706,7 +766,7 @@ const hashRouteMap = {
   datasheets: "Datasheets",
   componentequivalents: componentEquivalentsPage.viewKey,
   persamaankomponen: componentEquivalentsPage.viewKey,
-  forum: "Forum",
+  forum: dashboardHomePage.viewKey,
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
   meanalyzer: meAnalyzerPage.viewKey,
@@ -748,6 +808,7 @@ function escapeHtml(value) {
 
 function getViewButton(viewKey) {
   const navMap = {
+    [dashboardHomePage.viewKey]: navDashboard,
     BIOS: navBios,
     Boardview: navBoardview,
     Schematics: navSchematics,
@@ -918,6 +979,7 @@ function resetCatalog() {
   toggleElement(catalogSection, false);
   toggleElement(catalogUploadButton, false);
   toggleElement(catalogEditorModal, false);
+  closeCatalogDeleteModal({ force: true, restoreFocus: false });
   toggleElement(catalogContextPanel, false);
   closeProblemSolvingViewer();
   closeForumThreadModal();
@@ -969,11 +1031,7 @@ function scheduleCatalogRealtimeReload(category) {
 
   const timerId = window.setTimeout(async () => {
     pendingCatalogRealtimeReloads.delete(category);
-    const state = getTelegramCatalogState(category);
-    state.cachedFirstPageItems = [];
-    state.cachedFirstPageHasMore = false;
-    state.cachedFirstPageNextOffset = 0;
-    state.lastStatsCacheKey = "";
+    resetTelegramCatalogFirstPageCache(category);
 
     try {
       if (currentCatalogView === category && isTelegramCatalogView(category)) {
@@ -1114,6 +1172,21 @@ function applyTelegramCatalogPage(viewKey, state, catalog) {
   }
 }
 
+function resetTelegramCatalogFirstPageCache(viewKey = currentCatalogView) {
+  if (!isTelegramCatalogView(viewKey)) {
+    return;
+  }
+
+  const state = getTelegramCatalogState(viewKey);
+  state.cachedFirstPageItems = [];
+  state.cachedFirstPageHasMore = false;
+  state.cachedFirstPageNextOffset = 0;
+  state.lastStatsCacheKey = "";
+  state.hasMore = false;
+  state.nextOffset = 0;
+  state.loadingMore = false;
+}
+
 async function loadTelegramCatalogCachePreview(viewKey, state, requestToken) {
   if (Array.isArray(state.cachedFirstPageItems) && state.cachedFirstPageItems.length > 0) {
     catalogItems = [...state.cachedFirstPageItems];
@@ -1150,7 +1223,7 @@ async function syncTelegramCategoryInBackground(viewKey, state, requestToken, cu
   };
 
   try {
-    const stats = await fetchJson(`/catalog/telegram-stats?category=${encodeURIComponent(viewKey)}`, {
+    const stats = await fetchJson(`/catalog/stats?category=${encodeURIComponent(viewKey)}`, {
       signal: abortController.signal
     });
     if (requestToken !== state.requestToken || currentCatalogView !== viewKey) {
@@ -1343,6 +1416,7 @@ function updateCatalogToolbar(viewKey = currentCatalogView) {
 function showWorkbenchOnly(viewKey) {
   toggleElement(catalogSection, false);
   toggleElement(catalogPagination, false);
+  dashboardHomePage.setVisible?.(viewKey === dashboardHomePage.viewKey);
   spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
@@ -1358,6 +1432,10 @@ function showWorkbenchOnly(viewKey) {
   alienServerPage.setVisible?.(viewKey === alienServerPage.viewKey);
   boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
   settingsPage.setVisible?.(viewKey === settingsPage.viewKey);
+
+  if (viewKey === dashboardHomePage.viewKey) {
+    dashboardHomePage.refresh?.();
+  }
 
   if (viewKey === spiFlashPage.viewKey) {
     spiFlashPage.refresh?.();
@@ -1421,6 +1499,7 @@ function showWorkbenchOnly(viewKey) {
 }
 
 function hideWorkbench() {
+  dashboardHomePage.setVisible?.(false);
   spiFlashPage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
@@ -1445,6 +1524,7 @@ function setActiveNav(targetKey) {
     || targetKey === amiDecryptorPage.viewKey;
 
   const navMap = {
+    [dashboardHomePage.viewKey]: navDashboard,
     BIOS: navBios,
     Boardview: navBoardview,
     Schematics: navSchematics,
@@ -1592,7 +1672,9 @@ function renderCatalog(items, viewKey = currentCatalogView) {
   if (localWorkbenchViewKeys.has(viewKey)) {
     setActiveNav(viewKey);
     if (catalogCount) {
-      catalogCount.textContent = viewKey === spiFlashPage.viewKey
+      catalogCount.textContent = viewKey === dashboardHomePage.viewKey
+        ? "HOME"
+        : viewKey === spiFlashPage.viewKey
         ? "SPI UI"
         : viewKey === meAnalyzerPage.viewKey
         ? "MEA UI"
@@ -1921,7 +2003,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">download</span>
           <span>Download</span>
         </button>
-        ${isTelegramCatalogView(viewKey) && item.category !== "BIOS" && canManageBiosCatalog() && item.messageId ? `
+        ${isTelegramCatalogView(viewKey) && canManageBiosCatalog() && item.messageId ? `
         <button
           type="button"
           class="catalog-action-button ghost catalog-edit-button"
@@ -1929,7 +2011,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">edit</span>
           <span>Edit</span>
         </button>` : ""}
-        ${isTelegramCatalogView(viewKey) && item.category !== "BIOS" && isOwnerRole() && item.messageId ? `
+        ${isTelegramCatalogView(viewKey) && isOwnerRole() && item.messageId ? `
         <button
           type="button"
           class="catalog-action-button ghost catalog-delete-button"
@@ -2341,6 +2423,7 @@ function openCatalogEditor(mode, item = null) {
   catalogEditorSubmitButton.innerHTML = isEditMode
     ? `<span class="material-symbols-outlined">save</span><span>Simpan Perubahan</span>`
     : `<span class="material-symbols-outlined">upload_file</span><span>${escapeHtml(config.uploadLabel)}</span>`;
+  catalogEditorSubmitButton.disabled = false;
   setCatalogEditorUploadProgress({ active: false });
 }
 
@@ -2376,6 +2459,82 @@ function closeCatalogEditor() {
     }
   });
   setCatalogEditorUploadProgress({ active: false });
+}
+
+function normalizeCatalogDeleteSummaryValue(value, fallback) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized && normalized !== "-" ? normalized : fallback;
+}
+
+function setCatalogDeleteSubmitting(active) {
+  catalogDeleteSubmitting = Boolean(active);
+  if (catalogDeleteConfirmButton) {
+    catalogDeleteConfirmButton.disabled = catalogDeleteSubmitting;
+    catalogDeleteConfirmButton.innerHTML = catalogDeleteSubmitting
+      ? `<span class="material-symbols-outlined is-spinning">progress_activity</span><span>Menghapus...</span>`
+      : catalogDeleteConfirmDefaultMarkup;
+  }
+
+  [catalogDeleteCancelButton].forEach((button) => {
+    if (button) {
+      button.disabled = catalogDeleteSubmitting;
+    }
+  });
+}
+
+function openCatalogDeleteModal(item, triggerButton = null) {
+  if (!catalogDeleteModal || !catalogDeleteConfirmButton) {
+    const category = item?.category || currentCatalogView;
+    const confirmed = window.confirm(`Hapus data ${category} ini?`);
+    if (confirmed && item?.messageId) {
+      deleteCatalogItem(category, Number(item.messageId)).catch((error) => {
+        setNotice(error.message, true);
+      });
+    }
+    return;
+  }
+
+  const category = normalizeCatalogDeleteSummaryValue(item?.category || currentCatalogView, currentCatalogView);
+  const fileName = normalizeCatalogDeleteSummaryValue(
+    item?.fileName || item?.title || `${category} #${item?.messageId || ""}`,
+    `${category} #${item?.messageId || ""}`
+  );
+  const modelName = normalizeCatalogDeleteSummaryValue(item?.deviceModel, "Tidak ada model");
+  const boardCode = normalizeCatalogDeleteSummaryValue(item?.boardCode, "Tidak ada board code");
+  const cacheNotice = category === "BIOS"
+    ? " Cache archive BIOS lokal yang sudah pernah tersimpan juga akan ikut dibersihkan."
+    : "";
+
+  pendingCatalogDeleteItem = item;
+  pendingCatalogDeleteTriggerButton = triggerButton;
+  setCatalogDeleteSubmitting(false);
+  setText(catalogDeleteTitle, `Hapus ${category} ini?`);
+  setText(
+    catalogDeleteDescription,
+    `Data berikut akan dihapus permanen dari dashboard dan tidak bisa dikembalikan dari UI.${cacheNotice}`
+  );
+  setText(catalogDeleteTargetName, fileName);
+  setText(catalogDeleteCategoryValue, category);
+  setText(catalogDeleteModelValue, modelName);
+  setText(catalogDeleteBoardValue, boardCode);
+  toggleElement(catalogDeleteModal, true);
+  window.requestAnimationFrame(() => catalogDeleteConfirmButton.focus());
+}
+
+function closeCatalogDeleteModal({ force = false, restoreFocus = true } = {}) {
+  if (catalogDeleteSubmitting && !force) {
+    return;
+  }
+
+  toggleElement(catalogDeleteModal, false);
+  pendingCatalogDeleteItem = null;
+  setCatalogDeleteSubmitting(false);
+
+  const focusTarget = pendingCatalogDeleteTriggerButton;
+  pendingCatalogDeleteTriggerButton = null;
+  if (restoreFocus && typeof focusTarget?.focus === "function") {
+    window.requestAnimationFrame(() => focusTarget.focus());
+  }
 }
 
 function openAboutModal() {
@@ -2841,6 +3000,15 @@ async function loadCatalog() {
   filterCatalogItems();
 }
 
+async function reloadCatalogAfterMutation(viewKey = currentCatalogView) {
+  if (isTelegramCatalogView(viewKey)) {
+    cancelActiveTelegramCategorySync();
+    resetTelegramCatalogFirstPageCache(viewKey);
+  }
+
+  await loadCatalog();
+}
+
 function queueCatalogSearch() {
   if (!catalogSearchInput) {
     return;
@@ -3054,6 +3222,10 @@ function setButtonLoading(button, loading, defaultIcon, defaultLabel, loadingLab
 
 function setCatalogEditorUploadProgress(progress = {}) {
   const active = Boolean(progress.active);
+  if (active && !isCatalogEditorVisible()) {
+    return;
+  }
+
   toggleElement(catalogEditorUploadProgress, active);
   if (!catalogEditorUploadProgress) {
     return;
@@ -3078,6 +3250,10 @@ function setCatalogEditorUploadProgress(progress = {}) {
 
 function setCatalogEditorSubmitting(isSubmitting, options = {}) {
   if (!catalogEditorSubmitButton) {
+    return;
+  }
+
+  if (isSubmitting && !isCatalogEditorVisible()) {
     return;
   }
 
@@ -3107,9 +3283,416 @@ function createCatalogUploadOperationId() {
   return `catalog-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function applyCatalogTelegramUploadProgress(progress = {}) {
+function isCatalogEditorVisible() {
+  return Boolean(catalogEditorModal && !catalogEditorModal.classList.contains("hidden"));
+}
+
+function parseCatalogUploadTaskTimestamp(value, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function getCatalogUploadTaskEntries() {
+  return Array.from(catalogUploadTasks.values()).sort((left, right) => {
+    if (left.active !== right.active) {
+      return left.active ? -1 : 1;
+    }
+
+    return (right.updatedAt || 0) - (left.updatedAt || 0);
+  });
+}
+
+function trimCatalogUploadTasks() {
+  if (catalogUploadTasks.size <= maxCatalogUploadTasks) {
+    return;
+  }
+
+  const removableTasks = Array.from(catalogUploadTasks.values())
+    .filter((task) => !task.active)
+    .sort((left, right) => (left.updatedAt || 0) - (right.updatedAt || 0));
+
+  while (catalogUploadTasks.size > maxCatalogUploadTasks && removableTasks.length > 0) {
+    const removableTask = removableTasks.shift();
+    if (removableTask?.operationId) {
+      catalogUploadTasks.delete(removableTask.operationId);
+    }
+  }
+}
+
+function stopCatalogUploadTaskSync() {
+  if (catalogUploadTaskSyncTimerId) {
+    window.clearTimeout(catalogUploadTaskSyncTimerId);
+    catalogUploadTaskSyncTimerId = 0;
+  }
+}
+
+function hasActiveCatalogUploadTasks() {
+  return Array.from(catalogUploadTasks.values()).some((task) => task.active);
+}
+
+function formatCatalogUploadTaskSummary(tasks) {
+  const activeCount = tasks.filter((task) => task.active).length;
+  const failedCount = tasks.filter((task) => ["failed", "cancelled"].includes(task.stage)).length;
+  const completedCount = tasks.filter((task) => task.stage === "completed").length;
+
+  if (activeCount > 0) {
+    return `${activeCount} proses berjalan`;
+  }
+
+  if (failedCount > 0) {
+    return `${failedCount} proses perlu dicek`;
+  }
+
+  return `${Math.max(1, completedCount)} proses selesai`;
+}
+
+function getCatalogUploadTaskStatusIcon(task) {
+  if (task.active) {
+    return "progress_activity";
+  }
+
+  if (task.stage === "idle" || task.stage === "preparing") {
+    return "schedule";
+  }
+
+  if (task.stage === "completed") {
+    return "check_circle";
+  }
+
+  if (task.stage === "cancelled") {
+    return "do_not_disturb_on";
+  }
+
+  return "error";
+}
+
+function getCatalogUploadTaskStatusText(task) {
+  if (task.active) {
+    return `${Math.max(0, Math.min(100, Math.round(Number(task.progressPercent) || 0)))}%`;
+  }
+
+  if (task.stage === "idle" || task.stage === "preparing") {
+    return "Menunggu";
+  }
+
+  if (task.stage === "completed") {
+    return "Selesai";
+  }
+
+  if (task.stage === "cancelled") {
+    return "Batal";
+  }
+
+  return "Gagal";
+}
+
+function renderCatalogUploadTasks() {
+  if (!catalogUploadTaskPanel || !catalogUploadTaskSummary || !catalogUploadTaskList || !catalogUploadTaskBody) {
+    return;
+  }
+
+  const tasks = getCatalogUploadTaskEntries();
+  toggleElement(catalogUploadTaskPanel, tasks.length > 0 && !catalogUploadTaskDismissed);
+  if (tasks.length === 0) {
+    catalogUploadTaskList.innerHTML = "";
+    return;
+  }
+
+  catalogUploadTaskSummary.textContent = formatCatalogUploadTaskSummary(tasks);
+  toggleElement(catalogUploadTaskBody, !catalogUploadTaskCollapsed);
+  if (catalogUploadTaskToggleButton) {
+    catalogUploadTaskToggleButton.setAttribute("aria-expanded", String(!catalogUploadTaskCollapsed));
+  }
+  if (catalogUploadTaskToggleIcon) {
+    catalogUploadTaskToggleIcon.textContent = catalogUploadTaskCollapsed ? "expand_less" : "expand_more";
+  }
+
+  catalogUploadTaskList.innerHTML = tasks.map((task) => {
+    const normalizedStage = String(task.stage || "").toLowerCase();
+    const stageClass = task.active
+      ? "is-active"
+      : normalizedStage === "idle" || normalizedStage === "preparing"
+      ? "is-active"
+      : normalizedStage === "completed"
+      ? "is-completed"
+      : normalizedStage === "cancelled"
+      ? "is-cancelled"
+      : "is-failed";
+    const progressPercent = Math.max(0, Math.min(100, Math.round(Number(task.progressPercent) || 0)));
+    const subtitle = `${task.displayName} • ${task.lastError || task.message || "Menyiapkan upload..."}`;
+
+    return `
+      <article class="catalog-upload-task-item ${stageClass}">
+        <div class="catalog-upload-task-file">
+          <span class="material-symbols-outlined catalog-upload-task-file-icon">description</span>
+          <div class="catalog-upload-task-copy">
+            <strong title="${escapeHtml(task.fileName)}">${escapeHtml(task.fileName)}</strong>
+            <span title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</span>
+          </div>
+          <div class="catalog-upload-task-state">
+            <span class="catalog-upload-task-state-label">${escapeHtml(getCatalogUploadTaskStatusText(task))}</span>
+            <span class="material-symbols-outlined${task.active ? " is-spinning" : ""}">${getCatalogUploadTaskStatusIcon(task)}</span>
+          </div>
+        </div>
+        <div class="catalog-upload-task-progress" aria-hidden="true">
+          <span style="width: ${progressPercent}%;"></span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function upsertCatalogUploadTask(taskUpdate = {}) {
+  const operationId = String(taskUpdate.operationId || "").trim();
+  if (!operationId) {
+    return;
+  }
+
+  const existingTask = catalogUploadTasks.get(operationId) || {};
+  const stage = String(taskUpdate.stage || existingTask.stage || "preparing").toLowerCase();
+  const isFinalStage = ["completed", "failed", "cancelled"].includes(stage);
+  const rawPercent = taskUpdate.progressPercent ?? taskUpdate.percent ?? existingTask.progressPercent ?? 0;
+  const progressPercent = Math.max(0, Math.min(100, Math.round(Number(rawPercent) || 0)));
+  const fallbackCreatedAt = existingTask.createdAt || Date.now();
+  const fallbackUpdatedAt = existingTask.updatedAt || fallbackCreatedAt;
+  const createdAt = parseCatalogUploadTaskTimestamp(
+    taskUpdate.createdAt ?? taskUpdate.startedAt ?? taskUpdate.startedAtUtc,
+    fallbackCreatedAt
+  );
+  const updatedAt = parseCatalogUploadTaskTimestamp(
+    taskUpdate.updatedAt ?? taskUpdate.updatedAtUtc,
+    Date.now()
+  );
+  const nextTask = {
+    operationId,
+    fileName: String(existingTask.fileName || taskUpdate.fileName || "upload.bin").trim(),
+    displayName: String(taskUpdate.displayName || existingTask.displayName || currentCatalogView || "Katalog").trim(),
+    message: String(taskUpdate.message || existingTask.message || "Menyiapkan upload...").trim(),
+    lastError: String(taskUpdate.lastError || existingTask.lastError || "").trim(),
+    stage,
+    active: typeof taskUpdate.active === "boolean" ? taskUpdate.active : !isFinalStage,
+    success: typeof taskUpdate.success === "boolean" ? taskUpdate.success : stage === "completed",
+    progressPercent: stage === "completed" ? Math.max(100, progressPercent) : progressPercent,
+    createdAt,
+    updatedAt: Math.max(updatedAt, fallbackUpdatedAt)
+  };
+
+  catalogUploadTasks.set(operationId, nextTask);
+  trimCatalogUploadTasks();
+  renderCatalogUploadTasks();
+}
+
+function beginCatalogUploadTask(task = {}) {
+  catalogUploadTaskDismissed = false;
+  catalogUploadTaskCollapsed = false;
+  upsertCatalogUploadTask({
+    ...task,
+    stage: task.stage || "preparing",
+    active: true,
+    success: false,
+    progressPercent: task.progressPercent || 0,
+    message: task.message || "Menyiapkan upload..."
+  });
+}
+
+function toggleCatalogUploadTaskPanel() {
+  if (catalogUploadTasks.size === 0) {
+    return;
+  }
+
+  catalogUploadTaskCollapsed = !catalogUploadTaskCollapsed;
+  renderCatalogUploadTasks();
+}
+
+function closeCatalogUploadTaskPanel() {
+  catalogUploadTaskDismissed = true;
+  renderCatalogUploadTasks();
+}
+
+function syncCatalogUploadTasksFromEntries(entries = [], options = {}) {
+  const normalizedEntries = Array.isArray(entries)
+    ? entries
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry) => ({
+          operationId: String(entry.operationId || "").trim(),
+          fileName: String(entry.fileName || "upload.bin").trim(),
+          displayName: String(entry.category || "Katalog").trim(),
+          stage: String(entry.stage || "idle").toLowerCase(),
+          active: Boolean(entry.active),
+          success: Boolean(entry.success),
+          progressPercent: Math.max(0, Math.min(100, Math.round(Number(entry.progressPercent) || 0))),
+          message: String(entry.message || "Menyiapkan upload...").trim(),
+          lastError: String(entry.lastError || "").trim(),
+          createdAt: entry.startedAtUtc || 0,
+          updatedAt: entry.updatedAtUtc || entry.completedAtUtc || entry.startedAtUtc || 0
+        }))
+        .filter((entry) => entry.operationId)
+    : [];
+
+  if (options.replaceMissing) {
+    const activeOperationIds = new Set(normalizedEntries.map((entry) => entry.operationId));
+    for (const operationId of Array.from(catalogUploadTasks.keys())) {
+      if (!activeOperationIds.has(operationId)) {
+        catalogUploadTasks.delete(operationId);
+      }
+    }
+  }
+
+  normalizedEntries.forEach((entry) => {
+    upsertCatalogUploadTask(entry);
+  });
+
+  renderCatalogUploadTasks();
+}
+
+async function hydrateCatalogUploadTasksFromService() {
+  try {
+    const entries = await fetchJson("/catalog/upload-progress");
+    syncCatalogUploadTasksFromEntries(entries, { replaceMissing: true });
+    if (hasActiveCatalogUploadTasks()) {
+      scheduleCatalogUploadTaskSync();
+    } else {
+      stopCatalogUploadTaskSync();
+    }
+  } catch (error) {
+    stopCatalogUploadTaskSync();
+    console.warn("Gagal sinkronisasi task upload dari local service", error);
+  }
+}
+
+function scheduleCatalogUploadTaskSync() {
+  stopCatalogUploadTaskSync();
+  if (!hasActiveCatalogUploadTasks()) {
+    return;
+  }
+
+  catalogUploadTaskSyncTimerId = window.setTimeout(async () => {
+    catalogUploadTaskSyncTimerId = 0;
+    await hydrateCatalogUploadTasksFromService();
+  }, 900);
+}
+
+function waitCatalogUploadReconcileDelay(delayMs) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(100, Number(delayMs) || 100));
+  });
+}
+
+async function runCatalogOperationWithProgress(path, options = {}) {
+  const operationId = String(options.operationId || "").trim();
+  let pollingTimerId = 0;
+  let pollingStopped = false;
+
+  const stopPolling = () => {
+    pollingStopped = true;
+    if (pollingTimerId) {
+      window.clearInterval(pollingTimerId);
+      pollingTimerId = 0;
+    }
+  };
+
+  const pollServerProgress = async () => {
+    if (!operationId || pollingStopped || typeof options.onServerProgress !== "function") {
+      return;
+    }
+
+    try {
+      const progress = await fetchJson(`/catalog/upload-progress/${encodeURIComponent(operationId)}`);
+      if (pollingStopped) {
+        return;
+      }
+
+      options.onServerProgress(progress);
+      if (!progress.active && ["completed", "failed", "cancelled"].includes(String(progress.stage || "").toLowerCase())) {
+        stopPolling();
+      }
+    } catch {
+      // Progress polling is best effort while the main catalog operation is still running.
+    }
+  };
+
+  try {
+    if (operationId && typeof options.onServerProgress === "function") {
+      void pollServerProgress();
+      pollingTimerId = window.setInterval(() => {
+        void pollServerProgress();
+      }, 700);
+    }
+
+    return await fetchJson(path, {
+      method: options.method || "POST",
+      body: options.body
+    });
+  } finally {
+    const canPollFinalState = Boolean(operationId) && typeof options.onServerProgress === "function";
+    stopPolling();
+    if (!canPollFinalState) {
+      return;
+    }
+
+    fetchJson(`/catalog/upload-progress/${encodeURIComponent(operationId)}`)
+      .then((progress) => {
+        options.onServerProgress(progress);
+      })
+      .catch(() => {
+        // Ignore final polling failure because the main request already finished.
+      });
+  }
+}
+
+async function reconcileCatalogUploadTaskFromService(operationId, taskContext = {}, options = {}) {
+  const normalizedOperationId = String(operationId || "").trim();
+  if (!normalizedOperationId) {
+    return null;
+  }
+
+  const attempts = Math.max(1, Number(options.attempts) || 12);
+  const intervalMs = Math.max(250, Number(options.intervalMs) || 700);
+  let lastMeaningfulProgress = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const progress = await fetchJson(`/catalog/upload-progress/${encodeURIComponent(normalizedOperationId)}`);
+      const stage = String(progress?.stage || "").toLowerCase();
+      const isKnownStage = ["preparing", "uploading", "sending", "completed", "failed", "cancelled"].includes(stage);
+
+      if (isKnownStage) {
+        lastMeaningfulProgress = progress;
+        applyCatalogTelegramUploadProgress(progress, taskContext);
+
+        if (!progress.active && ["completed", "failed", "cancelled"].includes(stage)) {
+          return progress;
+        }
+      }
+    } catch {
+      // Best effort reconcile from local service; keep retrying briefly.
+    }
+
+    if (attempt < attempts - 1) {
+      await waitCatalogUploadReconcileDelay(intervalMs);
+    }
+  }
+
+  return lastMeaningfulProgress;
+}
+
+function applyCatalogTelegramUploadProgress(progress = {}, taskContext = {}) {
   const percent = Math.max(0, Math.min(100, Math.round(Number(progress.progressPercent) || 0)));
   const stage = String(progress.stage || "").toLowerCase();
+  if (stage === "idle") {
+    return;
+  }
+
   const message = progress.message || "Upload file sedang berjalan...";
   const buttonLabel = stage === "sending"
     ? "Mengirim file..."
@@ -3123,12 +3706,29 @@ function applyCatalogTelegramUploadProgress(progress = {}) {
     ? `Upload ${percent}%`
     : "Menyiapkan upload...";
 
-  setCatalogEditorSubmitting(true, {
-    percent,
-    label: buttonLabel,
-    progressLabel: message,
-    showProgress: true
+  upsertCatalogUploadTask({
+    operationId: progress.operationId || taskContext.operationId,
+    fileName: taskContext.fileName,
+    displayName: taskContext.displayName,
+    stage,
+    active: Boolean(progress.active),
+    success: Boolean(progress.success),
+    progressPercent: percent,
+    message,
+    lastError: progress.lastError || ""
   });
+  if (Boolean(progress.active)) {
+    scheduleCatalogUploadTaskSync();
+  }
+
+  if (isCatalogEditorVisible()) {
+    setCatalogEditorSubmitting(true, {
+      percent,
+      label: buttonLabel,
+      progressLabel: message,
+      showProgress: true
+    });
+  }
 }
 
 function normalizeLocalPhoneNumber(value) {
@@ -3300,27 +3900,28 @@ function stopGoogleAuthPolling() {
     window.clearInterval(googleAuthPollTimerId);
     googleAuthPollTimerId = 0;
   }
+
+  googleAuthPopupAwaitingResult = false;
 }
 
 function startGoogleAuthPolling() {
   stopGoogleAuthPolling();
+  googleAuthPopupAwaitingResult = true;
   googleAuthPollTimerId = window.setInterval(async () => {
-    try {
-      const status = await refreshStatus();
-      if (status?.isLoggedIn) {
-        stopGoogleAuthPolling();
-        if (googleAuthPopup && googleAuthPopup.closed === false) {
-          googleAuthPopup.close();
-        }
-      } else if (googleAuthPopup?.closed) {
-        stopGoogleAuthPolling();
-      }
-    } catch {
-      if (googleAuthPopup?.closed) {
-        stopGoogleAuthPolling();
+    if (!googleAuthPopup) {
+      stopGoogleAuthPolling();
+      return;
+    }
+
+    if (googleAuthPopup.closed) {
+      const waitingForResult = googleAuthPopupAwaitingResult;
+      googleAuthPopup = null;
+      stopGoogleAuthPolling();
+      if (waitingForResult) {
+        setNotice("Popup login Google ditutup sebelum proses selesai.", "info");
       }
     }
-  }, 1200);
+  }, 500);
 }
 
 function hideInteractivePanels() {
@@ -3801,6 +4402,21 @@ function applyStatus(status) {
   setNotice("Klik Login dengan Google untuk memulai sesi.");
 }
 
+function handleCatalogLoadFailureDuringRefresh(status, error) {
+  setText(serviceStatus, buildServiceStatusMessage(status));
+  console.warn("Gagal memuat katalog setelah refresh status.", error);
+
+  if (isJoinManagedCatalogView(currentCatalogView) && isChannelJoinRequiredError(error)) {
+    setChannelJoinRequired(currentCatalogView, true);
+    catalogItems = [];
+    renderCatalog([], currentCatalogView);
+    setNotice(`Akses ${getTelegramCatalogConfig(currentCatalogView).displayName} belum aktif untuk akun ini.`, "info");
+    return;
+  }
+
+  setNotice(error?.message || "Katalog gagal dimuat.", true);
+}
+
 async function fetchJson(path, options = {}) {
   const requestUrl = `${serviceBaseUrl}${path}`;
   let response;
@@ -3916,6 +4532,13 @@ function uploadFormData(path, formData, options = {}) {
       reject(new Error("Koneksi ke local service gagal: unknown error"));
     };
 
+    xhr.onabort = () => {
+      stopPolling();
+      const abortError = new Error("Upload terputus dari browser sebelum respons selesai.");
+      abortError.isAbortError = true;
+      reject(abortError);
+    };
+
     xhr.onload = () => {
       stopPolling();
       const rawText = xhr.responseText || "";
@@ -3972,10 +4595,12 @@ async function refreshStatus(options = {}) {
   setError("");
   setText(serviceStatus, "Menghubungi local service...");
   setText(serviceVersion, "Versi: mengecek...");
+  let health = null;
+  let status = null;
 
   try {
     const healthUrl = forceUpdateCheck ? "/health?forceUpdateCheck=true" : "/health";
-    const health = await fetchJson(healthUrl);
+    health = await fetchJson(healthUrl);
     setText(serviceStatus, "Local service aktif, memeriksa sesi.");
     setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
 
@@ -3983,16 +4608,12 @@ async function refreshStatus(options = {}) {
       return health;
     }
 
+    await hydrateCatalogUploadTasksFromService();
     setText(serviceStatus, buildServiceStatusMessage(null, { phase: "checking-auth" }));
-    const status = await fetchJson("/auth/status");
+    status = await fetchJson("/auth/status");
     applyStatus(status);
-    if (status?.isLoggedIn && status?.hasAgreed) {
-      setActiveNav(currentCatalogView);
-      await loadCatalog();
-    }
-    ensureCatalogEventStreamConnected();
-    return health;
   } catch (error) {
+    stopCatalogUploadTaskSync();
     closeCatalogEventStream();
     clearCatalogRealtimeReloads();
     setText(serviceStatus, "Tidak aktif");
@@ -4017,9 +4638,22 @@ async function refreshStatus(options = {}) {
     setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
     throw error;
   }
+
+  if (status?.isLoggedIn && status?.hasAgreed) {
+    setActiveNav(currentCatalogView);
+    setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-catalog" }));
+    try {
+      await loadCatalog();
+    } catch (error) {
+      handleCatalogLoadFailureDuringRefresh(status, error);
+    }
+  }
+
+  ensureCatalogEventStreamConnected();
+  return health;
 }
 
-async function submitCatalogEditor() {
+async function submitCatalogEditor(submissionContext = {}) {
   const config = getTelegramCatalogConfig();
   const isSimpleFileUpload = catalogEditorMode !== "edit" && (config.endpoint === "problem-solving" || config.endpoint === "datasheets");
   const supportsSerialNumberAndNote = supportsCatalogSerialNumberAndNote(currentCatalogView);
@@ -4043,7 +4677,7 @@ async function submitCatalogEditor() {
     });
     setNotice(result.message);
     closeCatalogEditor();
-    await loadCatalog();
+    await reloadCatalogAfterMutation(currentCatalogView);
     return;
   }
 
@@ -4096,27 +4730,115 @@ async function submitCatalogEditor() {
   }
   const operationId = createCatalogUploadOperationId();
   formData.set("operationId", operationId);
-
-  const result = await uploadFormData(`/catalog/${config.endpoint}`, formData, {
-    method: "POST",
+  beginCatalogUploadTask({
     operationId,
-    onProgress: ({ percent }) => {
-      const roundedPercent = Math.max(1, Math.min(15, Math.round(percent * 0.15)));
-      setCatalogEditorSubmitting(true, {
-        percent: roundedPercent,
-        label: "Mengirim file...",
-        progressLabel: `Mengirim file ${config.displayName} ke local service...`,
-        showProgress: true
-      });
-    },
-    onServerProgress: (progress) => {
-      applyCatalogTelegramUploadProgress(progress);
+    fileName: selectedFile.name,
+    displayName: config.displayName,
+    message: `Menyiapkan upload ${config.displayName}...`
+  });
+  submissionContext.minimizedToTask = true;
+  closeCatalogEditor();
+
+  let result;
+  try {
+    result = await uploadFormData(`/catalog/${config.endpoint}`, formData, {
+      method: "POST",
+      operationId,
+      onProgress: ({ percent }) => {
+        const localServiceUploadCap = config.endpoint === "bios" ? 20 : 15;
+        const roundedPercent = Math.max(1, Math.min(localServiceUploadCap, Math.round(percent * (localServiceUploadCap / 100))));
+        upsertCatalogUploadTask({
+          operationId,
+          fileName: selectedFile.name,
+          displayName: config.displayName,
+          stage: "uploading",
+          active: true,
+          success: false,
+          progressPercent: roundedPercent,
+          message: `Mengirim file ${config.displayName} ke local service...`
+        });
+      },
+      onServerProgress: (progress) => {
+        applyCatalogTelegramUploadProgress(progress, {
+          operationId,
+          fileName: selectedFile.name,
+          displayName: config.displayName
+        });
+      }
+    });
+  } catch (error) {
+    const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
+      operationId,
+      fileName: selectedFile.name,
+      displayName: config.displayName
+    });
+    const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
+
+    if (reconciledProgress?.active || ["preparing", "uploading", "sending"].includes(reconciledStage)) {
+      setNotice(`Upload ${config.displayName} masih diproses di local service. Progress akan lanjut di panel task.`, "info");
+      return;
     }
+
+    if (reconciledStage === "completed" || reconciledProgress?.success) {
+      const completedMessage = reconciledProgress?.message || `Upload ${config.displayName} selesai.`;
+      upsertCatalogUploadTask({
+        operationId,
+        fileName: selectedFile.name,
+        displayName: config.displayName,
+        stage: "completed",
+        active: false,
+        success: true,
+        progressPercent: 100,
+        message: completedMessage
+      });
+      setNotice(completedMessage);
+      await reloadCatalogAfterMutation(currentCatalogView);
+      return;
+    }
+
+    if (reconciledProgress && ["failed", "cancelled"].includes(reconciledStage)) {
+      const finalMessage = reconciledProgress.lastError || reconciledProgress.message || error.message || "Upload gagal.";
+      upsertCatalogUploadTask({
+        operationId,
+        fileName: selectedFile.name,
+        displayName: config.displayName,
+        stage: reconciledStage,
+        active: false,
+        success: false,
+        progressPercent: reconciledStage === "cancelled" ? 0 : 100,
+        message: reconciledProgress.message || `Upload ${config.displayName} gagal.`,
+        lastError: reconciledProgress.lastError || ""
+      });
+      throw new Error(finalMessage);
+    }
+
+    upsertCatalogUploadTask({
+      operationId,
+      fileName: selectedFile.name,
+      displayName: config.displayName,
+      stage: "failed",
+      active: false,
+      success: false,
+      progressPercent: 100,
+      message: `Upload ${config.displayName} gagal.`,
+      lastError: error.message || "Upload gagal."
+    });
+    throw error;
+  }
+
+  upsertCatalogUploadTask({
+    operationId,
+    fileName: selectedFile.name,
+    displayName: config.displayName,
+    stage: "completed",
+    active: false,
+    success: true,
+    progressPercent: 100,
+    message: result.message || `Upload ${config.displayName} selesai.`
   });
 
   setNotice(result.message);
-  closeCatalogEditor();
-  await loadCatalog();
+  await reloadCatalogAfterMutation(currentCatalogView);
 }
 
 async function deleteCatalogItem(category, messageId) {
@@ -4125,14 +4847,114 @@ async function deleteCatalogItem(category, messageId) {
     method: "DELETE"
   });
   setNotice(result.message);
-  await loadCatalog();
+  await reloadCatalogAfterMutation(category);
 }
 
 async function downloadCatalogItem(category, messageId) {
   const config = getTelegramCatalogConfig(category);
-  const result = await fetchJson(`/catalog/${config.endpoint}/${messageId}/download`, {
-    method: "POST",
-    body: JSON.stringify({})
+  if (category !== "BIOS") {
+    const result = await fetchJson(`/catalog/${config.endpoint}/${messageId}/download`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    setNotice(result.message);
+    return;
+  }
+
+  const item = findCatalogItemByMessageId(messageId);
+  const fileName = item?.fileName || item?.title || `bios-${messageId}.7z`;
+  const operationId = createCatalogUploadOperationId();
+  beginCatalogUploadTask({
+    operationId,
+    fileName,
+    displayName: config.displayName,
+    message: "Menyiapkan download BIOS..."
+  });
+
+  let result;
+  try {
+    result = await runCatalogOperationWithProgress(
+      `/catalog/${config.endpoint}/${messageId}/download?operationId=${encodeURIComponent(operationId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+        operationId,
+        onServerProgress: (progress) => {
+          applyCatalogTelegramUploadProgress(progress, {
+            operationId,
+            fileName,
+            displayName: config.displayName
+          });
+        }
+      }
+    );
+  } catch (error) {
+    const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
+      operationId,
+      fileName,
+      displayName: config.displayName
+    });
+    const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
+
+    if (reconciledProgress?.active || ["preparing", "uploading", "sending", "downloading", "extracting"].includes(reconciledStage)) {
+      setNotice(`Download ${config.displayName} masih diproses di local service. Progress akan lanjut di panel task.`, "info");
+      return;
+    }
+
+    if (reconciledStage === "completed" || reconciledProgress?.success) {
+      const completedMessage = reconciledProgress?.message || `Download ${config.displayName} selesai.`;
+      upsertCatalogUploadTask({
+        operationId,
+        fileName,
+        displayName: config.displayName,
+        stage: "completed",
+        active: false,
+        success: true,
+        progressPercent: 100,
+        message: completedMessage
+      });
+      setNotice(completedMessage);
+      return;
+    }
+
+    if (reconciledProgress && ["failed", "cancelled"].includes(reconciledStage)) {
+      upsertCatalogUploadTask({
+        operationId,
+        fileName,
+        displayName: config.displayName,
+        stage: reconciledStage,
+        active: false,
+        success: false,
+        progressPercent: reconciledStage === "cancelled" ? 0 : 100,
+        message: reconciledProgress.message || `Download ${config.displayName} gagal.`,
+        lastError: reconciledProgress.lastError || ""
+      });
+      throw new Error(reconciledProgress.lastError || reconciledProgress.message || error.message || "Download gagal.");
+    }
+
+    upsertCatalogUploadTask({
+      operationId,
+      fileName,
+      displayName: config.displayName,
+      stage: "failed",
+      active: false,
+      success: false,
+      progressPercent: 100,
+      message: `Download ${config.displayName} gagal.`,
+      lastError: error.message || "Download gagal."
+    });
+    throw error;
+  }
+
+  upsertCatalogUploadTask({
+    operationId,
+    fileName,
+    displayName: config.displayName,
+    stage: "completed",
+    active: false,
+    success: true,
+    progressPercent: 100,
+    message: result.message || `Download ${config.displayName} selesai.`
   });
   setNotice(result.message);
 }
@@ -4269,6 +5091,7 @@ phoneForm?.addEventListener("submit", async (event) => {
       return;
     }
 
+    setNotice(result.message || "Popup login Google dibuka. Selesaikan login di popup.", "info");
     startGoogleAuthPolling();
   } catch (error) {
     setNotice(error.message, true);
@@ -4353,7 +5176,7 @@ dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
 
 loadRememberedPhone();
 syncVerificationPhoneDisplay();
-currentCatalogView = getViewFromHash() || "Forum";
+currentCatalogView = getViewFromHash() || dashboardHomePage.viewKey;
 refreshStatus();
 window.addEventListener("hashchange", () => {
   restoreViewFromHash().catch((error) => setNotice(error.message, true));
@@ -4363,6 +5186,9 @@ window.addEventListener("message", (event) => {
     return;
   }
 
+  googleAuthPopupAwaitingResult = false;
+  stopGoogleAuthPolling();
+  googleAuthPopup = null;
   void refreshStatus();
 });
 
@@ -4531,18 +5357,12 @@ if (catalogList) {
     }
 
     const messageId = Number(deleteButton.getAttribute("data-message-id"));
-    const item = findCatalogItemByMessageId(messageId);
-    const displayName = item?.category || currentCatalogView;
-    const confirmed = window.confirm(`Hapus data ${displayName} ini?`);
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await deleteCatalogItem(displayName, messageId);
-    } catch (error) {
-      setNotice(error.message, true);
-    }
+    const item = findCatalogItemByMessageId(messageId) || {
+      messageId,
+      category: currentCatalogView,
+      title: `${currentCatalogView} #${messageId}`
+    };
+    openCatalogDeleteModal(item, deleteButton);
   });
 }
 
@@ -4675,6 +5495,31 @@ catalogRefreshButton?.addEventListener("click", refreshCurrentTelegramCatalog);
 
 catalogEditorCloseButton?.addEventListener("click", closeCatalogEditor);
 
+catalogDeleteCancelButton?.addEventListener("click", () => closeCatalogDeleteModal());
+
+catalogDeleteConfirmButton?.addEventListener("click", async () => {
+  if (!pendingCatalogDeleteItem?.messageId) {
+    closeCatalogDeleteModal({ force: true, restoreFocus: false });
+    return;
+  }
+
+  const targetItem = pendingCatalogDeleteItem;
+  setCatalogDeleteSubmitting(true);
+  try {
+    await deleteCatalogItem(targetItem.category || currentCatalogView, Number(targetItem.messageId));
+    closeCatalogDeleteModal({ force: true, restoreFocus: false });
+  } catch (error) {
+    setCatalogDeleteSubmitting(false);
+    setNotice(error.message, true);
+  }
+});
+
+catalogDeleteModal?.addEventListener("click", (event) => {
+  if (event.target === catalogDeleteModal) {
+    closeCatalogDeleteModal();
+  }
+});
+
 catalogEditorFile?.addEventListener("change", () => {
   updateCatalogAliasField(catalogEditorFile.files?.[0]?.name || "", currentCatalogView);
   checkSelectedCatalogDuplicate().catch((error) => {
@@ -4701,6 +5546,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  closeCatalogDeleteModal();
   closeAboutModal();
   closeProblemSolvingViewer();
   closeForumThreadModal();
@@ -4757,6 +5603,7 @@ forumTopicForm?.addEventListener("submit", async (event) => {
 catalogEditorForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const previousMarkup = catalogEditorSubmitButton?.innerHTML || "";
+  const submissionContext = { minimizedToTask: false };
   setCatalogEditorSubmitting(true, {
     percent: 0,
     label: catalogEditorMode === "edit" ? "Menyimpan..." : "Menyiapkan upload...",
@@ -4765,13 +5612,23 @@ catalogEditorForm?.addEventListener("submit", async (event) => {
   });
 
   try {
-    await submitCatalogEditor();
+    await submitCatalogEditor(submissionContext);
   } catch (error) {
     setNotice(error.message, true);
   } finally {
+    if (submissionContext.minimizedToTask) {
+      if (catalogEditorSubmitButton) {
+        catalogEditorSubmitButton.disabled = false;
+      }
+      return;
+    }
+
     setCatalogEditorSubmitting(false, { defaultMarkup: previousMarkup });
   }
 });
+
+catalogUploadTaskToggleButton?.addEventListener("click", toggleCatalogUploadTaskPanel);
+catalogUploadTaskCloseButton?.addEventListener("click", closeCatalogUploadTaskPanel);
 
 navBios?.addEventListener("click", () => {
   updateViewHash("BIOS");
@@ -4801,6 +5658,13 @@ navDatasheets?.addEventListener("click", () => {
 navComponentEquivalents?.addEventListener("click", () => {
   updateViewHash(componentEquivalentsPage.viewKey);
   currentCatalogView = componentEquivalentsPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+navDashboard?.addEventListener("click", () => {
+  updateViewHash(dashboardHomePage.viewKey);
+  currentCatalogView = dashboardHomePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });

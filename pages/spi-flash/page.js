@@ -1,5 +1,5 @@
 (function initializeSpiFlashPage(globalScope) {
-  const serviceBaseUrl = "http://127.0.0.1:48721";
+  const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const hexPreviewLineHeight = 24;
   const hexPreviewOverscanLines = 10;
   const hexPreviewMinimumRequestLines = 64;

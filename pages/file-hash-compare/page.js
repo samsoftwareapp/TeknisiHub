@@ -1,5 +1,5 @@
 (function initializeFileHashComparePage(globalScope) {
-  const serviceBaseUrl = "http://127.0.0.1:48721";
+  const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
 
   function escapeHtml(value) {
     return String(value ?? "")

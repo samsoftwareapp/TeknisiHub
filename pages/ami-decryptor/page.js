@@ -1,5 +1,5 @@
 (function initializeAmiDecryptorPage(globalScope) {
-  const serviceBaseUrl = "http://127.0.0.1:48721";
+  const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const acceptedExtensions = ".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr";
 
   function escapeHtml(value) {

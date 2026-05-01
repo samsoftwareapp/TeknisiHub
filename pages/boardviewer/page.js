@@ -1,5 +1,5 @@
 (function initializeBoardViewerPage(globalScope) {
-  const serviceBaseUrl = "http://127.0.0.1:48721";
+  const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const acceptedExtensions = ".asc,.bdv,.brd,.bv,.cad,.cst,.gr,.f2b,.faz,.fz,.tvw";
 
   function escapeHtml(value) {

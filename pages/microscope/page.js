@@ -1,5 +1,5 @@
 (function initializeMicroscopePage(globalScope) {
-  const serviceBaseUrl = "http://127.0.0.1:48721";
+  const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const zoomStep = 0.1;
   const minZoom = 1;
   const maxZoom = 5;

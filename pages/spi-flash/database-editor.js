@@ -1,5 +1,5 @@
 (function initializeSpiFlashDatabaseEditor(globalScope) {
-  const serviceBaseUrl = "http://127.0.0.1:48721";
+  const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const chipTypeOptions = ["SPI_FLASH", "25_EEPROM", "93_EEPROM", "24_EEPROM", "95_EEPROM"];
   const voltageOptions = ["3.3 V", "1.8 V", "5.0 V"];
   const state = {
