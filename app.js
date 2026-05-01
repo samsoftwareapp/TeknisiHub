@@ -364,8 +364,8 @@ let catalogItems = [];
 let catalogCache = [];
 let currentCatalogView = dashboardHomePage.viewKey;
 let googleAuthPollTimerId = 0;
-let googleAuthPopup = null;
-let googleAuthPopupAwaitingResult = false;
+let googleAuthTab = null;
+let googleAuthTabAwaitingResult = false;
 let activeToastSignature = "";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
@@ -3901,24 +3901,24 @@ function stopGoogleAuthPolling() {
     googleAuthPollTimerId = 0;
   }
 
-  googleAuthPopupAwaitingResult = false;
+  googleAuthTabAwaitingResult = false;
 }
 
 function startGoogleAuthPolling() {
   stopGoogleAuthPolling();
-  googleAuthPopupAwaitingResult = true;
+  googleAuthTabAwaitingResult = true;
   googleAuthPollTimerId = window.setInterval(async () => {
-    if (!googleAuthPopup) {
+    if (!googleAuthTab) {
       stopGoogleAuthPolling();
       return;
     }
 
-    if (googleAuthPopup.closed) {
-      const waitingForResult = googleAuthPopupAwaitingResult;
-      googleAuthPopup = null;
+    if (googleAuthTab.closed) {
+      const waitingForResult = googleAuthTabAwaitingResult;
+      googleAuthTab = null;
       stopGoogleAuthPolling();
       if (waitingForResult) {
-        setNotice("Popup login Google ditutup sebelum proses selesai.", "info");
+        setNotice("Tab login Google ditutup sebelum proses selesai.", "info");
       }
     }
   }, 500);
@@ -4467,6 +4467,32 @@ async function fetchJson(path, options = {}) {
   }
 
   return payload;
+}
+
+function buildGoogleAuthLaunchUrl(authorizationUrl, forceConsent = false) {
+  const searchParams = new URLSearchParams({
+    authorizationUrl
+  });
+  if (forceConsent) {
+    searchParams.set("forceConsent", "true");
+  }
+
+  return `${serviceBaseUrl}/auth/google/launch?${searchParams.toString()}`;
+}
+
+function openGoogleAuthTab(url) {
+  const authTab = window.open(url, "teknisihub-google-login");
+  if (!authTab) {
+    return null;
+  }
+
+  try {
+    authTab.focus();
+  } catch {
+    // Browser bisa mengabaikan focus untuk tab tertentu.
+  }
+
+  return authTab;
 }
 
 function uploadFormData(path, formData, options = {}) {
@@ -5079,19 +5105,16 @@ phoneForm?.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify({})
     });
+    const launchUrl = buildGoogleAuthLaunchUrl(result.authorizationUrl, result.forceConsent);
 
-    googleAuthPopup = window.open(
-      result.authorizationUrl,
-      "teknisihub-google-login",
-      "popup=yes,width=560,height=760,left=120,top=80"
-    );
+    googleAuthTab = openGoogleAuthTab(launchUrl);
 
-    if (!googleAuthPopup) {
-      window.location.href = result.authorizationUrl;
+    if (!googleAuthTab) {
+      setNotice("Browser memblokir tab login Google. Izinkan pembukaan tab baru lalu coba lagi.", true);
       return;
     }
 
-    setNotice(result.message || "Popup login Google dibuka. Selesaikan login di popup.", "info");
+    setNotice(result.message || "Panduan login Google dibuka di tab baru. Lanjutkan dari tab tersebut.", "info");
     startGoogleAuthPolling();
   } catch (error) {
     setNotice(error.message, true);
@@ -5126,6 +5149,7 @@ if (logoutButton) {
       }
 
       stopGoogleAuthPolling();
+      googleAuthTab = null;
       isPhoneNumberChangeRequested = false;
       sessionStorage.removeItem(activeOtpPhoneStorageKey);
       syncVerificationPhoneDisplay();
@@ -5186,9 +5210,9 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  googleAuthPopupAwaitingResult = false;
+  googleAuthTabAwaitingResult = false;
   stopGoogleAuthPolling();
-  googleAuthPopup = null;
+  googleAuthTab = null;
   void refreshStatus();
 });
 
