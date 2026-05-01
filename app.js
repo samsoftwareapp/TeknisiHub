@@ -4,6 +4,8 @@ const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
 const serviceTrafficIndicator = document.getElementById("serviceTrafficIndicator");
 const serviceApiActivity = document.getElementById("serviceApiActivity");
+const themeToggleButton = document.getElementById("themeToggleButton");
+const backToTopButton = document.getElementById("backToTopButton");
 const downloadLocalServiceLink = document.getElementById("downloadLocalServiceLink");
 const runLocalUpdateButton = document.getElementById("runLocalUpdateButton");
 const viewPreviousVersionsButton = document.getElementById("viewPreviousVersionsButton");
@@ -402,7 +404,12 @@ const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
 const activeOtpPhoneStorageKey = "teknisihub_active_otp_phone";
 const introQuoteDismissStorageKey = "teknisihub_hide_intro_quote";
+const themeModeStorageKey = "teknisihub_theme_mode";
+const themeModeDateStorageKey = "teknisihub_theme_mode_wib_date";
 const catalogRefreshCooldownMs = 15000;
+const wibTimeZone = "Asia/Jakarta";
+const wibNightThemeStartHour = 18;
+const wibNightThemeEndHour = 6;
 let isPhoneNumberChangeRequested = false;
 const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
 const allowedBoardviewExtensions = [".asc", ".bdv", ".brd", ".bv", ".cad", ".cst", ".gr", ".f2b", ".faz", ".fz", ".tvw"];
@@ -2783,6 +2790,163 @@ function persistIntroQuotePreference(hidden) {
   }
 }
 
+function getWibDateTimeParts() {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: wibTimeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const parts = formatter.formatToParts(new Date());
+    const getPart = (type) => parts.find((part) => part.type === type)?.value || "";
+    const year = getPart("year");
+    const month = getPart("month");
+    const day = getPart("day");
+    const hour = Number.parseInt(getPart("hour"), 10);
+    return {
+      dateKey: `${year}-${month}-${day}`,
+      hour: Number.isFinite(hour) ? hour : 12
+    };
+  } catch {
+    const fallback = new Date();
+    return {
+      dateKey: fallback.toISOString().slice(0, 10),
+      hour: fallback.getHours()
+    };
+  }
+}
+
+function getAutomaticWibThemeMode() {
+  const { hour } = getWibDateTimeParts();
+  return hour >= wibNightThemeStartHour || hour < wibNightThemeEndHour ? "dark" : "light";
+}
+
+function clearSavedThemeMode() {
+  try {
+    localStorage.removeItem(themeModeStorageKey);
+    localStorage.removeItem(themeModeDateStorageKey);
+  } catch {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+function readSavedThemeMode() {
+  try {
+    const storedMode = localStorage.getItem(themeModeStorageKey);
+    const storedDateKey = localStorage.getItem(themeModeDateStorageKey);
+    const currentWibDateKey = getWibDateTimeParts().dateKey;
+    if ((storedMode === "dark" || storedMode === "light") && storedDateKey === currentWibDateKey) {
+      return storedMode;
+    }
+
+    if (storedMode || storedDateKey) {
+      clearSavedThemeMode();
+    }
+
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+function getPreferredThemeMode() {
+  const savedMode = readSavedThemeMode();
+  if (savedMode) {
+    return savedMode;
+  }
+
+  return getAutomaticWibThemeMode();
+}
+
+function updateThemeToggleButton(mode = "light") {
+  if (!themeToggleButton) {
+    return;
+  }
+
+  const isDarkMode = mode === "dark";
+  const nextModeLabel = isDarkMode ? "Matikan mode malam" : "Aktifkan mode malam";
+  const icon = themeToggleButton.querySelector(".material-symbols-outlined");
+  if (icon) {
+    icon.textContent = isDarkMode ? "light_mode" : "dark_mode";
+  }
+
+  themeToggleButton.setAttribute("aria-label", nextModeLabel);
+  themeToggleButton.setAttribute("title", nextModeLabel);
+  themeToggleButton.setAttribute("aria-pressed", String(isDarkMode));
+}
+
+function applyThemeMode(mode, options = {}) {
+  const shouldPersist = options.persist !== false;
+  const resolvedMode = mode === "dark" ? "dark" : "light";
+  document.body.classList.toggle("is-dark-mode", resolvedMode === "dark");
+  updateThemeToggleButton(resolvedMode);
+
+  if (!shouldPersist) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(themeModeStorageKey, resolvedMode);
+    localStorage.setItem(themeModeDateStorageKey, getWibDateTimeParts().dateKey);
+  } catch {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+function initializeThemeMode() {
+  applyThemeMode(getPreferredThemeMode(), { persist: false });
+}
+
+function syncThemeModeWithWibClock() {
+  const preferredMode = getPreferredThemeMode();
+  const currentMode = document.body.classList.contains("is-dark-mode") ? "dark" : "light";
+  if (currentMode !== preferredMode) {
+    applyThemeMode(preferredMode, { persist: false });
+  }
+}
+
+function toggleThemeMode() {
+  const nextMode = document.body.classList.contains("is-dark-mode") ? "light" : "dark";
+  applyThemeMode(nextMode);
+}
+
+function syncBackToTopButtonVisibility() {
+  if (!backToTopButton) {
+    return;
+  }
+
+  const isVisible = window.scrollY > 320;
+  backToTopButton.classList.toggle("is-visible", isVisible);
+  backToTopButton.setAttribute("aria-hidden", isVisible ? "false" : "true");
+  backToTopButton.tabIndex = isVisible ? 0 : -1;
+}
+
+function scrollPageToTop() {
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+function syncFloatingUtilityOffset() {
+  if (!document.body) {
+    return;
+  }
+
+  const panelVisible = Boolean(catalogUploadTaskPanel && !catalogUploadTaskPanel.classList.contains("hidden"));
+  if (!panelVisible) {
+    document.body.style.setProperty("--floating-utility-offset", "0px");
+    return;
+  }
+
+  const panelRect = catalogUploadTaskPanel.getBoundingClientRect();
+  const offset = Math.max(0, Math.round(window.innerHeight - panelRect.top + 12));
+  document.body.style.setProperty("--floating-utility-offset", `${offset}px`);
+}
+
 function openIntroQuoteModal() {
   if (!introQuoteModal || shouldHideIntroQuoteModal()) {
     return;
@@ -3660,6 +3824,7 @@ function renderCatalogUploadTasks() {
   toggleElement(catalogUploadTaskPanel, tasks.length > 0 && !catalogUploadTaskDismissed);
   if (tasks.length === 0) {
     catalogUploadTaskList.innerHTML = "";
+    syncFloatingUtilityOffset();
     return;
   }
 
@@ -3705,6 +3870,7 @@ function renderCatalogUploadTasks() {
       </article>
     `;
   }).join("");
+  syncFloatingUtilityOffset();
 }
 
 function upsertCatalogUploadTask(taskUpdate = {}) {
@@ -5739,14 +5905,30 @@ if (refreshButton) {
 }
 
 dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
+themeToggleButton?.addEventListener("click", toggleThemeMode);
+backToTopButton?.addEventListener("click", scrollPageToTop);
+window.addEventListener("scroll", syncBackToTopButtonVisibility, { passive: true });
+window.addEventListener("resize", () => {
+  syncBackToTopButtonVisibility();
+  syncFloatingUtilityOffset();
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    syncThemeModeWithWibClock();
+  }
+});
+window.setInterval(syncThemeModeWithWibClock, 60000);
 
 loadRememberedPhone();
 syncVerificationPhoneDisplay();
+initializeThemeMode();
 initializeIntroQuoteModal();
 const initialHashRouteState = parseHashRouteState();
 currentHashShareViewKey = initialHashRouteState.shareViewKey;
 currentHashShareMessageId = initialHashRouteState.messageId;
 currentCatalogView = initialHashRouteState.viewKey || dashboardHomePage.viewKey;
+syncBackToTopButtonVisibility();
+syncFloatingUtilityOffset();
 refreshStatus();
 window.addEventListener("hashchange", () => {
   restoreViewFromHash().catch((error) => setNotice(error.message, true));
