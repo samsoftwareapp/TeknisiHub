@@ -140,7 +140,6 @@ const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
 const navComponentEquivalents = document.getElementById("navComponentEquivalents");
 const navDashboard = document.getElementById("navDashboard");
-const navForum = document.getElementById("navForum");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
@@ -161,23 +160,6 @@ const problemSolvingViewerModal = document.getElementById("problemSolvingViewerM
 const problemSolvingViewerTitle = document.getElementById("problemSolvingViewerTitle");
 const problemSolvingViewerContent = document.getElementById("problemSolvingViewerContent");
 const problemSolvingViewerCloseButton = document.getElementById("problemSolvingViewerCloseButton");
-const forumThreadModal = document.getElementById("forumThreadModal");
-const forumThreadTitle = document.getElementById("forumThreadTitle");
-const forumThreadAuthor = document.getElementById("forumThreadAuthor");
-const forumThreadDate = document.getElementById("forumThreadDate");
-const forumThreadContent = document.getElementById("forumThreadContent");
-const forumThreadReplies = document.getElementById("forumThreadReplies");
-const forumThreadReplyCount = document.getElementById("forumThreadReplyCount");
-const forumThreadCloseButton = document.getElementById("forumThreadCloseButton");
-const forumReplyForm = document.getElementById("forumReplyForm");
-const forumReplyInput = document.getElementById("forumReplyInput");
-const forumReplySubmitButton = document.getElementById("forumReplySubmitButton");
-const forumTopicModal = document.getElementById("forumTopicModal");
-const forumTopicCloseButton = document.getElementById("forumTopicCloseButton");
-const forumTopicForm = document.getElementById("forumTopicForm");
-const forumTopicTitleInput = document.getElementById("forumTopicTitleInput");
-const forumTopicContentInput = document.getElementById("forumTopicContentInput");
-const forumTopicSubmitButton = document.getElementById("forumTopicSubmitButton");
 const previousVersionsModal = document.getElementById("previousVersionsModal");
 const previousVersionsList = document.getElementById("previousVersionsList");
 const previousVersionsCloseButton = document.getElementById("previousVersionsCloseButton");
@@ -369,6 +351,8 @@ let catalogLoaded = false;
 let catalogItems = [];
 let catalogCache = [];
 let currentCatalogView = dashboardHomePage.viewKey;
+let currentHashShareViewKey = "";
+let currentHashShareMessageId = 0;
 let googleAuthPollTimerId = 0;
 let googleAuthTab = null;
 let googleAuthTabAwaitingResult = false;
@@ -379,25 +363,20 @@ let currentBoardviewChannelRole = "";
 let currentSchematicsChannelRole = "";
 let currentProblemSolvingChannelRole = "";
 let currentDatasheetsChannelRole = "";
-let currentForumChannelRole = "";
 let currentRequiredChannelInviteLink = "";
 let currentBoardviewChannelInviteLink = "";
 let currentSchematicsChannelInviteLink = "";
 let currentProblemSolvingChannelInviteLink = "";
 let currentDatasheetsChannelInviteLink = "";
-let currentForumChannelInviteLink = "";
 let isSchematicsMember = false;
 let isProblemSolvingMember = false;
 let isDatasheetsMember = false;
-let isForumMember = false;
-let currentForumThreadMessageId = 0;
 const catalogJoinRequiredState = {
   BIOS: false,
   Boardview: false,
   Schematics: false,
   ProblemSolving: false,
-  Datasheets: false,
-  Forum: false
+  Datasheets: false
 };
 let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
@@ -578,8 +557,8 @@ const telegramCatalogConfigs = {
     endpoint: "schematics"
   },
   ProblemSolving: {
-    displayName: "Problem Solving",
-    uploadLabel: "Upload Problem Solving",
+    displayName: "PS",
+    uploadLabel: "Upload PS",
     editTitle: "Edit Metadata Problem Solving",
     fileLabel: "File Markdown",
     fileAccept: ".md",
@@ -594,15 +573,6 @@ const telegramCatalogConfigs = {
     fileAccept: ".pdf",
     invalidExtensionMessage: "Format file Datasheets harus .pdf.",
     endpoint: "datasheets"
-  },
-  Forum: {
-    displayName: "Forum",
-    uploadLabel: "Buat Thread Forum",
-    editTitle: "Edit Thread Forum",
-    fileLabel: "Isi Thread",
-    fileAccept: "",
-    invalidExtensionMessage: "",
-    endpoint: "forum"
   }
 };
 
@@ -611,8 +581,7 @@ const telegramCatalogState = {
   Boardview: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
   Schematics: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
   ProblemSolving: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
-  Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" },
-  Forum: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" }
+  Datasheets: { requestToken: 0, hasMore: false, nextOffset: 0, loadingMore: false, cachedFirstPageItems: [], cachedFirstPageHasMore: false, cachedFirstPageNextOffset: 0, lastStatsCacheKey: "" }
 };
 const pendingCatalogRealtimeReloads = new Map();
 let activeTelegramCategorySync = null;
@@ -746,7 +715,6 @@ const viewHashMap = {
   ProblemSolving: "ProblemSolving",
   Datasheets: "Datasheets",
   [componentEquivalentsPage.viewKey]: "ComponentEquivalents",
-  Forum: "Forum",
   [spiFlashPage.viewKey]: "SpiFlash",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
@@ -773,7 +741,6 @@ const hashRouteMap = {
   datasheets: "Datasheets",
   componentequivalents: componentEquivalentsPage.viewKey,
   persamaankomponen: componentEquivalentsPage.viewKey,
-  forum: dashboardHomePage.viewKey,
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
   meanalyzer: meAnalyzerPage.viewKey,
@@ -822,7 +789,6 @@ function getViewButton(viewKey) {
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
     [componentEquivalentsPage.viewKey]: navComponentEquivalents,
-    Forum: navForum,
     [spiFlashPage.viewKey]: toolSpiFlash,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
@@ -841,39 +807,97 @@ function getViewButton(viewKey) {
   return navMap[viewKey] || null;
 }
 
-function updateViewHash(viewKey) {
-  const hashValue = viewHashMap[viewKey];
-  if (!hashValue) {
-    return;
-  }
-
-  const nextHash = `#${hashValue}`;
-  if (window.location.hash === nextHash) {
-    return;
-  }
-
-  window.location.hash = hashValue;
-}
-
-function getViewFromHash(hash = window.location.hash) {
+function parseHashRouteState(hash = window.location.hash) {
   const rawValue = String(hash || "")
     .replace(/^#/, "")
     .trim();
 
   if (!rawValue) {
-    return null;
+    return {
+      viewKey: null,
+      messageId: 0,
+      shareViewKey: ""
+    };
   }
 
-  const normalizedValue = rawValue
+  const [routePart, queryPart = ""] = rawValue.split("?");
+  const normalizedValue = routePart
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
+  const viewKey = hashRouteMap[normalizedValue] || null;
+  const params = new URLSearchParams(queryPart);
+  let messageId = 0;
 
-  return hashRouteMap[normalizedValue] || null;
+  for (const [key, value] of params.entries()) {
+    if (String(key || "").trim().toLowerCase() !== "messageid") {
+      continue;
+    }
+
+    const parsedMessageId = Number.parseInt(String(value || "").trim(), 10);
+    if (Number.isFinite(parsedMessageId) && parsedMessageId > 0) {
+      messageId = parsedMessageId;
+    }
+    break;
+  }
+
+  const shareViewKey = viewKey && isTelegramCatalogView(viewKey) && messageId > 0
+    ? viewKey
+    : "";
+
+  return {
+    viewKey,
+    messageId: shareViewKey ? messageId : 0,
+    shareViewKey
+  };
+}
+
+function buildViewHash(viewKey, options = {}) {
+  const hashValue = viewHashMap[viewKey];
+  if (!hashValue) {
+    return "";
+  }
+
+  const messageId = Number(options.messageId || 0);
+  if (isTelegramCatalogView(viewKey) && messageId > 0) {
+    return `#${hashValue}?MessageId=${messageId}`;
+  }
+
+  return `#${hashValue}`;
+}
+
+function updateViewHash(viewKey, options = {}) {
+  const nextHash = buildViewHash(viewKey, options);
+  if (!nextHash) {
+    return;
+  }
+
+  if (window.location.hash === nextHash) {
+    return;
+  }
+
+  window.location.hash = nextHash.slice(1);
+}
+
+function getViewFromHash(hash = window.location.hash) {
+  return parseHashRouteState(hash).viewKey;
+}
+
+function getCatalogMessageIdFromHash(viewKey = currentCatalogView, hash = window.location.hash) {
+  const routeState = parseHashRouteState(hash);
+  return routeState.shareViewKey === viewKey ? routeState.messageId : 0;
 }
 
 async function restoreViewFromHash() {
-  const targetView = getViewFromHash();
-  if (!targetView || targetView === currentCatalogView) {
+  const routeState = parseHashRouteState();
+  const targetView = routeState.viewKey;
+  const shareStateChanged =
+    routeState.shareViewKey !== currentHashShareViewKey ||
+    routeState.messageId !== currentHashShareMessageId;
+
+  currentHashShareViewKey = routeState.shareViewKey;
+  currentHashShareMessageId = routeState.messageId;
+
+  if (!targetView || (targetView === currentCatalogView && !shareStateChanged)) {
     return;
   }
 
@@ -903,17 +927,14 @@ function resetCatalog() {
   currentSchematicsChannelRole = "";
   currentProblemSolvingChannelRole = "";
   currentDatasheetsChannelRole = "";
-  currentForumChannelRole = "";
   isSchematicsMember = false;
   isProblemSolvingMember = false;
   isDatasheetsMember = false;
-  isForumMember = false;
   setChannelJoinRequired("BIOS", false);
   setChannelJoinRequired("Boardview", false);
   setChannelJoinRequired("Schematics", false);
   setChannelJoinRequired("ProblemSolving", false);
   setChannelJoinRequired("Datasheets", false);
-  setChannelJoinRequired("Forum", false);
   telegramCatalogState.BIOS.requestToken = 0;
   telegramCatalogState.BIOS.hasMore = false;
   telegramCatalogState.BIOS.nextOffset = 0;
@@ -954,14 +975,6 @@ function resetCatalog() {
   telegramCatalogState.Datasheets.cachedFirstPageHasMore = false;
   telegramCatalogState.Datasheets.cachedFirstPageNextOffset = 0;
   telegramCatalogState.Datasheets.lastStatsCacheKey = "";
-  telegramCatalogState.Forum.requestToken = 0;
-  telegramCatalogState.Forum.hasMore = false;
-  telegramCatalogState.Forum.nextOffset = 0;
-  telegramCatalogState.Forum.loadingMore = false;
-  telegramCatalogState.Forum.cachedFirstPageItems = [];
-  telegramCatalogState.Forum.cachedFirstPageHasMore = false;
-  telegramCatalogState.Forum.cachedFirstPageNextOffset = 0;
-  telegramCatalogState.Forum.lastStatsCacheKey = "";
   clearCatalogRealtimeReloads();
   catalogEditorMode = "upload";
   if (catalogSearchDebounceId) {
@@ -989,8 +1002,6 @@ function resetCatalog() {
   closeCatalogDeleteModal({ force: true, restoreFocus: false });
   toggleElement(catalogContextPanel, false);
   closeProblemSolvingViewer();
-  closeForumThreadModal();
-  closeForumTopicModal();
 }
 
 function clearCatalogRealtimeReloads() {
@@ -1104,10 +1115,6 @@ function isOwnerRole() {
     return currentDatasheetsChannelRole.toLowerCase() === "owner";
   }
 
-  if (currentCatalogView === "Forum") {
-    return currentForumChannelRole.toLowerCase() === "owner";
-  }
-
   const activeRole = currentCatalogView === "Boardview" ? currentBoardviewChannelRole : currentBiosChannelRole;
   return activeRole.toLowerCase() === "owner";
 }
@@ -1117,12 +1124,8 @@ function canManageBiosCatalog() {
   return normalizedRole === "owner" || normalizedRole === "admin";
 }
 
-function canCreateForumTopic() {
-  return currentCatalogView === "Forum" && isForumMember && !requiresChannelJoin("Forum");
-}
-
 function isTelegramCatalogView(viewKey = currentCatalogView) {
-  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "Schematics" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
+  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "Schematics" || viewKey === "ProblemSolving" || viewKey === "Datasheets";
 }
 
 function getTelegramCatalogConfig(viewKey = currentCatalogView) {
@@ -1138,8 +1141,7 @@ function supportsCategoryTelegramStatsSync(viewKey = currentCatalogView) {
     viewKey === "Boardview" ||
     viewKey === "Schematics" ||
     viewKey === "ProblemSolving" ||
-    viewKey === "Datasheets" ||
-    viewKey === "Forum";
+    viewKey === "Datasheets";
 }
 
 function buildTelegramCategoryStatsCacheKey(stats) {
@@ -1279,10 +1281,6 @@ function getDisplayRoleForView(viewKey = currentCatalogView) {
     return currentDatasheetsChannelRole || currentChannelRole;
   }
 
-  if (viewKey === "Forum") {
-    return currentForumChannelRole || currentChannelRole;
-  }
-
   if (viewKey === "Boardview") {
     return currentBoardviewChannelRole || currentChannelRole;
   }
@@ -1307,7 +1305,7 @@ function isSchematicsView(viewKey = currentCatalogView) {
 }
 
 function isJoinManagedCatalogView(viewKey = currentCatalogView) {
-  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "Schematics" || viewKey === "ProblemSolving" || viewKey === "Datasheets" || viewKey === "Forum";
+  return viewKey === "BIOS" || viewKey === "Boardview" || viewKey === "Schematics" || viewKey === "ProblemSolving" || viewKey === "Datasheets";
 }
 
 function requiresChannelJoin(viewKey = currentCatalogView) {
@@ -1367,17 +1365,6 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
     };
   }
 
-  if (viewKey === "Forum") {
-    return {
-      title: "Gabung grup Forum dulu untuk membuka diskusi.",
-      description: "Setelah berhasil join, thread forum bisa langsung dibuka dan kamu dapat membalas posting dari dashboard.",
-      buttonId: "forumJoinButton",
-      buttonLabel: "Gabung Grup Forum",
-      link: currentForumChannelInviteLink,
-      emptyMessage: "Gabung grup Forum dulu, lalu refresh daftar thread."
-    };
-  }
-
   return {
     title: "Gabung channel Problem Solving dulu untuk membuka katalog.",
     description: "Setelah berhasil join, Problem Solving akan muncul list katalog.",
@@ -1399,9 +1386,7 @@ function itemMatchesCatalogView(item, viewKey = currentCatalogView) {
 }
 
 function updateCatalogToolbar(viewKey = currentCatalogView) {
-  const showUploadButton = viewKey === "Forum"
-    ? isForumMember && !requiresChannelJoin("Forum")
-    : isTelegramCatalogView(viewKey) && canManageBiosCatalog();
+  const showUploadButton = isTelegramCatalogView(viewKey) && canManageBiosCatalog();
   toggleElement(catalogUploadButton, showUploadButton);
 
   if (!catalogUploadButton) {
@@ -1538,7 +1523,6 @@ function setActiveNav(targetKey) {
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
     [componentEquivalentsPage.viewKey]: navComponentEquivalents,
-    Forum: navForum,
     tool_spi_flash: toolSpiFlash,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
@@ -1656,16 +1640,6 @@ function updateCatalogHeader(viewKey) {
     return;
   }
 
-  if (viewKey === "Forum") {
-    setText(catalogEyebrow, "Forum");
-    setText(catalogTitle, "Diskusi teknisi, tanya jawab, dan balasan thread");
-    if (catalogSearchInput) {
-      catalogSearchInput.placeholder = "Cari judul thread, isi posting, atau nama pengirim...";
-    }
-    updateCatalogToolbar(viewKey);
-    return;
-  }
-
   const toolConfig = toolViewMap[viewKey];
   setText(catalogEyebrow, toolConfig.eyebrow);
   setText(catalogTitle, toolConfig.title);
@@ -1715,6 +1689,119 @@ function renderBoardviewViewerSelector(messageId) {
       </select>
     </label>
   `;
+}
+
+function renderCatalogShareButton(category, messageId, title = "") {
+  const normalizedCategory = String(category || "").trim();
+  const normalizedMessageId = Number(messageId || 0);
+  if (!normalizedCategory || normalizedMessageId <= 0 || !viewHashMap[normalizedCategory]) {
+    return "";
+  }
+
+  return `
+    <button
+      type="button"
+      class="catalog-action-button ghost catalog-share-button"
+      data-category="${escapeHtml(normalizedCategory)}"
+      data-message-id="${normalizedMessageId}"
+      data-title="${escapeHtml(title || normalizedCategory)}"
+      title="Bagikan link item ini"
+      aria-label="Bagikan ${escapeHtml(title || normalizedCategory)}">
+      <span class="material-symbols-outlined">share</span>
+    </button>
+  `;
+}
+
+function buildCatalogShareLink(category, messageId) {
+  const normalizedCategory = String(category || "").trim();
+  const normalizedMessageId = Number(messageId || 0);
+  if (!normalizedCategory || normalizedMessageId <= 0) {
+    throw new Error("Link bagikan katalog tidak valid.");
+  }
+
+  const hash = buildViewHash(normalizedCategory, { messageId: normalizedMessageId });
+  if (!hash) {
+    throw new Error("Kategori katalog belum mendukung link bagikan.");
+  }
+
+  const currentUrl = new URL(window.location.href);
+  currentUrl.hash = hash.slice(1);
+  return currentUrl.toString();
+}
+
+async function copyTextToClipboard(text) {
+  const value = String(text || "");
+  if (!value) {
+    throw new Error("Teks yang akan disalin kosong.");
+  }
+
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const fallbackInput = document.createElement("textarea");
+  fallbackInput.value = value;
+  fallbackInput.setAttribute("readonly", "true");
+  fallbackInput.style.position = "fixed";
+  fallbackInput.style.opacity = "0";
+  fallbackInput.style.pointerEvents = "none";
+  document.body.appendChild(fallbackInput);
+  fallbackInput.focus();
+  fallbackInput.select();
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) {
+      throw new Error("Clipboard browser menolak menyalin link.");
+    }
+  } finally {
+    fallbackInput.remove();
+  }
+}
+
+function renderCatalogLoading(viewKey = currentCatalogView, placeholderCount = 4) {
+  if (localWorkbenchViewKeys.has(viewKey)) {
+    return;
+  }
+
+  hideWorkbench();
+  if (!catalogList) {
+    return;
+  }
+
+  updateCatalogHeader(viewKey);
+  setActiveNav(viewKey);
+  if (catalogCount) {
+    catalogCount.textContent = "Memuat...";
+  }
+
+  if (catalogContextPanel) {
+    catalogContextPanel.innerHTML = "";
+    toggleElement(catalogContextPanel, false);
+  }
+
+  toggleElement(catalogPagination, false);
+  catalogList.innerHTML = Array.from({ length: placeholderCount }, (_, index) => `
+    <article class="catalog-card catalog-card-placeholder" aria-hidden="true" data-placeholder-index="${index + 1}">
+      <div class="catalog-card-top">
+        <span class="catalog-shimmer catalog-shimmer-pill catalog-shimmer-category"></span>
+        <span class="catalog-shimmer catalog-shimmer-pill catalog-shimmer-access"></span>
+      </div>
+      <span class="catalog-shimmer catalog-shimmer-title"></span>
+      <div class="catalog-shimmer-grid">
+        <span class="catalog-shimmer catalog-shimmer-meta"></span>
+        <span class="catalog-shimmer catalog-shimmer-meta"></span>
+      </div>
+      <span class="catalog-shimmer catalog-shimmer-row"></span>
+      <span class="catalog-shimmer catalog-shimmer-row is-short"></span>
+      <div class="catalog-card-actions">
+        <span class="catalog-shimmer catalog-shimmer-button"></span>
+        <span class="catalog-shimmer catalog-shimmer-button is-ghost"></span>
+      </div>
+    </article>
+  `).join("");
+  toggleElement(catalogSection, true);
 }
 
 function renderCatalog(items, viewKey = currentCatalogView) {
@@ -1791,46 +1878,6 @@ function renderCatalog(items, viewKey = currentCatalogView) {
     return;
   }
 
-  if (viewKey === "Forum") {
-    catalogList.innerHTML = items.map((item) => `
-      <article class="catalog-card">
-        <div class="catalog-card-top">
-          <span class="catalog-category">${escapeHtml(item.category || "Forum")}</span>
-          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
-        </div>
-        <h4>${escapeHtml(item.title || "Thread Forum")}</h4>
-        <div class="catalog-inline-meta">
-          ${item.uploadedBy ? `
-          <div class="catalog-file-row">
-            <span class="material-symbols-outlined">person</span>
-            <span>${escapeHtml(item.uploadedBy)}</span>
-          </div>` : ""}
-          <div class="catalog-file-row">
-            <span class="material-symbols-outlined">forum</span>
-            <span>${escapeHtml(String(item.replyCount || 0))} balasan</span>
-          </div>
-          <div class="catalog-file-row">
-            <span class="material-symbols-outlined">schedule</span>
-            <span>${escapeHtml(item.postedAt || "-")}</span>
-          </div>
-        </div>
-        <div class="catalog-card-actions">
-          <button
-            type="button"
-            class="catalog-action-button catalog-forum-thread-button"
-            data-message-id="${item.messageId || ""}"
-            data-title="${escapeHtml(item.title || "Thread Forum")}">
-            <span class="material-symbols-outlined">forum</span>
-            <span>Buka Thread</span>
-          </button>
-        </div>
-      </article>
-    `).join("");
-
-    toggleElement(catalogSection, true);
-    return;
-  }
-
   if (isProblemSolvingView(viewKey)) {
     catalogList.innerHTML = items.map((item) => `
       <article class="catalog-card">
@@ -1869,6 +1916,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">delete</span>
             <span>Hapus</span>
           </button>` : ""}
+          ${renderCatalogShareButton(item.category || "ProblemSolving", item.messageId, item.fileName || item.title || "Problem Solving")}
         </div>
       </article>
     `).join("");
@@ -1924,6 +1972,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">delete</span>
             <span>Hapus</span>
           </button>` : ""}
+          ${renderCatalogShareButton(item.category || "Datasheets", item.messageId, item.fileName || item.title || "Datasheets")}
         </div>
       </article>
     `).join("");
@@ -2007,6 +2056,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">delete</span>
             <span>Hapus</span>
           </button>` : ""}
+          ${renderCatalogShareButton(item.category || "Schematics", item.messageId, item.fileName || item.title || "Schematics")}
         </div>
       </article>
     `).join("");
@@ -2121,6 +2171,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">delete</span>
           <span>Hapus</span>
         </button>` : ""}
+        ${renderCatalogShareButton(item.category, item.messageId, item.title || item.fileName || item.category)}
       </div>
     </article>
   `).join("");
@@ -2298,6 +2349,26 @@ function resetCatalogBiosDuplicateCheck() {
   }
 }
 
+function renderCatalogAnalysisMatchLink(item, displayName) {
+  const category = String(item?.category || "").trim();
+  const messageId = Number(item?.messageId || 0);
+  const label = escapeHtml(item?.fileName || item?.title || `File ${displayName}`);
+  if (!category || messageId <= 0 || !viewHashMap[category]) {
+    return `<strong>${label}</strong>`;
+  }
+
+  const targetHash = buildViewHash(category, { messageId });
+  return `
+    <a
+      href="${escapeHtml(targetHash || "#")}"
+      class="catalog-analysis-link"
+      data-category="${escapeHtml(category)}"
+      data-message-id="${messageId}">
+      <strong>${label}</strong>
+    </a>
+  `;
+}
+
 function renderCatalogBiosDuplicateCheck(state, analysis = null) {
   if (!catalogEditorAnalysisPanel) {
     return;
@@ -2341,7 +2412,7 @@ function renderCatalogBiosDuplicateCheck(state, analysis = null) {
       <div class="catalog-analysis-list">
         ${matches.slice(0, 3).map((item) => `
           <div class="catalog-analysis-item">
-            <strong>${escapeHtml(item.fileName || item.title || `File ${displayName}`)}</strong>
+            ${renderCatalogAnalysisMatchLink(item, displayName)}
             <span>${escapeHtml(item.postedAt || "-")} | ${escapeHtml(item.uploadedBy || "Unknown")}</span>
           </div>
         `).join("")}
@@ -2357,6 +2428,33 @@ function renderCatalogBiosDuplicateCheck(state, analysis = null) {
     </div>
     ${body}
   `;
+}
+
+function buildTelegramCatalogRequestPath(viewKey, options = {}) {
+  const params = new URLSearchParams();
+  params.set("category", viewKey);
+  params.set("limit", String(Math.max(1, Number(options.limit) || 5)));
+
+  const offset = Math.max(0, Number(options.offset) || 0);
+  if (offset > 0) {
+    params.set("offset", String(offset));
+  }
+
+  const normalizedQuery = String(options.query || "").trim();
+  if (normalizedQuery) {
+    params.set("query", normalizedQuery);
+  }
+
+  if (options.cacheOnly) {
+    params.set("cacheOnly", "true");
+  }
+
+  const messageId = Number(options.messageId || 0);
+  if (messageId > 0) {
+    params.set("messageId", String(messageId));
+  }
+
+  return `/catalog?${params.toString()}`;
 }
 
 function formatFileSize(bytes) {
@@ -2739,91 +2837,6 @@ function closeProblemSolvingViewer() {
   }
 }
 
-function renderForumReplies(replies = []) {
-  if (!forumThreadReplies || !forumThreadReplyCount) {
-    return;
-  }
-
-  forumThreadReplyCount.textContent = `${replies.length} balasan`;
-  if (!Array.isArray(replies) || replies.length === 0) {
-    forumThreadReplies.innerHTML = `<p class="forum-thread-empty">Belum ada balasan. Jadilah yang pertama membalas thread ini.</p>`;
-    return;
-  }
-
-  forumThreadReplies.innerHTML = replies.map((reply) => `
-    <article class="forum-thread-reply-item">
-      <div class="forum-thread-reply-meta">
-        <span>${escapeHtml(reply.uploadedBy || "Member")}</span>
-        <span>${escapeHtml((reply.authorRole || "Member").toLowerCase())}</span>
-        <span>${escapeHtml(reply.postedAt || "-")}</span>
-      </div>
-      <p class="forum-thread-reply-content">${escapeHtml(reply.content || "")}</p>
-    </article>
-  `).join("");
-}
-
-function openForumThreadModal(thread) {
-  if (!forumThreadModal) {
-    return;
-  }
-
-  currentForumThreadMessageId = Number(thread?.messageId || 0);
-  setText(forumThreadTitle, thread?.title || "Thread forum");
-  setText(forumThreadAuthor, thread?.uploadedBy || "Pengirim tidak diketahui");
-  setText(forumThreadDate, thread?.postedAt || "-");
-  if (forumThreadContent) {
-    forumThreadContent.textContent = thread?.content || "";
-  }
-  if (forumReplyInput) {
-    forumReplyInput.value = "";
-  }
-  renderForumReplies(Array.isArray(thread?.replies) ? thread.replies : []);
-  toggleElement(forumThreadModal, true);
-}
-
-function closeForumThreadModal() {
-  currentForumThreadMessageId = 0;
-  toggleElement(forumThreadModal, false);
-  setText(forumThreadTitle, "Thread forum");
-  setText(forumThreadAuthor, "Pengirim");
-  setText(forumThreadDate, "Tanggal");
-  if (forumThreadContent) {
-    forumThreadContent.textContent = "";
-  }
-  if (forumThreadReplies) {
-    forumThreadReplies.innerHTML = "";
-  }
-  if (forumThreadReplyCount) {
-    forumThreadReplyCount.textContent = "0 balasan";
-  }
-  if (forumReplyInput) {
-    forumReplyInput.value = "";
-  }
-}
-
-function openForumTopicModal() {
-  if (!forumTopicModal) {
-    return;
-  }
-
-  if (!canCreateForumTopic()) {
-    throw new Error("Gabung grup Forum dulu sebelum membuat topic baru.");
-  }
-
-  if (forumTopicForm) {
-    forumTopicForm.reset();
-  }
-  toggleElement(forumTopicModal, true);
-  forumTopicTitleInput?.focus();
-}
-
-function closeForumTopicModal() {
-  toggleElement(forumTopicModal, false);
-  if (forumTopicForm) {
-    forumTopicForm.reset();
-  }
-}
-
 function renderPreviousVersions(history = []) {
   if (!previousVersionsList) {
     return;
@@ -2887,8 +2900,7 @@ async function joinCatalogChannel(viewKey = currentCatalogView, button = null) {
       joinBoardviewChannel: viewKey === "Boardview",
       joinSchematicsChannel: viewKey === "Schematics",
       joinProblemSolvingChannel: viewKey === "ProblemSolving",
-      joinDatasheetsChannel: viewKey === "Datasheets",
-      joinForumChannel: viewKey === "Forum"
+      joinDatasheetsChannel: viewKey === "Datasheets"
     };
     const result = await fetchJson("/auth/join-channels", {
       method: "POST",
@@ -3045,73 +3057,6 @@ function openPreparedDatasheetsViewTab(messageId) {
   }
 }
 
-async function viewForumThread(messageId, button = null) {
-  if (!messageId) {
-    throw new Error("Thread forum tidak valid.");
-  }
-
-  const previousMarkup = button?.innerHTML || "";
-  if (button) {
-    button.disabled = true;
-    button.innerHTML = `
-      <span class="material-symbols-outlined is-spinning">progress_activity</span>
-      <span>Membuka...</span>
-    `;
-  }
-
-  try {
-    const result = await fetchJson(`/catalog/forum/${messageId}/thread`, {
-      method: "POST",
-      body: JSON.stringify({})
-    });
-    openForumThreadModal(result);
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.innerHTML = previousMarkup;
-    }
-  }
-}
-
-async function submitForumReply() {
-  if (!currentForumThreadMessageId) {
-    throw new Error("Pilih thread forum dulu sebelum membalas.");
-  }
-
-  const content = (forumReplyInput?.value || "").trim();
-  if (!content) {
-    throw new Error("Isi balasan forum wajib diisi.");
-  }
-
-  const result = await fetchJson(`/catalog/forum/${currentForumThreadMessageId}/reply`, {
-    method: "POST",
-    body: JSON.stringify({ content })
-  });
-  setNotice(result.message || "Balasan forum berhasil dikirim.");
-  await viewForumThread(currentForumThreadMessageId);
-  await loadCatalog();
-}
-
-async function submitForumTopic() {
-  const title = (forumTopicTitleInput?.value || "").trim();
-  const content = (forumTopicContentInput?.value || "").trim();
-  if (!title) {
-    throw new Error("Judul topic forum wajib diisi.");
-  }
-
-  if (!content) {
-    throw new Error("Isi topic forum wajib diisi.");
-  }
-
-  const result = await fetchJson("/catalog/forum/topic", {
-    method: "POST",
-    body: JSON.stringify({ title, content })
-  });
-  setNotice(result.message || "Topic forum berhasil dibuat.");
-  closeForumTopicModal();
-  await loadCatalog();
-}
-
 function filterCatalogItems() {
   if (localWorkbenchViewKeys.has(currentCatalogView)) {
     renderCatalog([], currentCatalogView);
@@ -3119,10 +3064,12 @@ function filterCatalogItems() {
   }
 
   const keyword = (catalogSearchInput?.value || "").trim().toLowerCase();
+  const sharedMessageId = getCatalogMessageIdFromHash(currentCatalogView);
   const sourceCollection = isTelegramCatalogView(currentCatalogView) ? catalogItems : catalogCache;
   const sourceItems = sourceCollection.filter((item) => {
     if (isTelegramCatalogView(currentCatalogView)) {
-      return itemMatchesCatalogView(item, currentCatalogView);
+      return itemMatchesCatalogView(item, currentCatalogView) &&
+        (!sharedMessageId || Number(item.messageId || 0) === sharedMessageId);
     }
 
     if (currentCatalogView === "tool_spi_flash") {
@@ -3172,12 +3119,33 @@ async function loadBaseCatalog() {
 async function loadTelegramCatalog(viewKey = currentCatalogView) {
   const state = getTelegramCatalogState(viewKey);
   const query = (catalogSearchInput?.value || "").trim();
+  const sharedMessageId = getCatalogMessageIdFromHash(viewKey);
+  const hasSharedMessageFilter = sharedMessageId > 0;
   const requestToken = ++state.requestToken;
   state.loadingMore = false;
   state.nextOffset = 0;
   setCatalogSearchLoading(Boolean(query));
   try {
-    if (!query) {
+    if (hasSharedMessageFilter) {
+      const previewPath = buildTelegramCatalogRequestPath(viewKey, {
+        limit: 1,
+        cacheOnly: true,
+        messageId: sharedMessageId
+      });
+      const previewCatalog = await fetchJson(previewPath);
+      if (requestToken !== state.requestToken) {
+        return;
+      }
+
+      if (previewCatalog?.cacheAvailable && Array.isArray(previewCatalog.items) && previewCatalog.items.length > 0) {
+        catalogItems = previewCatalog.items || [];
+        state.hasMore = false;
+        state.nextOffset = catalogItems.length;
+        return;
+      }
+    }
+
+    if (!query && !hasSharedMessageFilter) {
       const preview = await loadTelegramCatalogCachePreview(viewKey, state, requestToken);
       if (requestToken !== state.requestToken) {
         return;
@@ -3189,7 +3157,11 @@ async function loadTelegramCatalog(viewKey = currentCatalogView) {
       }
     }
 
-    const path = `/catalog?category=${encodeURIComponent(viewKey)}&limit=5${query ? `&query=${encodeURIComponent(query)}` : ""}`;
+    const path = buildTelegramCatalogRequestPath(viewKey, {
+      limit: hasSharedMessageFilter ? 1 : 5,
+      query,
+      messageId: sharedMessageId
+    });
     const catalog = await fetchJson(path);
 
     if (requestToken !== state.requestToken) {
@@ -3199,7 +3171,7 @@ async function loadTelegramCatalog(viewKey = currentCatalogView) {
     catalogItems = catalog.items || [];
     state.hasMore = Boolean(catalog.hasMore);
     state.nextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
-    if (!query) {
+    if (!query && !hasSharedMessageFilter) {
       state.cachedFirstPageItems = [...catalogItems];
       state.cachedFirstPageHasMore = state.hasMore;
       state.cachedFirstPageNextOffset = state.nextOffset;
@@ -3221,6 +3193,7 @@ async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
   }
 
   const query = (catalogSearchInput?.value || "").trim();
+  const sharedMessageId = getCatalogMessageIdFromHash(viewKey);
   const requestToken = ++state.requestToken;
   state.loadingMore = true;
   if (catalogLoadMoreButton) {
@@ -3228,7 +3201,12 @@ async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
   }
 
   try {
-    const path = `/catalog?category=${encodeURIComponent(viewKey)}&limit=5&offset=${state.nextOffset}${query ? `&query=${encodeURIComponent(query)}` : ""}`;
+    const path = buildTelegramCatalogRequestPath(viewKey, {
+      limit: sharedMessageId > 0 ? 1 : 5,
+      offset: state.nextOffset,
+      query,
+      messageId: sharedMessageId
+    });
     const catalog = await fetchJson(path);
 
     if (requestToken !== state.requestToken) {
@@ -3255,6 +3233,7 @@ async function loadCatalog() {
   }
 
   if (isTelegramCatalogView(currentCatalogView)) {
+    renderCatalogLoading(currentCatalogView);
     await loadTelegramCatalog(currentCatalogView);
     setChannelJoinRequired(currentCatalogView, false);
     filterCatalogItems();
@@ -4542,8 +4521,6 @@ function applyStatus(status) {
   currentProblemSolvingChannelRole = status.problemSolvingChannelRole || "";
   isDatasheetsMember = Boolean(status.isDatasheetsChannelMember);
   currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
-  isForumMember = Boolean(status.isForumChannelMember);
-  currentForumChannelRole = status.forumChannelRole || "";
 
   toggleElement(phoneForm, showPhoneEntryForm);
   toggleElement(codeForm, showVerificationForm);
@@ -4562,7 +4539,6 @@ function applyStatus(status) {
     currentSchematicsChannelRole = status.schematicsChannelRole || "";
     currentProblemSolvingChannelRole = status.problemSolvingChannelRole || "";
     currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
-    currentForumChannelRole = status.forumChannelRole || "";
     const representativeRole = getRepresentativeRoleLabel(status);
     setText(dashboardTitle, `Halo, ${displayName}`);
     setText(dashboardLoginStatus, "Login Google aktif");
@@ -5767,7 +5743,10 @@ dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
 loadRememberedPhone();
 syncVerificationPhoneDisplay();
 initializeIntroQuoteModal();
-currentCatalogView = getViewFromHash() || dashboardHomePage.viewKey;
+const initialHashRouteState = parseHashRouteState();
+currentHashShareViewKey = initialHashRouteState.shareViewKey;
+currentHashShareMessageId = initialHashRouteState.messageId;
+currentCatalogView = initialHashRouteState.viewKey || dashboardHomePage.viewKey;
 refreshStatus();
 window.addEventListener("hashchange", () => {
   restoreViewFromHash().catch((error) => setNotice(error.message, true));
@@ -6003,6 +5982,29 @@ if (catalogList) {
       return;
     }
 
+    const shareButton = event.target.closest(".catalog-share-button");
+    if (shareButton) {
+      const category = shareButton.getAttribute("data-category") || currentCatalogView;
+      const messageId = Number(shareButton.getAttribute("data-message-id") || 0);
+      const itemTitle = shareButton.getAttribute("data-title") || category;
+      const previousMarkup = shareButton.innerHTML;
+
+      shareButton.disabled = true;
+      shareButton.innerHTML = `<span class="material-symbols-outlined is-spinning">progress_activity</span>`;
+
+      try {
+        const shareLink = buildCatalogShareLink(category, messageId);
+        await copyTextToClipboard(shareLink);
+        setNotice(`Link ${itemTitle} berhasil disalin.`);
+      } catch (error) {
+        setNotice(error.message, true);
+      } finally {
+        shareButton.disabled = false;
+        shareButton.innerHTML = previousMarkup;
+      }
+      return;
+    }
+
     const openButton = event.target.closest(".catalog-open-button");
     if (openButton) {
       const messageId = Number(openButton.getAttribute("data-message-id") || 0);
@@ -6151,17 +6153,6 @@ if (catalogList) {
       return;
     }
 
-    const forumButton = event.target.closest(".catalog-forum-thread-button");
-    if (forumButton) {
-      const messageId = Number(forumButton.getAttribute("data-message-id") || 0);
-      try {
-        await viewForumThread(messageId, forumButton);
-      } catch (error) {
-        setNotice(error.message, true);
-      }
-      return;
-    }
-
     const flashChipButton = event.target.closest(".catalog-flash-chip-button");
     if (flashChipButton) {
       const messageId = Number(flashChipButton.getAttribute("data-message-id") || 0);
@@ -6259,7 +6250,7 @@ if (catalogList) {
 }
 
 catalogContextPanel?.addEventListener("click", async (event) => {
-  const joinButton = event.target.closest("#biosJoinButton, #boardviewJoinButton, #schematicsJoinButton, #problemSolvingJoinButton, #datasheetsJoinButton, #forumJoinButton");
+  const joinButton = event.target.closest("#biosJoinButton, #boardviewJoinButton, #schematicsJoinButton, #problemSolvingJoinButton, #datasheetsJoinButton");
   if (!joinButton) {
     return;
   }
@@ -6273,8 +6264,6 @@ catalogContextPanel?.addEventListener("click", async (event) => {
       ? "Schematics"
       : joinButton.id === "datasheetsJoinButton"
       ? "Datasheets"
-      : joinButton.id === "forumJoinButton"
-      ? "Forum"
       : "ProblemSolving";
     await joinCatalogChannel(targetView, joinButton);
   } catch (error) {
@@ -6304,8 +6293,6 @@ async function navigateTelegramCatalog(viewKey, button) {
   cancelActiveTelegramCategorySync(viewKey);
   currentCatalogView = viewKey;
   closeProblemSolvingViewer();
-  closeForumThreadModal();
-  closeForumTopicModal();
   setActiveNav(viewKey);
   setNavButtonLoading(button, true);
 
@@ -6375,17 +6362,32 @@ async function refreshCurrentTelegramCatalog() {
 }
 
 catalogUploadButton?.addEventListener("click", () => {
-  if (currentCatalogView === "Forum") {
-    openForumTopicModal();
-    return;
-  }
-
   openCatalogEditor("upload");
 });
 
 catalogRefreshButton?.addEventListener("click", refreshCurrentTelegramCatalog);
 
 catalogEditorCloseButton?.addEventListener("click", closeCatalogEditor);
+
+catalogEditorAnalysisPanel?.addEventListener("click", (event) => {
+  const analysisLink = event.target.closest(".catalog-analysis-link");
+  if (!analysisLink) {
+    return;
+  }
+
+  event.preventDefault();
+  const category = analysisLink.getAttribute("data-category") || "";
+  const messageId = Number(analysisLink.getAttribute("data-message-id") || 0);
+  if (!category || messageId <= 0) {
+    return;
+  }
+
+  closeCatalogEditor();
+  updateViewHash(category, { messageId });
+  if (currentCatalogView === category && getCatalogMessageIdFromHash(category) === messageId) {
+    filterCatalogItems();
+  }
+});
 
 catalogDeleteCancelButton?.addEventListener("click", () => closeCatalogDeleteModal());
 
@@ -6436,8 +6438,6 @@ aboutFooterButton?.addEventListener("click", openAboutModal);
 aboutModalCloseButton?.addEventListener("click", closeAboutModal);
 
 problemSolvingViewerCloseButton?.addEventListener("click", closeProblemSolvingViewer);
-forumThreadCloseButton?.addEventListener("click", closeForumThreadModal);
-forumTopicCloseButton?.addEventListener("click", closeForumTopicModal);
 
 viewPreviousVersionsButton?.addEventListener("click", openPreviousVersionsModal);
 
@@ -6452,55 +6452,7 @@ document.addEventListener("keydown", (event) => {
   closeCatalogDeleteModal();
   closeAboutModal();
   closeProblemSolvingViewer();
-  closeForumThreadModal();
-  closeForumTopicModal();
   closePreviousVersionsModal();
-});
-
-forumReplyForm?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const previousMarkup = forumReplySubmitButton?.innerHTML || "";
-  if (forumReplySubmitButton) {
-    forumReplySubmitButton.disabled = true;
-    forumReplySubmitButton.innerHTML = `
-      <span class="material-symbols-outlined is-spinning">progress_activity</span>
-      <span>Mengirim...</span>
-    `;
-  }
-
-  try {
-    await submitForumReply();
-  } catch (error) {
-    setNotice(error.message, true);
-  } finally {
-    if (forumReplySubmitButton) {
-      forumReplySubmitButton.disabled = false;
-      forumReplySubmitButton.innerHTML = previousMarkup;
-    }
-  }
-});
-
-forumTopicForm?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const previousMarkup = forumTopicSubmitButton?.innerHTML || "";
-  if (forumTopicSubmitButton) {
-    forumTopicSubmitButton.disabled = true;
-    forumTopicSubmitButton.innerHTML = `
-      <span class="material-symbols-outlined is-spinning">progress_activity</span>
-      <span>Membuat...</span>
-    `;
-  }
-
-  try {
-    await submitForumTopic();
-  } catch (error) {
-    setNotice(error.message, true);
-  } finally {
-    if (forumTopicSubmitButton) {
-      forumTopicSubmitButton.disabled = false;
-      forumTopicSubmitButton.innerHTML = previousMarkup;
-    }
-  }
 });
 
 catalogEditorForm?.addEventListener("submit", async (event) => {
@@ -6570,11 +6522,6 @@ navDashboard?.addEventListener("click", () => {
   currentCatalogView = dashboardHomePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
-});
-
-navForum?.addEventListener("click", () => {
-  updateViewHash("Forum");
-  navigateTelegramCatalog("Forum", navForum);
 });
 
 toolSpiFlash?.addEventListener("click", () => {

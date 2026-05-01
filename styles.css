@@ -1351,6 +1351,10 @@ h1 {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
+.catalog-card-placeholder {
+  pointer-events: none;
+}
+
 .catalog-card h4 {
   margin-bottom: 0;
   color: var(--deep);
@@ -1443,6 +1447,73 @@ h1 {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.catalog-shimmer {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(22, 78, 125, 0.08) 0%, rgba(22, 78, 125, 0.14) 50%, rgba(22, 78, 125, 0.08) 100%);
+}
+
+.catalog-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.58) 50%, transparent 100%);
+  animation: catalogShimmer 1.4s ease-in-out infinite;
+}
+
+.catalog-shimmer-pill {
+  height: 34px;
+}
+
+.catalog-shimmer-category {
+  width: 122px;
+}
+
+.catalog-shimmer-access {
+  width: 88px;
+}
+
+.catalog-shimmer-title {
+  width: min(72%, 420px);
+  height: 26px;
+  border-radius: 12px;
+}
+
+.catalog-shimmer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.catalog-shimmer-meta {
+  height: 64px;
+  border-radius: 14px;
+}
+
+.catalog-shimmer-row {
+  width: min(82%, 440px);
+  height: 38px;
+}
+
+.catalog-shimmer-row.is-short {
+  width: min(56%, 300px);
+}
+
+.catalog-shimmer-button {
+  width: 154px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+.catalog-shimmer-button.is-ghost {
+  width: 118px;
+  opacity: 0.85;
 }
 
 .catalog-flash-chip-device {
@@ -1581,6 +1652,21 @@ h1 {
   box-shadow: none;
 }
 
+.catalog-share-button {
+  margin-left: auto;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  padding: 0;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.catalog-share-button .material-symbols-outlined {
+  margin: 0;
+}
+
 .catalog-flash-chip-button:disabled {
   opacity: 0.58;
   cursor: not-allowed;
@@ -1610,6 +1696,12 @@ h1 {
 .catalog-empty .material-symbols-outlined {
   font-size: 2rem;
   color: var(--muted);
+}
+
+@keyframes catalogShimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .catalog-pagination {
@@ -1647,14 +1739,6 @@ h1 {
 
 .problem-solving-modal-card {
   width: min(880px, 100%);
-}
-
-.forum-thread-modal-card {
-  width: min(920px, 100%);
-}
-
-.forum-topic-modal-card {
-  width: min(760px, 100%);
 }
 
 .previous-versions-modal-card {
@@ -2042,6 +2126,33 @@ h1 {
 
 .catalog-analysis-item strong {
   color: var(--deep);
+}
+
+.catalog-analysis-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  color: inherit;
+  text-decoration: none;
+}
+
+.catalog-analysis-link strong {
+  color: var(--deep);
+  text-decoration: underline;
+  text-decoration-color: rgba(22, 78, 125, 0.28);
+  text-underline-offset: 3px;
+}
+
+.catalog-analysis-link:hover strong,
+.catalog-analysis-link:focus-visible strong {
+  color: var(--accent);
+  text-decoration-color: rgba(35, 140, 202, 0.48);
+}
+
+.catalog-analysis-link:focus-visible {
+  outline: 2px solid rgba(35, 140, 202, 0.28);
+  outline-offset: 3px;
+  border-radius: 8px;
 }
 
 .catalog-analysis-item span {
@@ -4341,115 +4452,6 @@ h1 {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.forum-thread-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-.forum-thread-content {
-  padding: 18px;
-  border-radius: 20px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.84);
-  color: var(--text);
-  line-height: 1.75;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.forum-thread-replies-section {
-  margin-top: 18px;
-  display: grid;
-  gap: 12px;
-}
-
-.forum-thread-replies-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.forum-thread-replies-head h4 {
-  margin: 0;
-  color: var(--deep);
-}
-
-.forum-thread-replies-head span {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.forum-thread-replies-list {
-  display: grid;
-  gap: 12px;
-}
-
-.forum-thread-reply-item {
-  display: grid;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.forum-thread-reply-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.forum-thread-reply-content {
-  margin: 0;
-  color: var(--text);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.forum-reply-form {
-  display: grid;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.forum-topic-form {
-  display: grid;
-  gap: 12px;
-}
-
-.forum-reply-form label,
-.forum-topic-form label {
-  font-weight: 700;
-  color: var(--deep);
-}
-
-.forum-reply-form textarea,
-.forum-topic-form textarea {
-  min-height: 132px;
-  resize: vertical;
-}
-
-.forum-reply-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.forum-thread-empty {
-  margin: 0;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(22, 78, 125, 0.06);
-  color: var(--muted);
 }
 
 :fullscreen#microscopePreviewPanel,
