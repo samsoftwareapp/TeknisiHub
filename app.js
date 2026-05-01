@@ -15,6 +15,10 @@ const updateProgressBar = document.getElementById("updateProgressBar");
 const updateProgressMeta = document.getElementById("updateProgressMeta");
 const mainPanel = document.getElementById("mainPanel");
 const toastContainer = document.getElementById("toastContainer");
+const introQuoteModal = document.getElementById("introQuoteModal");
+const introQuoteCloseButton = document.getElementById("introQuoteCloseButton");
+const introQuoteDismissCheckbox = document.getElementById("introQuoteDismissCheckbox");
+const introQuoteEnterButton = document.getElementById("introQuoteEnterButton");
 const errorMessage = document.getElementById("errorMessage");
 const phoneForm = document.getElementById("phoneForm");
 const phoneNumberInput = document.getElementById("phoneNumber");
@@ -98,9 +102,11 @@ const catalogEditorMetadataFields = document.getElementById("catalogEditorMetada
 const catalogEditorAliasField = document.getElementById("catalogEditorAliasField");
 const catalogEditorAliasName = document.getElementById("catalogEditorAliasName");
 const catalogEditorDeviceModel = document.getElementById("catalogEditorDeviceModel");
+const catalogEditorDeviceModelField = catalogEditorDeviceModel?.closest(".catalog-form-field");
 const catalogEditorSerialNumberField = document.getElementById("catalogEditorSerialNumberField");
 const catalogEditorSerialNumber = document.getElementById("catalogEditorSerialNumber");
 const catalogEditorBoardCode = document.getElementById("catalogEditorBoardCode");
+const catalogEditorBoardCodeField = catalogEditorBoardCode?.closest(".catalog-form-field");
 const catalogEditorNoteField = document.getElementById("catalogEditorNoteField");
 const catalogEditorNote = document.getElementById("catalogEditorNote");
 const catalogEditorSubmitButton = document.getElementById("catalogEditorSubmitButton");
@@ -416,6 +422,7 @@ const catalogDeleteConfirmDefaultMarkup = catalogDeleteConfirmButton?.innerHTML 
 const rememberedPhoneStorageKey = "teknisihub_remembered_phone";
 const rememberedPhoneFlagKey = "teknisihub_remember_phone_enabled";
 const activeOtpPhoneStorageKey = "teknisihub_active_otp_phone";
+const introQuoteDismissStorageKey = "teknisihub_hide_intro_quote";
 const catalogRefreshCooldownMs = 15000;
 let isPhoneNumberChangeRequested = false;
 const allowedBiosExtensions = [".bin", ".rom", ".cap", ".img", ".fd", ".bio", ".wph", ".efi", ".hdr"];
@@ -1668,6 +1675,48 @@ function updateCatalogHeader(viewKey) {
   updateCatalogToolbar(viewKey);
 }
 
+function renderFlashChipDeviceSelector(messageId) {
+  return `
+    <label
+      class="catalog-flash-chip-device"
+      data-connection-state="idle"
+      title="Pilih device programmer dulu. Koneksi akan dicek otomatis setelah dipilih.">
+      <span class="material-symbols-outlined">usb</span>
+      <select
+        class="catalog-flash-chip-device-select"
+        data-flash-chip-device
+        data-message-id="${messageId}"
+        aria-label="Pilih device programmer untuk SPI Flash">
+        <option value="">---Pilih Device---</option>
+        <option value="CH341A">CH341A</option>
+        <option value="STM32">STM32</option>
+        <option value="EZP2019">EZP2019+</option>
+      </select>
+      <span class="catalog-flash-chip-device-indicator" data-flash-chip-device-indicator aria-hidden="true"></span>
+    </label>
+  `;
+}
+
+function renderBoardviewViewerSelector(messageId) {
+  return `
+    <label
+      class="catalog-boardview-viewer"
+      title="Pilih viewer Boardview dulu sebelum menekan tombol Buka.">
+      <span class="material-symbols-outlined">tv_options_input_settings</span>
+      <select
+        class="catalog-boardview-viewer-select"
+        data-boardview-viewer
+        data-message-id="${messageId}"
+        required
+        aria-label="Pilih viewer untuk membuka Boardview">
+        <option value="">---Pilih Viewer---</option>
+        <option value="desktop">Boardview Desktop</option>
+        <option value="teknisihub">Boardview TeknisiHub</option>
+      </select>
+    </label>
+  `;
+}
+
 function renderCatalog(items, viewKey = currentCatalogView) {
   if (localWorkbenchViewKeys.has(viewKey)) {
     setActiveNav(viewKey);
@@ -1790,10 +1839,9 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
         </div>
         <h4>${escapeHtml(item.fileName || item.title || "Untitled.md")}</h4>
-        ${item.description ? `<p class="catalog-description">${escapeHtml(item.description)}</p>` : ""}
         <div class="catalog-file-row">
-          <span class="material-symbols-outlined">description</span>
-          <span>${escapeHtml(item.fileName || item.title || "-")}</span>
+          <span class="material-symbols-outlined">fingerprint</span>
+          <span>${escapeHtml(`MD5: ${item.md5 || "-"}`)}</span>
         </div>
         ${item.uploadedBy ? `
         <div class="catalog-file-row">
@@ -1813,6 +1861,14 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">article</span>
             <span>Lihat</span>
           </button>
+          ${isTelegramCatalogView(viewKey) && isOwnerRole() && item.messageId ? `
+          <button
+            type="button"
+            class="catalog-action-button ghost catalog-delete-button"
+            data-message-id="${item.messageId}">
+            <span class="material-symbols-outlined">delete</span>
+            <span>Hapus</span>
+          </button>` : ""}
         </div>
       </article>
     `).join("");
@@ -1829,10 +1885,9 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
         </div>
         <h4>${escapeHtml(item.fileName || item.title || "Untitled.pdf")}</h4>
-        ${item.description ? `<p class="catalog-description">${escapeHtml(item.description)}</p>` : ""}
         <div class="catalog-file-row">
-          <span class="material-symbols-outlined">picture_as_pdf</span>
-          <span>${escapeHtml(item.fileName || item.title || "-")}</span>
+          <span class="material-symbols-outlined">fingerprint</span>
+          <span>${escapeHtml(`MD5: ${item.md5 || "-"}`)}</span>
         </div>
         ${item.uploadedBy ? `
         <div class="catalog-file-row">
@@ -1861,6 +1916,14 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">download</span>
             <span>Unduh PDF</span>
           </button>
+          ${isTelegramCatalogView(viewKey) && isOwnerRole() && item.messageId ? `
+          <button
+            type="button"
+            class="catalog-action-button ghost catalog-delete-button"
+            data-message-id="${item.messageId}">
+            <span class="material-symbols-outlined">delete</span>
+            <span>Hapus</span>
+          </button>` : ""}
         </div>
       </article>
     `).join("");
@@ -1877,10 +1940,19 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
         </div>
         <h4>${escapeHtml(item.fileName || item.title || "Untitled.pdf")}</h4>
-        ${item.description ? `<p class="catalog-description">${escapeHtml(item.description)}</p>` : ""}
+        <dl class="catalog-meta-grid">
+          <div>
+            <dt>MODEL</dt>
+            <dd>${escapeHtml(item.deviceModel || "-")}</dd>
+          </div>
+          <div>
+            <dt>CODE BOARD</dt>
+            <dd>${escapeHtml(item.boardCode || "-")}</dd>
+          </div>
+        </dl>
         <div class="catalog-file-row">
-          <span class="material-symbols-outlined">schema</span>
-          <span>${escapeHtml(item.fileName || item.title || "-")}</span>
+          <span class="material-symbols-outlined">fingerprint</span>
+          <span>${escapeHtml(`MD5: ${item.md5 || "-"}`)}</span>
         </div>
         ${item.uploadedBy ? `
         <div class="catalog-file-row">
@@ -1919,6 +1991,22 @@ function renderCatalog(items, viewKey = currentCatalogView) {
             <span class="material-symbols-outlined">download</span>
             <span>Unduh PDF</span>
           </button>
+          ${isTelegramCatalogView(viewKey) && canManageBiosCatalog() && item.messageId ? `
+          <button
+            type="button"
+            class="catalog-action-button ghost catalog-edit-button"
+            data-message-id="${item.messageId}">
+            <span class="material-symbols-outlined">edit</span>
+            <span>Edit</span>
+          </button>` : ""}
+          ${isTelegramCatalogView(viewKey) && isOwnerRole() && item.messageId ? `
+          <button
+            type="button"
+            class="catalog-action-button ghost catalog-delete-button"
+            data-message-id="${item.messageId}">
+            <span class="material-symbols-outlined">delete</span>
+            <span>Hapus</span>
+          </button>` : ""}
         </div>
       </article>
     `).join("");
@@ -1934,8 +2022,6 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel)}</span>
       </div>
       <h4>${escapeHtml(item.title)}</h4>
-     
-      ${item.description ? `<p class="catalog-description">${escapeHtml(item.description)}</p>` : ""}
       <dl class="catalog-meta-grid">
         <div>
           <dt>MODEL</dt>
@@ -1955,16 +2041,16 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <dt>NOTE</dt>
           <dd>${escapeHtml(item.note || "-")}</dd>
         </div>` : ""}
-        ${item.category === "BIOS" ? `
-        <div>
-          <dt>MD5</dt>
-          <dd>${escapeHtml(item.md5 || "-")}</dd>
-        </div>` : ""}
       </dl>
+      ${item.category === "BIOS" || item.category === "Boardview" ? `
+      <div class="catalog-file-row">
+        <span class="material-symbols-outlined">fingerprint</span>
+        <span>${escapeHtml(`MD5: ${item.md5 || "-"}`)}</span>
+      </div>` : `
       <div class="catalog-file-row">
         <span class="material-symbols-outlined">description</span>
         <span>${escapeHtml(item.fileName || item.title)}</span>
-      </div>
+      </div>`}
       ${item.uploadedBy ? `
       <div class="catalog-file-row">
         <span class="material-symbols-outlined">person</span>
@@ -1975,12 +2061,15 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         <span>${escapeHtml(item.postedAt || "-")}</span>
       </div>
       <div class="catalog-card-actions">
+        ${item.category === "Boardview" && item.messageId ? renderBoardviewViewerSelector(item.messageId) : ""}
         ${item.category === "Boardview" && item.messageId ? `
         <button
           type="button"
           class="catalog-action-button catalog-open-button"
           data-message-id="${item.messageId}"
-          data-file-name="${escapeHtml(item.fileName || item.title || "")}">
+          data-file-name="${escapeHtml(item.fileName || item.title || "")}"
+          disabled
+          aria-disabled="true">
           <span class="material-symbols-outlined">open_in_new</span>
           <span>Buka</span>
         </button>` : ""}
@@ -2003,6 +2092,19 @@ function renderCatalog(items, viewKey = currentCatalogView) {
           <span class="material-symbols-outlined">download</span>
           <span>Download</span>
         </button>
+        ${item.category === "BIOS" && item.messageId ? `
+        ${renderFlashChipDeviceSelector(item.messageId)}
+        <button
+          type="button"
+          class="catalog-action-button ghost catalog-flash-chip-button"
+          data-message-id="${item.messageId}"
+          data-title="${escapeHtml(item.fileName || item.title || "")}"
+          disabled
+          aria-disabled="true"
+          title="Pilih device programmer dulu">
+          <span class="material-symbols-outlined">memory</span>
+          <span>Flash Chip</span>
+        </button>` : ""}
         ${isTelegramCatalogView(viewKey) && canManageBiosCatalog() && item.messageId ? `
         <button
           type="button"
@@ -2039,7 +2141,7 @@ function getCatalogAdditionalFileInputs() {
 }
 
 function supportsCatalogAdditionalFiles(category) {
-  return category === "BIOS" || category === "Boardview";
+  return category === "BIOS" || category === "Boardview" || category === "Schematics";
 }
 
 function renderCatalogAdditionalFiles() {
@@ -2055,9 +2157,9 @@ function renderCatalogAdditionalFiles() {
   }
 
   if (catalogEditorAdditionalFilesNote) {
-    catalogEditorAdditionalFilesNote.textContent = currentCatalogView === "Boardview"
-      ? "Opsional untuk file pendukung boardview, foto referensi, PDF, dump terkait, atau file lain. Maksimal 5 file."
-      : "Opsional untuk EC, FULL DUMP, DLL, dan file pendukung lain. Maksimal 5 file.";
+    catalogEditorAdditionalFilesNote.textContent = currentCatalogView === "BIOS"
+      ? "Opsional untuk EC, FULL DUMP, DLL, dan file pendukung lain. Maksimal 5 file."
+      : "Opsional untuk file pendukung, foto referensi, PDF terkait, dump terkait, atau file lain. Maksimal 5 file.";
   }
 
   catalogEditorAddFileButton.disabled = getCatalogAdditionalFileInputs().length >= maxCatalogAdditionalFiles;
@@ -2096,7 +2198,11 @@ function isBoardCodeRequiredForCategory(category) {
   return category !== "ProblemSolving" && category !== "Schematics";
 }
 
-function supportsCatalogSerialNumberAndNote(category) {
+function supportsCatalogSerialNumber(category) {
+  return category === "BIOS";
+}
+
+function supportsCatalogNoteField(category) {
   return category === "BIOS";
 }
 
@@ -2109,7 +2215,7 @@ function getCatalogMetadataRequirementMessage(config) {
 }
 
 function supportsCatalogMd5Check(category) {
-  return category === "BIOS" || category === "Boardview" || category === "Schematics" || category === "Datasheets";
+  return category === "BIOS" || category === "Boardview" || category === "Schematics" || category === "ProblemSolving" || category === "Datasheets";
 }
 
 function validateCatalogFileNameLength(fileName, displayName, options = {}) {
@@ -2132,7 +2238,7 @@ function getCatalogFileExtension(fileName) {
 
 function shouldRequireBoardviewAlias(fileName, category = currentCatalogView) {
   const normalizedFileName = String(fileName || "").trim();
-  return category === "Boardview" && normalizedFileName.length > 0 && normalizedFileName.length < minCatalogFileNameLength;
+  return (category === "Boardview" || category === "Schematics") && normalizedFileName.length > 0 && normalizedFileName.length < minCatalogFileNameLength;
 }
 
 function validateBoardviewAliasName(aliasName, originalFileName, displayName) {
@@ -2197,6 +2303,9 @@ function renderCatalogBiosDuplicateCheck(state, analysis = null) {
     return;
   }
 
+  const config = getTelegramCatalogConfig(currentCatalogView);
+  const displayName = config?.displayName || "katalog";
+
   if (state === "hidden") {
     catalogEditorAnalysisPanel.className = "catalog-analysis-panel hidden";
     catalogEditorAnalysisPanel.innerHTML = "";
@@ -2211,7 +2320,7 @@ function renderCatalogBiosDuplicateCheck(state, analysis = null) {
   if (state === "loading") {
     icon = "progress_activity";
     title = "Sedang hitung MD5";
-    body = "<p>File sedang dihitung hash MD5 dan dicek ke katalog BIOS.</p>";
+    body = `<p>File sedang dihitung hash MD5 dan dicek ke katalog ${escapeHtml(displayName)}.</p>`;
   } else if (state === "error") {
     toneClass = "is-warning";
     icon = "warning";
@@ -2232,7 +2341,7 @@ function renderCatalogBiosDuplicateCheck(state, analysis = null) {
       <div class="catalog-analysis-list">
         ${matches.slice(0, 3).map((item) => `
           <div class="catalog-analysis-item">
-            <strong>${escapeHtml(item.fileName || item.title || "File BIOS")}</strong>
+            <strong>${escapeHtml(item.fileName || item.title || `File ${displayName}`)}</strong>
             <span>${escapeHtml(item.postedAt || "-")} | ${escapeHtml(item.uploadedBy || "Unknown")}</span>
           </div>
         `).join("")}
@@ -2298,6 +2407,8 @@ async function checkSelectedCatalogDuplicate() {
     ? allowedBoardviewExtensions
     : currentCatalogView === "Schematics"
     ? allowedSchematicsExtensions
+    : currentCatalogView === "ProblemSolving"
+    ? [".md"]
     : currentCatalogView === "Datasheets"
     ? allowedDatasheetsExtensions
     : allowedBiosExtensions;
@@ -2358,15 +2469,19 @@ function openCatalogEditor(mode, item = null) {
   const isEditMode = mode === "edit";
   const isSimpleFileUpload = !isEditMode && (targetCategory === "ProblemSolving" || targetCategory === "Datasheets");
   const boardCodeRequired = isBoardCodeRequiredForCategory(targetCategory);
-  const supportsSerialNumberAndNote = supportsCatalogSerialNumberAndNote(targetCategory);
+  const supportsSerialNumber = supportsCatalogSerialNumber(targetCategory);
+  const supportsNote = supportsCatalogNoteField(targetCategory);
+  const isMinimalMetadataEditMode = isEditMode && (targetCategory === "ProblemSolving" || targetCategory === "Datasheets");
+  const showStructuredMetadataFields = !isSimpleFileUpload && !isMinimalMetadataEditMode;
+  const shouldShowMetadataFieldsContainer = supportsCatalogMd5Check(targetCategory) || !isSimpleFileUpload;
   setText(catalogEditorTitle, isEditMode ? config.editTitle : config.uploadLabel);
   catalogEditorMessageId.value = isEditMode && item ? String(item.messageId || "") : "";
   catalogEditorDeviceModel.value = item?.deviceModel === "-" ? "" : (item?.deviceModel || "");
-  catalogEditorSerialNumber.value = supportsSerialNumberAndNote && item?.serialNumber !== "-"
+  catalogEditorSerialNumber.value = supportsSerialNumber && item?.serialNumber !== "-"
     ? (item?.serialNumber || "")
     : "";
   catalogEditorBoardCode.value = item?.boardCode === "-" ? "" : (item?.boardCode || "");
-  catalogEditorNote.value = supportsSerialNumberAndNote && item?.note !== "-"
+  catalogEditorNote.value = supportsNote && item?.note !== "-"
     ? (item?.note || "")
     : "";
   if (catalogEditorAliasName) {
@@ -2405,14 +2520,16 @@ function openCatalogEditor(mode, item = null) {
   } else {
     renderCatalogBiosDuplicateCheck("hidden");
   }
-  toggleElement(catalogEditorMetadataFields, !isSimpleFileUpload);
-  toggleElement(catalogEditorSerialNumberField, !isSimpleFileUpload && supportsSerialNumberAndNote);
-  toggleElement(catalogEditorNoteField, !isSimpleFileUpload && supportsSerialNumberAndNote);
+  toggleElement(catalogEditorMetadataFields, shouldShowMetadataFieldsContainer);
+  toggleElement(catalogEditorDeviceModelField, showStructuredMetadataFields);
+  toggleElement(catalogEditorBoardCodeField, showStructuredMetadataFields);
+  toggleElement(catalogEditorSerialNumberField, !isSimpleFileUpload && supportsSerialNumber);
+  toggleElement(catalogEditorNoteField, !isSimpleFileUpload && supportsNote);
   if (catalogEditorDeviceModel) {
-    catalogEditorDeviceModel.required = !isSimpleFileUpload;
+    catalogEditorDeviceModel.required = showStructuredMetadataFields;
   }
   if (catalogEditorBoardCode) {
-    catalogEditorBoardCode.required = !isSimpleFileUpload && boardCodeRequired;
+    catalogEditorBoardCode.required = showStructuredMetadataFields && boardCodeRequired;
   }
   [catalogEditorSerialNumber, catalogEditorNote].forEach((input) => {
     if (input) {
@@ -2445,7 +2562,9 @@ function closeCatalogEditor() {
   }
   renderCatalogAdditionalFiles();
   toggleElement(catalogEditorMetadataFields, true);
+  toggleElement(catalogEditorDeviceModelField, true);
   toggleElement(catalogEditorSerialNumberField, true);
+  toggleElement(catalogEditorBoardCodeField, true);
   toggleElement(catalogEditorNoteField, true);
   if (catalogEditorDeviceModel) {
     catalogEditorDeviceModel.required = true;
@@ -2543,6 +2662,59 @@ function openAboutModal() {
 
 function closeAboutModal() {
   toggleElement(aboutModal, false);
+}
+
+function shouldHideIntroQuoteModal() {
+  try {
+    return localStorage.getItem(introQuoteDismissStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function persistIntroQuotePreference(hidden) {
+  try {
+    if (hidden) {
+      localStorage.setItem(introQuoteDismissStorageKey, "true");
+      return;
+    }
+
+    localStorage.removeItem(introQuoteDismissStorageKey);
+  } catch {
+    // Ignore storage issues on file:// or blocked storage contexts.
+  }
+}
+
+function openIntroQuoteModal() {
+  if (!introQuoteModal || shouldHideIntroQuoteModal()) {
+    return;
+  }
+
+  if (introQuoteDismissCheckbox) {
+    introQuoteDismissCheckbox.checked = false;
+  }
+
+  document.body.classList.add("quote-intro-open");
+  toggleElement(introQuoteModal, true);
+  window.requestAnimationFrame(() => introQuoteEnterButton?.focus());
+}
+
+function closeIntroQuoteModal() {
+  if (!introQuoteModal || introQuoteModal.classList.contains("hidden")) {
+    return;
+  }
+
+  persistIntroQuotePreference(Boolean(introQuoteDismissCheckbox?.checked));
+  document.body.classList.remove("quote-intro-open");
+  toggleElement(introQuoteModal, false);
+}
+
+function initializeIntroQuoteModal() {
+  if (!introQuoteModal || shouldHideIntroQuoteModal()) {
+    return;
+  }
+
+  openIntroQuoteModal();
 }
 
 function openProblemSolvingViewer(title, content) {
@@ -2741,6 +2913,9 @@ async function viewProblemSolvingItem(messageId, button = null) {
     throw new Error("Message Problem Solving tidak valid.");
   }
 
+  const item = findCatalogItemByMessageId(messageId);
+  const fileName = item?.fileName || item?.title || `problem-solving-${messageId}.md`;
+  const operationId = createCatalogUploadOperationId();
   const previousMarkup = button?.innerHTML || "";
   if (button) {
     button.disabled = true;
@@ -2751,13 +2926,80 @@ async function viewProblemSolvingItem(messageId, button = null) {
   }
 
   try {
-    const result = await fetchJson(`/catalog/problem-solving/${messageId}/view`, {
-      method: "POST",
-      body: JSON.stringify({})
+    beginCatalogUploadTask({
+      operationId,
+      fileName,
+      displayName: "Problem Solving",
+      message: "Menyiapkan Problem Solving..."
     });
+    const result = await runCatalogOperationWithProgress(
+      `/catalog/problem-solving/${messageId}/view?operationId=${encodeURIComponent(operationId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+        operationId,
+        onServerProgress: (progress) => {
+          applyCatalogTelegramUploadProgress(progress, {
+            operationId,
+            fileName,
+            displayName: "Problem Solving"
+          });
+        }
+      }
+    );
     const content = result.content || result.rawContent || result.text || "";
-    const title = result.fileName || result.title || findCatalogItemByMessageId(messageId)?.fileName || "Problem Solving";
+    const title = result.fileName || result.title || fileName || "Problem Solving";
+    upsertCatalogUploadTask({
+      operationId,
+      fileName: title,
+      displayName: "Problem Solving",
+      stage: "completed",
+      active: false,
+      success: true,
+      progressPercent: 100,
+      message: result.message || "Problem Solving siap dibuka."
+    });
     openProblemSolvingViewer(title, content);
+  } catch (error) {
+    const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
+      operationId,
+      fileName,
+      displayName: "Problem Solving"
+    });
+    const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
+
+    if (reconciledProgress?.active || ["preparing", "downloading", "loading"].includes(reconciledStage)) {
+      setNotice("Problem Solving masih disiapkan di local service. Progress akan lanjut di panel task.", "info");
+      return;
+    }
+
+    if (reconciledProgress && ["failed", "cancelled"].includes(reconciledStage)) {
+      upsertCatalogUploadTask({
+        operationId,
+        fileName,
+        displayName: "Problem Solving",
+        stage: reconciledStage,
+        active: false,
+        success: false,
+        progressPercent: reconciledStage === "cancelled" ? 0 : 100,
+        message: reconciledProgress.message || "Problem Solving gagal dibuka.",
+        lastError: reconciledProgress.lastError || ""
+      });
+      throw new Error(reconciledProgress.lastError || reconciledProgress.message || error.message || "Problem Solving gagal dibuka.");
+    }
+
+    upsertCatalogUploadTask({
+      operationId,
+      fileName,
+      displayName: "Problem Solving",
+      stage: "failed",
+      active: false,
+      success: false,
+      progressPercent: 100,
+      message: "Problem Solving gagal dibuka.",
+      lastError: error.message || "Problem Solving gagal dibuka."
+    });
+    throw error;
   } finally {
     if (button) {
       button.disabled = false;
@@ -2776,6 +3018,30 @@ function viewPdfCatalogItem(category, messageId) {
   const newTab = window.open(targetUrl, "_blank", "noopener,noreferrer");
   if (!newTab) {
     throw new Error("Browser memblokir tab baru. Izinkan pop-up lalu coba lagi.");
+  }
+}
+
+function openPreparedSchematicsViewTab(messageId) {
+  if (!messageId) {
+    throw new Error("Message Schematics tidak valid.");
+  }
+
+  const targetUrl = `${serviceBaseUrl}/catalog/schematics/${messageId}/view`;
+  const newTab = window.open(targetUrl, "_blank");
+  if (!newTab) {
+    throw new Error("Schematics sudah siap, tetapi browser memblokir tab baru. Izinkan pop-up lalu klik Lihat lagi.");
+  }
+}
+
+function openPreparedDatasheetsViewTab(messageId) {
+  if (!messageId) {
+    throw new Error("Message Datasheets tidak valid.");
+  }
+
+  const targetUrl = `${serviceBaseUrl}/catalog/datasheets/${messageId}/view`;
+  const newTab = window.open(targetUrl, "_blank");
+  if (!newTab) {
+    throw new Error("Datasheets sudah siap, tetapi browser memblokir tab baru. Izinkan pop-up lalu klik Lihat lagi.");
   }
 }
 
@@ -3049,6 +3315,16 @@ function setText(element, value) {
   if (element) {
     element.textContent = value;
   }
+}
+
+function setServiceConnectivityStatus(isConnected) {
+  if (!serviceStatus) {
+    return;
+  }
+
+  serviceStatus.textContent = isConnected ? "Terhubung" : "Terputus";
+  serviceStatus.classList.toggle("is-connected", Boolean(isConnected));
+  serviceStatus.classList.toggle("is-disconnected", !isConnected);
 }
 
 function updateServiceTrafficIndicator() {
@@ -3475,7 +3751,7 @@ function upsertCatalogUploadTask(taskUpdate = {}) {
   );
   const nextTask = {
     operationId,
-    fileName: String(existingTask.fileName || taskUpdate.fileName || "upload.bin").trim(),
+    fileName: String(taskUpdate.fileName || existingTask.fileName || "upload.bin").trim(),
     displayName: String(taskUpdate.displayName || existingTask.displayName || currentCatalogView || "Katalog").trim(),
     message: String(taskUpdate.message || existingTask.message || "Menyiapkan upload...").trim(),
     lastError: String(taskUpdate.lastError || existingTask.lastError || "").trim(),
@@ -3664,7 +3940,7 @@ async function reconcileCatalogUploadTaskFromService(operationId, taskContext = 
     try {
       const progress = await fetchJson(`/catalog/upload-progress/${encodeURIComponent(normalizedOperationId)}`);
       const stage = String(progress?.stage || "").toLowerCase();
-      const isKnownStage = ["preparing", "uploading", "sending", "completed", "failed", "cancelled"].includes(stage);
+      const isKnownStage = ["preparing", "uploading", "sending", "downloading", "extracting", "loading", "completed", "failed", "cancelled"].includes(stage);
 
       if (isKnownStage) {
         lastMeaningfulProgress = progress;
@@ -3708,7 +3984,7 @@ function applyCatalogTelegramUploadProgress(progress = {}, taskContext = {}) {
 
   upsertCatalogUploadTask({
     operationId: progress.operationId || taskContext.operationId,
-    fileName: taskContext.fileName,
+    fileName: progress.fileName || taskContext.fileName,
     displayName: taskContext.displayName,
     stage,
     active: Boolean(progress.active),
@@ -4229,7 +4505,7 @@ function applyUpdateRequirement(health) {
     ? ` Catatan rilis ${noteDate || "terbaru"}: ${noteText}`
     : (update.notes ? ` Catatan: ${update.notes}` : "");
 
-  setText(serviceStatus, "Wajib update");
+  setServiceConnectivityStatus(true);
   setText(serviceVersion, `Versi: ${currentVersion} -> ${latestVersion}`);
   setServiceUpdateNotice(`${updateMessage}${noteMessage}`);
   setLocalUpdateButtonState(canAutoUpdate, "Update local service");
@@ -4241,59 +4517,8 @@ function applyUpdateRequirement(health) {
   return true;
 }
 
-function summarizeServiceStatusError(message) {
-  const normalizedMessage = String(message || "").trim();
-  if (!normalizedMessage) {
-    return "Perlu perhatian pada sesi login.";
-  }
-
-  return normalizedMessage.length > 96
-    ? `${normalizedMessage.slice(0, 93).trimEnd()}...`
-    : normalizedMessage;
-}
-
-function buildServiceStatusMessage(status, options = {}) {
-  const phase = String(options.phase || "").trim().toLowerCase();
-  const normalizedState = String(status?.state || "").trim().toLowerCase();
-  const connectedChannelCount = Number(getConnectedChannelCount(status)) || 0;
-
-  if (phase === "checking-auth") {
-    return "Local service aktif, memeriksa sesi login.";
-  }
-
-  if (phase === "loading-catalog") {
-    return "Memuat katalog.";
-  }
-
-  if (!status?.serviceReady) {
-    return "Konfigurasi login Google local service belum lengkap.";
-  }
-
-  if (status?.lastError) {
-    return `Butuh perhatian: ${summarizeServiceStatusError(status.lastError)}`;
-  }
-
-  if (status?.isLoggedIn && !status?.hasAgreed) {
-    return "Login Google aktif, menunggu persetujuan dashboard.";
-  }
-
-  if (status?.isLoggedIn && status?.hasAgreed) {
-    return "Terhubung.";
-  }
-
-  if (status?.requiresPhoneNumber || normalizedState === "idle") {
-    return "Menunggu login Google.";
-  }
-
-  if (normalizedState === "authenticated" || status?.isLoggedIn) {
-    return "Login Google aktif.";
-  }
-
-  return "Local service aktif.";
-}
-
 function applyStatus(status) {
-  setText(serviceStatus, buildServiceStatusMessage(status));
+  setServiceConnectivityStatus(true);
   toggleElement(mainPanel, true);
   setLocalUpdateButtonState(false);
   setDownloadLinkState(false);
@@ -4357,7 +4582,7 @@ function applyStatus(status) {
       setText(accessState, `Terhubung. Akun aktif dengan role ${representativeRole.label}.`);
       setNotice("");
       renderCatalog([], currentCatalogView);
-      setText(serviceStatus, buildServiceStatusMessage(status));
+      setServiceConnectivityStatus(true);
       return;
     }
 
@@ -4403,7 +4628,7 @@ function applyStatus(status) {
 }
 
 function handleCatalogLoadFailureDuringRefresh(status, error) {
-  setText(serviceStatus, buildServiceStatusMessage(status));
+  setServiceConnectivityStatus(true);
   console.warn("Gagal memuat katalog setelah refresh status.", error);
 
   if (isJoinManagedCatalogView(currentCatalogView) && isChannelJoinRequiredError(error)) {
@@ -4619,7 +4844,6 @@ async function refreshStatus(options = {}) {
   const forceUpdateCheck = Boolean(options.forceUpdateCheck);
   toggleElement(mainPanel, false);
   setError("");
-  setText(serviceStatus, "Menghubungi local service...");
   setText(serviceVersion, "Versi: mengecek...");
   let health = null;
   let status = null;
@@ -4627,7 +4851,7 @@ async function refreshStatus(options = {}) {
   try {
     const healthUrl = forceUpdateCheck ? "/health?forceUpdateCheck=true" : "/health";
     health = await fetchJson(healthUrl);
-    setText(serviceStatus, "Local service aktif, memeriksa sesi.");
+    setServiceConnectivityStatus(true);
     setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
 
     if (applyUpdateRequirement(health)) {
@@ -4635,14 +4859,13 @@ async function refreshStatus(options = {}) {
     }
 
     await hydrateCatalogUploadTasksFromService();
-    setText(serviceStatus, buildServiceStatusMessage(null, { phase: "checking-auth" }));
     status = await fetchJson("/auth/status");
     applyStatus(status);
   } catch (error) {
     stopCatalogUploadTaskSync();
     closeCatalogEventStream();
     clearCatalogRealtimeReloads();
-    setText(serviceStatus, "Tidak aktif");
+    setServiceConnectivityStatus(false);
     setText(serviceVersion, "Versi: offline");
     setServiceUpdateNotice("");
     hideInteractivePanels();
@@ -4667,7 +4890,6 @@ async function refreshStatus(options = {}) {
 
   if (status?.isLoggedIn && status?.hasAgreed) {
     setActiveNav(currentCatalogView);
-    setText(serviceStatus, buildServiceStatusMessage(status, { phase: "loading-catalog" }));
     try {
       await loadCatalog();
     } catch (error) {
@@ -4682,16 +4904,21 @@ async function refreshStatus(options = {}) {
 async function submitCatalogEditor(submissionContext = {}) {
   const config = getTelegramCatalogConfig();
   const isSimpleFileUpload = catalogEditorMode !== "edit" && (config.endpoint === "problem-solving" || config.endpoint === "datasheets");
-  const supportsSerialNumberAndNote = supportsCatalogSerialNumberAndNote(currentCatalogView);
+  const supportsSerialNumber = supportsCatalogSerialNumber(currentCatalogView);
+  const supportsNote = supportsCatalogNoteField(currentCatalogView);
+  const requiresStructuredMetadata =
+    !isSimpleFileUpload &&
+    currentCatalogView !== "ProblemSolving" &&
+    currentCatalogView !== "Datasheets";
   const payload = {
     deviceModel: catalogEditorDeviceModel?.value.trim() || "",
-    serialNumber: supportsSerialNumberAndNote ? catalogEditorSerialNumber?.value.trim() || "" : "",
+    serialNumber: supportsSerialNumber ? catalogEditorSerialNumber?.value.trim() || "" : "",
     boardCode: catalogEditorBoardCode?.value.trim() || "",
-    note: supportsSerialNumberAndNote ? catalogEditorNote?.value.trim() || "" : ""
+    note: supportsNote ? catalogEditorNote?.value.trim() || "" : ""
   };
 
   const boardCodeRequired = isBoardCodeRequiredForCategory(currentCatalogView);
-  if (!isSimpleFileUpload && (!payload.deviceModel || (boardCodeRequired && !payload.boardCode))) {
+  if (requiresStructuredMetadata && (!payload.deviceModel || (boardCodeRequired && !payload.boardCode))) {
     throw new Error(getCatalogMetadataRequirementMessage(config));
   }
 
@@ -4878,7 +5105,12 @@ async function deleteCatalogItem(category, messageId) {
 
 async function downloadCatalogItem(category, messageId) {
   const config = getTelegramCatalogConfig(category);
-  if (category !== "BIOS") {
+  const supportsTrackedDownload =
+    category === "BIOS" ||
+    category === "Boardview" ||
+    category === "Schematics" ||
+    category === "Datasheets";
+  if (!supportsTrackedDownload) {
     const result = await fetchJson(`/catalog/${config.endpoint}/${messageId}/download`, {
       method: "POST",
       body: JSON.stringify({})
@@ -4888,13 +5120,20 @@ async function downloadCatalogItem(category, messageId) {
   }
 
   const item = findCatalogItemByMessageId(messageId);
-  const fileName = item?.fileName || item?.title || `bios-${messageId}.7z`;
+  const fallbackFileNamePrefix = category === "Boardview"
+    ? "boardview"
+    : category === "Schematics"
+    ? "schematics"
+    : category === "Datasheets"
+    ? "datasheets"
+    : "bios";
+  const fileName = item?.fileName || item?.title || `${fallbackFileNamePrefix}-${messageId}.7z`;
   const operationId = createCatalogUploadOperationId();
   beginCatalogUploadTask({
     operationId,
     fileName,
     displayName: config.displayName,
-    message: "Menyiapkan download BIOS..."
+    message: `Menyiapkan download ${config.displayName}...`
   });
 
   let result;
@@ -4985,12 +5224,339 @@ async function downloadCatalogItem(category, messageId) {
   setNotice(result.message);
 }
 
-async function openBoardviewCatalogItem(messageId) {
-  const result = await fetchJson(`/catalog/boardview/${messageId}/open`, {
+function openSpiFlashWorkbench(message = "") {
+  updateViewHash(spiFlashPage.viewKey);
+  currentCatalogView = spiFlashPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+  if (message) {
+    setNotice(message);
+  }
+}
+
+function normalizeBoardviewViewerValue(value) {
+  const normalizedValue = String(value || "").trim().toLowerCase();
+  return normalizedValue === "teknisihub" ? "teknisihub" : normalizedValue === "desktop" ? "desktop" : "";
+}
+
+function getBoardviewViewerWrapper(target) {
+  return target?.closest?.(".catalog-boardview-viewer") || null;
+}
+
+function getBoardviewViewerSelect(target) {
+  if (!target) {
+    return null;
+  }
+
+  if (target.matches?.("[data-boardview-viewer]")) {
+    return target;
+  }
+
+  return getBoardviewViewerWrapper(target)?.querySelector("[data-boardview-viewer]") || null;
+}
+
+function getBoardviewOpenActionButton(target) {
+  return getBoardviewViewerWrapper(target)?.closest(".catalog-card-actions")?.querySelector(".catalog-open-button") || null;
+}
+
+function updateBoardviewOpenActionAvailability(target) {
+  const select = getBoardviewViewerSelect(target);
+  const button = getBoardviewOpenActionButton(target);
+  if (!button) {
+    return;
+  }
+
+  const hasSelectedViewer = Boolean(normalizeBoardviewViewerValue(select?.value));
+  button.disabled = !hasSelectedViewer;
+  button.setAttribute("aria-disabled", hasSelectedViewer ? "false" : "true");
+}
+
+function buildBoardviewTeknisiHubUrl(sessionId) {
+  const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
+  if (sessionId) {
+    targetUrl.searchParams.set("sessionId", sessionId);
+  }
+  targetUrl.searchParams.set("source", "catalog_boardview");
+  return targetUrl.toString();
+}
+
+const supportedFlashChipDevices = new Set(["CH341A", "STM32", "EZP2019"]);
+
+function normalizeFlashChipDeviceValue(value) {
+  const normalizedValue = String(value || "").trim().toUpperCase();
+  return supportedFlashChipDevices.has(normalizedValue) ? normalizedValue : "";
+}
+
+function getFlashChipDeviceWrapper(target) {
+  return target?.closest?.(".catalog-flash-chip-device") || null;
+}
+
+function getFlashChipDeviceSelect(target) {
+  if (!target) {
+    return null;
+  }
+
+  if (target.matches?.("[data-flash-chip-device]")) {
+    return target;
+  }
+
+  return getFlashChipDeviceWrapper(target)?.querySelector("[data-flash-chip-device]") || null;
+}
+
+function getFlashChipActionButton(target) {
+  return getFlashChipDeviceWrapper(target)?.closest(".catalog-card-actions")?.querySelector(".catalog-flash-chip-button") || null;
+}
+
+function getFlashChipDeviceStatusTitle(status, message = "") {
+  if (status === "checking") {
+    return message || "Mencoba konek device programmer...";
+  }
+
+  if (status === "connected") {
+    return message || "Device programmer terhubung.";
+  }
+
+  if (status === "failed") {
+    return message || "Koneksi device programmer gagal.";
+  }
+
+  return "Pilih device programmer dulu. Koneksi akan dicek otomatis setelah dipilih.";
+}
+
+function setFlashChipDeviceConnectionState(target, status = "idle", message = "") {
+  const wrapper = getFlashChipDeviceWrapper(target);
+  if (!wrapper) {
+    return;
+  }
+
+  wrapper.classList.remove("is-checking", "is-connected", "is-failed");
+  if (status === "checking") {
+    wrapper.classList.add("is-checking");
+  } else if (status === "connected") {
+    wrapper.classList.add("is-connected");
+  } else if (status === "failed") {
+    wrapper.classList.add("is-failed");
+  } else {
+    status = "idle";
+  }
+
+  wrapper.dataset.connectionState = status;
+  wrapper.title = getFlashChipDeviceStatusTitle(status, message);
+}
+
+function updateFlashChipActionAvailability(target) {
+  const select = getFlashChipDeviceSelect(target);
+  const button = getFlashChipActionButton(target);
+  if (!button) {
+    return;
+  }
+
+  const hasSelectedDevice = Boolean(normalizeFlashChipDeviceValue(select?.value));
+  button.disabled = !hasSelectedDevice;
+  button.setAttribute("aria-disabled", hasSelectedDevice ? "false" : "true");
+  button.title = hasSelectedDevice ? "Siapkan BIOS ke SPI Flash." : "Pilih device programmer dulu";
+}
+
+function buildFlashChipConnectPayload(session = {}) {
+  return {
+    chipVendor: session.chipVendor || "",
+    chipModel: session.chipModel || "",
+    chipCapacity: session.chipCapacity || "",
+    autoProcess: session.autoProcess !== false,
+    pageSize: Number(session.pageSize || 256),
+    speedHz: Number(session.speedHz || 0),
+    startAddress: session.startAddress || "",
+    length: session.length || ""
+  };
+}
+
+async function tryConnectFlashChipDevice(deviceSelect) {
+  const select = getFlashChipDeviceSelect(deviceSelect);
+  if (!select) {
+    return;
+  }
+
+  const selectedDevice = normalizeFlashChipDeviceValue(select.value);
+  const wrapper = getFlashChipDeviceWrapper(select);
+  const connectionAttempt = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (wrapper) {
+    wrapper.dataset.connectionAttempt = connectionAttempt;
+  }
+
+  updateFlashChipActionAvailability(select);
+  if (!selectedDevice) {
+    setFlashChipDeviceConnectionState(select, "idle");
+    return;
+  }
+
+  setFlashChipDeviceConnectionState(select, "checking", `Mencoba konek ${selectedDevice}...`);
+
+  try {
+    const selectedSession = await fetchJson("/spi-flash/device", {
+      method: "POST",
+      body: JSON.stringify({ deviceType: selectedDevice })
+    });
+    if (
+      wrapper?.dataset.connectionAttempt !== connectionAttempt ||
+      normalizeFlashChipDeviceValue(select.value) !== selectedDevice
+    ) {
+      return;
+    }
+
+    const connectedSession = await fetchJson("/spi-flash/actions/connect", {
+      method: "POST",
+      body: JSON.stringify(buildFlashChipConnectPayload(selectedSession))
+    });
+    if (
+      wrapper?.dataset.connectionAttempt !== connectionAttempt ||
+      normalizeFlashChipDeviceValue(select.value) !== selectedDevice
+    ) {
+      return;
+    }
+
+    setFlashChipDeviceConnectionState(
+      select,
+      "connected",
+      connectedSession.connectionState || `${selectedDevice} terhubung.`
+    );
+  } catch (error) {
+    if (
+      wrapper?.dataset.connectionAttempt !== connectionAttempt ||
+      normalizeFlashChipDeviceValue(select.value) !== selectedDevice
+    ) {
+      return;
+    }
+
+    setFlashChipDeviceConnectionState(
+      select,
+      "failed",
+      error.message || `Koneksi ${selectedDevice} gagal.`
+    );
+    setNotice(error.message || `Koneksi ${selectedDevice} gagal.`, true);
+  }
+}
+
+function getSelectedFlashChipDevice(triggerButton) {
+  const select = triggerButton?.closest(".catalog-card-actions")?.querySelector("[data-flash-chip-device]");
+  return normalizeFlashChipDeviceValue(select?.value);
+}
+
+async function prepareBiosForSpiFlash(messageId, selectedDevice = "CH341A") {
+  const resolvedDevice = normalizeFlashChipDeviceValue(selectedDevice) || "CH341A";
+  const item = findCatalogItemByMessageId(messageId);
+  const archiveFileName = item?.fileName || item?.title || `bios-${messageId}.7z`;
+  const operationId = createCatalogUploadOperationId();
+
+  beginCatalogUploadTask({
+    operationId,
+    fileName: archiveFileName,
+    displayName: "SPI Flash",
+    message: `Menyiapkan BIOS untuk SPI Flash (${resolvedDevice})...`
+  });
+
+  let result;
+  try {
+    result = await runCatalogOperationWithProgress(
+      `/catalog/bios/${messageId}/flash-chip?selectedDevice=${encodeURIComponent(resolvedDevice)}&operationId=${encodeURIComponent(operationId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+        operationId,
+        onServerProgress: (progress) => {
+          applyCatalogTelegramUploadProgress(progress, {
+            operationId,
+            fileName: archiveFileName,
+            displayName: "SPI Flash"
+          });
+        }
+      }
+    );
+  } catch (error) {
+    const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
+      operationId,
+      fileName: archiveFileName,
+      displayName: "SPI Flash"
+    });
+    const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
+
+    if (reconciledProgress?.active || ["preparing", "uploading", "sending", "downloading", "extracting", "loading"].includes(reconciledStage)) {
+      setNotice("BIOS masih diproses di local service untuk SPI Flash. Progress akan lanjut di panel task.", "info");
+      return;
+    }
+
+    if (reconciledStage === "completed" || reconciledProgress?.success) {
+      const completedMessage = reconciledProgress?.message || "BIOS sudah siap di SPI Flash.";
+      upsertCatalogUploadTask({
+        operationId,
+        fileName: reconciledProgress?.fileName || archiveFileName,
+        displayName: "SPI Flash",
+        stage: "completed",
+        active: false,
+        success: true,
+        progressPercent: 100,
+        message: completedMessage
+      });
+      openSpiFlashWorkbench(completedMessage);
+      return;
+    }
+
+    if (reconciledProgress && ["failed", "cancelled"].includes(reconciledStage)) {
+      upsertCatalogUploadTask({
+        operationId,
+        fileName: reconciledProgress?.fileName || archiveFileName,
+        displayName: "SPI Flash",
+        stage: reconciledStage,
+        active: false,
+        success: false,
+        progressPercent: reconciledStage === "cancelled" ? 0 : 100,
+        message: reconciledProgress.message || "Menyiapkan BIOS untuk SPI Flash gagal.",
+        lastError: reconciledProgress.lastError || ""
+      });
+      throw new Error(reconciledProgress.lastError || reconciledProgress.message || error.message || "Menyiapkan BIOS untuk SPI Flash gagal.");
+    }
+
+    upsertCatalogUploadTask({
+      operationId,
+      fileName: archiveFileName,
+      displayName: "SPI Flash",
+      stage: "failed",
+      active: false,
+      success: false,
+      progressPercent: 100,
+      message: "Menyiapkan BIOS untuk SPI Flash gagal.",
+      lastError: error.message || "Menyiapkan BIOS untuk SPI Flash gagal."
+    });
+    throw error;
+  }
+
+  upsertCatalogUploadTask({
+    operationId,
+    fileName: archiveFileName,
+    displayName: "SPI Flash",
+    stage: "completed",
+    active: false,
+    success: true,
+    progressPercent: 100,
+    message: result.message || "BIOS sudah siap di SPI Flash."
+  });
+  openSpiFlashWorkbench(result.message || "BIOS sudah siap di SPI Flash.");
+}
+
+async function openBoardviewCatalogItem(messageId, options = {}) {
+  const operationId = String(options.operationId || "").trim();
+  const viewerType = normalizeBoardviewViewerValue(options.viewerType);
+  const queryParams = new URLSearchParams();
+  if (operationId) {
+    queryParams.set("operationId", operationId);
+  }
+  if (viewerType) {
+    queryParams.set("viewerType", viewerType);
+  }
+  const query = queryParams.size > 0 ? `?${queryParams.toString()}` : "";
+  const result = await fetchJson(`/catalog/boardview/${messageId}/open${query}`, {
     method: "POST",
     body: JSON.stringify({})
   });
-  setNotice(result.message);
   return result;
 }
 
@@ -5200,6 +5766,7 @@ dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
 
 loadRememberedPhone();
 syncVerificationPhoneDisplay();
+initializeIntroQuoteModal();
 currentCatalogView = getViewFromHash() || dashboardHomePage.viewKey;
 refreshStatus();
 window.addEventListener("hashchange", () => {
@@ -5232,13 +5799,86 @@ if (catalogList) {
     const schematicsViewButton = event.target.closest(".catalog-schematics-view-button");
     if (schematicsViewButton) {
       const messageId = Number(schematicsViewButton.getAttribute("data-message-id") || 0);
+      const fileName = schematicsViewButton.getAttribute("data-file-name") || "Schematics";
+      const previousMarkup = schematicsViewButton.innerHTML;
+      const operationId = createCatalogUploadOperationId();
+      let shouldRefreshCatalog = false;
+
+      schematicsViewButton.disabled = true;
+      schematicsViewButton.innerHTML = `
+        <span class="material-symbols-outlined is-spinning">progress_activity</span>
+        <span>Membuka...</span>
+      `;
+
       try {
-        await viewPdfCatalogItem("Schematics", messageId);
-        if (markSchematicsItemHasLocalCache(messageId)) {
+        setNotice(`Mengecek cache Schematics untuk ${fileName}, lalu menyiapkan viewer PDF.`);
+        beginCatalogUploadTask({
+          operationId,
+          fileName,
+          displayName: "Schematics",
+          message: "Menyiapkan Schematics..."
+        });
+
+        const result = await runCatalogOperationWithProgress(
+          `/catalog/schematics/${messageId}/prepare-view?operationId=${encodeURIComponent(operationId)}`,
+          {
+            method: "POST",
+            body: JSON.stringify({}),
+            operationId,
+            onServerProgress: (progress) => {
+              applyCatalogTelegramUploadProgress(progress, {
+                operationId,
+                fileName,
+                displayName: "Schematics"
+              });
+            }
+          }
+        );
+
+        upsertCatalogUploadTask({
+          operationId,
+          fileName: result.fileName || fileName,
+          displayName: "Schematics",
+          stage: "completed",
+          active: false,
+          success: true,
+          progressPercent: 100,
+          message: result.message || "Schematics siap dibuka."
+        });
+        openPreparedSchematicsViewTab(messageId);
+        setNotice(result.message || "Schematics siap dibuka.");
+        shouldRefreshCatalog = markSchematicsItemHasLocalCache(messageId);
+      } catch (error) {
+        const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
+          operationId,
+          fileName,
+          displayName: "Schematics"
+        });
+        const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
+
+        if (reconciledStage === "completed" || reconciledProgress?.success) {
+          try {
+            openPreparedSchematicsViewTab(messageId);
+          } catch (launchError) {
+            setNotice(launchError.message, true);
+            return;
+          }
+          shouldRefreshCatalog = markSchematicsItemHasLocalCache(messageId);
+          setNotice(reconciledProgress?.message || "Schematics siap dibuka.");
+        } else {
+          if (reconciledProgress?.active || ["preparing", "downloading", "extracting", "loading"].includes(reconciledStage)) {
+            setNotice("Membuka Schematics masih diproses di local service. Progress akan lanjut di panel task.", "info");
+            return;
+          }
+
+          setNotice(error.message, true);
+        }
+      } finally {
+        schematicsViewButton.disabled = false;
+        schematicsViewButton.innerHTML = previousMarkup;
+        if (shouldRefreshCatalog) {
           filterCatalogItems();
         }
-      } catch (error) {
-        setNotice(error.message, true);
       }
       return;
     }
@@ -5246,10 +5886,78 @@ if (catalogList) {
     const datasheetsViewButton = event.target.closest(".catalog-datasheets-view-button");
     if (datasheetsViewButton) {
       const messageId = Number(datasheetsViewButton.getAttribute("data-message-id") || 0);
+      const fileName = datasheetsViewButton.getAttribute("data-file-name") || `datasheets-${messageId}.pdf`;
+      const previousMarkup = datasheetsViewButton.innerHTML;
+      const operationId = createCatalogUploadOperationId();
       try {
-        viewPdfCatalogItem("Datasheets", messageId);
+        datasheetsViewButton.disabled = true;
+        datasheetsViewButton.innerHTML = `
+          <span class="material-symbols-outlined is-spinning">progress_activity</span>
+          <span>Membuka...</span>
+        `;
+
+        beginCatalogUploadTask({
+          operationId,
+          fileName,
+          displayName: "Datasheets",
+          message: "Menyiapkan Datasheets..."
+        });
+
+        const result = await runCatalogOperationWithProgress(
+          `/catalog/datasheets/${messageId}/prepare-view?operationId=${encodeURIComponent(operationId)}`,
+          {
+            method: "POST",
+            body: JSON.stringify({}),
+            operationId,
+            onServerProgress: (progress) => {
+              applyCatalogTelegramUploadProgress(progress, {
+                operationId,
+                fileName,
+                displayName: "Datasheets"
+              });
+            }
+          }
+        );
+
+        upsertCatalogUploadTask({
+          operationId,
+          fileName: result.fileName || fileName,
+          displayName: "Datasheets",
+          stage: "completed",
+          active: false,
+          success: true,
+          progressPercent: 100,
+          message: result.message || "Datasheets siap dibuka."
+        });
+        openPreparedDatasheetsViewTab(messageId);
+        setNotice(result.message || "Datasheets siap dibuka.");
       } catch (error) {
-        setNotice(error.message, true);
+        const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
+          operationId,
+          fileName,
+          displayName: "Datasheets"
+        });
+        const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
+
+        if (reconciledStage === "completed" || reconciledProgress?.success) {
+          try {
+            openPreparedDatasheetsViewTab(messageId);
+          } catch (launchError) {
+            setNotice(launchError.message, true);
+            return;
+          }
+          setNotice(reconciledProgress?.message || "Datasheets siap dibuka.");
+        } else {
+          if (reconciledProgress?.active || ["preparing", "downloading", "loading"].includes(reconciledStage)) {
+            setNotice("Membuka Datasheets masih diproses di local service. Progress akan lanjut di panel task.", "info");
+            return;
+          }
+
+          setNotice(error.message, true);
+        }
+      } finally {
+        datasheetsViewButton.disabled = false;
+        datasheetsViewButton.innerHTML = previousMarkup;
       }
       return;
     }
@@ -5299,9 +6007,13 @@ if (catalogList) {
     if (openButton) {
       const messageId = Number(openButton.getAttribute("data-message-id") || 0);
       const fileName = openButton.getAttribute("data-file-name") || "Boardview";
+      const selectedViewer = normalizeBoardviewViewerValue(
+        openButton.closest(".catalog-card-actions")?.querySelector("[data-boardview-viewer]")?.value
+      );
       if (messageId > 0) {
         const previousMarkup = openButton.innerHTML;
         let shouldRefreshCatalog = false;
+        const operationId = createCatalogUploadOperationId();
         openButton.disabled = true;
         openButton.innerHTML = `
           <span class="material-symbols-outlined is-spinning">progress_activity</span>
@@ -5309,14 +6021,128 @@ if (catalogList) {
         `;
 
         try {
-          setNotice(`Mengecek cache Boardview untuk ${fileName}, lalu membuka file lewat Boardviewer jika tersedia.`);
-          await openBoardviewCatalogItem(messageId);
+          if (!selectedViewer) {
+            throw new Error("Pilih viewer Boardview dulu sebelum menekan tombol Buka.");
+          }
+
+          setNotice(
+            selectedViewer === "teknisihub"
+              ? `Mengecek cache Boardview untuk ${fileName}, lalu menyiapkan Boardview TeknisiHub.`
+              : `Mengecek cache Boardview untuk ${fileName}, lalu membuka file lewat Boardviewer jika tersedia.`
+          );
+          beginCatalogUploadTask({
+            operationId,
+            fileName,
+            displayName: "Boardview",
+            message: selectedViewer === "teknisihub"
+              ? "Menyiapkan Boardview TeknisiHub..."
+              : "Menyiapkan buka Boardview..."
+          });
+
+          const result = await runCatalogOperationWithProgress(
+            `/catalog/boardview/${messageId}/open?operationId=${encodeURIComponent(operationId)}&viewerType=${encodeURIComponent(selectedViewer)}`,
+            {
+              method: "POST",
+              body: JSON.stringify({}),
+              operationId,
+              onServerProgress: (progress) => {
+                applyCatalogTelegramUploadProgress(progress, {
+                  operationId,
+                  fileName,
+                  displayName: "Boardview"
+                });
+              }
+            }
+          );
+
+          if (selectedViewer === "teknisihub") {
+            if (!result.sessionId) {
+              throw new Error("Session Boardview TeknisiHub belum diterima dari local service.");
+            }
+
+            const targetUrl = buildBoardviewTeknisiHubUrl(result.sessionId);
+            const launchedWindow = window.open(targetUrl, "_blank", "noopener");
+            if (!launchedWindow) {
+              throw new Error("Session Boardview TeknisiHub sudah siap, tetapi tab baru diblokir browser. Izinkan pop-up lalu klik Buka lagi.");
+            }
+          }
+
+          upsertCatalogUploadTask({
+            operationId,
+            fileName: result.fileName || fileName,
+            displayName: "Boardview",
+            stage: "completed",
+            active: false,
+            success: true,
+            progressPercent: 100,
+            message: result.message || "Boardview berhasil dibuka."
+          });
+          setNotice(result.message || "Boardview berhasil dibuka.");
           shouldRefreshCatalog = markBoardviewItemHasLocalCache(messageId);
         } catch (error) {
+          const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
+            operationId,
+            fileName,
+            displayName: "Boardview"
+          });
+          const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
+
+          if (reconciledProgress?.active || ["preparing", "downloading", "extracting", "loading"].includes(reconciledStage)) {
+            setNotice("Membuka Boardview masih diproses di local service. Progress akan lanjut di panel task.", "info");
+            return;
+          }
+
+          if (reconciledStage === "completed" || reconciledProgress?.success) {
+            const completedMessage = reconciledProgress?.message || "Boardview berhasil dibuka.";
+            upsertCatalogUploadTask({
+              operationId,
+              fileName,
+              displayName: "Boardview",
+              stage: "completed",
+              active: false,
+              success: true,
+              progressPercent: 100,
+              message: completedMessage
+            });
+            setNotice(completedMessage);
+            shouldRefreshCatalog = markBoardviewItemHasLocalCache(messageId);
+            return;
+          }
+
+          if (reconciledProgress && ["failed", "cancelled"].includes(reconciledStage)) {
+            upsertCatalogUploadTask({
+              operationId,
+              fileName,
+              displayName: "Boardview",
+              stage: reconciledStage,
+              active: false,
+              success: false,
+              progressPercent: reconciledStage === "cancelled" ? 0 : 100,
+              message: reconciledProgress.message || "Membuka Boardview gagal.",
+              lastError: reconciledProgress.lastError || ""
+            });
+            setNotice(reconciledProgress.lastError || reconciledProgress.message || error.message, true);
+            return;
+          }
+
+          upsertCatalogUploadTask({
+            operationId,
+            fileName,
+            displayName: "Boardview",
+            stage: "failed",
+            active: false,
+            success: false,
+            progressPercent: 100,
+            message: "Membuka Boardview gagal.",
+            lastError: error.message || "Membuka Boardview gagal."
+          });
           setNotice(error.message, true);
         } finally {
           openButton.disabled = false;
           openButton.innerHTML = previousMarkup;
+          updateBoardviewOpenActionAvailability(
+            openButton.closest(".catalog-card-actions")?.querySelector("[data-boardview-viewer]") || openButton
+          );
           if (shouldRefreshCatalog) {
             filterCatalogItems();
           }
@@ -5332,6 +6158,33 @@ if (catalogList) {
         await viewForumThread(messageId, forumButton);
       } catch (error) {
         setNotice(error.message, true);
+      }
+      return;
+    }
+
+    const flashChipButton = event.target.closest(".catalog-flash-chip-button");
+    if (flashChipButton) {
+      const messageId = Number(flashChipButton.getAttribute("data-message-id") || 0);
+      const selectedDevice = getSelectedFlashChipDevice(flashChipButton);
+      if (!selectedDevice) {
+        setNotice("Pilih device programmer dulu sebelum menekan Flash Chip.", true);
+        updateFlashChipActionAvailability(flashChipButton);
+        return;
+      }
+      const previousMarkup = flashChipButton.innerHTML;
+      flashChipButton.disabled = true;
+      flashChipButton.innerHTML = `
+        <span class="material-symbols-outlined is-spinning">progress_activity</span>
+        <span>Menyiapkan...</span>
+      `;
+
+      try {
+        await prepareBiosForSpiFlash(messageId, selectedDevice);
+      } catch (error) {
+        setNotice(error.message, true);
+      } finally {
+        flashChipButton.innerHTML = previousMarkup;
+        updateFlashChipActionAvailability(flashChipButton);
       }
       return;
     }
@@ -5387,6 +6240,21 @@ if (catalogList) {
       title: `${currentCatalogView} #${messageId}`
     };
     openCatalogDeleteModal(item, deleteButton);
+  });
+
+  catalogList.addEventListener("change", (event) => {
+    const boardviewViewerSelect = event.target.closest(".catalog-boardview-viewer-select");
+    if (boardviewViewerSelect) {
+      updateBoardviewOpenActionAvailability(boardviewViewerSelect);
+      return;
+    }
+
+    const flashChipDeviceSelect = event.target.closest(".catalog-flash-chip-device-select");
+    if (!flashChipDeviceSelect) {
+      return;
+    }
+
+    void tryConnectFlashChipDevice(flashChipDeviceSelect);
   });
 }
 
@@ -5553,6 +6421,16 @@ catalogEditorFile?.addEventListener("change", () => {
 
 catalogEditorAddFileButton?.addEventListener("click", appendCatalogAdditionalFileInput);
 
+introQuoteEnterButton?.addEventListener("click", closeIntroQuoteModal);
+
+introQuoteCloseButton?.addEventListener("click", closeIntroQuoteModal);
+
+introQuoteModal?.addEventListener("click", (event) => {
+  if (event.target === introQuoteModal) {
+    closeIntroQuoteModal();
+  }
+});
+
 aboutFooterButton?.addEventListener("click", openAboutModal);
 
 aboutModalCloseButton?.addEventListener("click", closeAboutModal);
@@ -5570,6 +6448,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  closeIntroQuoteModal();
   closeCatalogDeleteModal();
   closeAboutModal();
   closeProblemSolvingViewer();

@@ -13,6 +13,47 @@
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <div
+    id="introQuoteModal"
+    class="quote-intro-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="introQuoteTitle"
+    aria-describedby="introQuoteBody"
+  >
+    <div class="quote-intro-card">
+      <button id="introQuoteCloseButton" type="button" class="ghost quote-intro-close" aria-label="Tutup quote pembuka">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+      <div class="quote-intro-content">
+        <span class="quote-intro-badge">Renungan Teknisi</span>
+        <div class="quote-intro-copy">
+          <p class="label">Quote Pembuka</p>
+          <h2 id="introQuoteTitle">Ilmu yang dibagi akan tetap hidup</h2>
+          <div id="introQuoteBody" class="quote-intro-body">
+            <p>Seharian duduk di kursi, sibuk memperbaiki, kadang lupa hidup bukan sekadar hari ini.</p>
+            <p>Ilmu di tangan jangan hanya untuk sendiri, karena bekal kita nanti hanya yang kita beri.</p>
+            <p>Yang kita bagi tak akan rugi, justru jadi jejak sampai nanti.</p>
+            <p>Di dunia mungkin terlihat biasa saja, di akhirat bisa jadi penyelamat kita.</p>
+          </div>
+        </div>
+        <blockquote class="quote-intro-einstein">
+          <p>“Science without religion is lame, religion without science is blind.”</p>
+          <footer>Albert Einstein</footer>
+        </blockquote>
+        <div class="quote-intro-footer">
+          <label class="checkline quote-intro-checkline">
+            <input id="introQuoteDismissCheckbox" type="checkbox">
+            <span>Jangan tampilkan lagi di perangkat ini</span>
+          </label>
+          <button id="introQuoteEnterButton" type="button" class="quote-intro-enter-button">
+            <span class="material-symbols-outlined">arrow_forward</span>
+            <span>Masuk ke TeknisiHub</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="service-activity-float" aria-live="polite">
     <span
       id="serviceTrafficIndicator"
@@ -30,7 +71,7 @@
           <div class="service-version-row">
             <p id="serviceVersion" class="service-version">Versi: mengecek...</p>
           </div>
-          <strong id="serviceStatus">Mengecek koneksi...</strong>
+          <strong id="serviceStatus" class="is-disconnected">Terputus</strong>
         </div>
         <div class="status-card-actions">
           <button id="refreshButton" type="button">
