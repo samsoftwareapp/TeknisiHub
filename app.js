@@ -358,7 +358,10 @@ let currentHashShareMessageId = 0;
 let googleAuthPollTimerId = 0;
 let googleAuthTab = null;
 let googleAuthTabAwaitingResult = false;
+let authStatusPollTimerId = 0;
+let authStatusPollInFlight = false;
 let activeToastSignature = "";
+let lastAutoFilledOtpNoticeCode = "";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
 let currentBoardviewChannelRole = "";
@@ -3639,6 +3642,18 @@ function setButtonLoading(button, loading, defaultIcon, defaultLabel, loadingLab
     `;
 }
 
+function syncCodeSubmitButtonState() {
+  if (!codeSubmitButton) {
+    return;
+  }
+
+  const verificationCode = document.getElementById("verificationCode")?.value.trim() || "";
+  const isReady = verificationCode.length > 0;
+  codeSubmitButton.disabled = !isReady;
+  codeSubmitButton.setAttribute("aria-disabled", isReady ? "false" : "true");
+  codeSubmitButton.classList.toggle("is-ready", isReady);
+}
+
 function setCatalogEditorUploadProgress(progress = {}) {
   const active = Boolean(progress.active);
   if (active && !isCatalogEditorVisible()) {
@@ -4345,7 +4360,38 @@ function startGoogleAuthPolling() {
   }, 500);
 }
 
+function stopAuthStatusPolling() {
+  if (authStatusPollTimerId) {
+    window.clearInterval(authStatusPollTimerId);
+    authStatusPollTimerId = 0;
+  }
+  authStatusPollInFlight = false;
+}
+
+function startAuthStatusPolling() {
+  if (authStatusPollTimerId) {
+    return;
+  }
+
+  authStatusPollTimerId = window.setInterval(async () => {
+    if (authStatusPollInFlight) {
+      return;
+    }
+
+    authStatusPollInFlight = true;
+    try {
+      const status = await fetchJson("/auth/status");
+      applyStatus(status);
+    } catch {
+      // Ignore transient polling errors while waiting for OTP/password steps.
+    } finally {
+      authStatusPollInFlight = false;
+    }
+  }, 1800);
+}
+
 function hideInteractivePanels() {
+  stopAuthStatusPolling();
   toggleElement(mainPanel, false);
   toggleElement(phoneForm, false);
   toggleElement(codeForm, false);
@@ -4673,13 +4719,18 @@ function applyStatus(status) {
     setUpdateProgressState(false);
   }
   setError("");
+  currentRequiredChannelInviteLink = status.requiredChannelInviteLink || "";
+  currentBoardviewChannelInviteLink = status.boardviewChannelInviteLink || "";
+  currentProblemSolvingChannelInviteLink = status.problemSolvingChannelInviteLink || "";
+  currentDatasheetsChannelInviteLink = status.datasheetsChannelInviteLink || "";
   const showJoinPanel = false;
   const showAgreementPanel = status.isLoggedIn && !status.hasAgreed;
   const showDashboard = status.isLoggedIn && status.hasAgreed;
   const blockAuthForms = showJoinPanel || showAgreementPanel || showDashboard;
-  const showPhoneEntryForm = !status.isLoggedIn && !blockAuthForms;
-  const showVerificationForm = false;
-  const showPasswordForm = false;
+  const showPhoneEntryForm = (status.requiresPhoneNumber || isPhoneNumberChangeRequested) && !blockAuthForms;
+  const showVerificationForm = status.requiresVerificationCode && !isPhoneNumberChangeRequested && !blockAuthForms;
+  const showPasswordForm = status.requiresPassword && !isPhoneNumberChangeRequested && !blockAuthForms;
+  const codeInput = document.getElementById("verificationCode");
 
   isSchematicsMember = Boolean(status.isSchematicsChannelMember);
   currentSchematicsChannelRole = status.schematicsChannelRole || "";
@@ -4696,9 +4747,26 @@ function applyStatus(status) {
   toggleElement(dashboardPanel, showDashboard);
   syncVerificationPhoneDisplay();
 
+  if (showVerificationForm && codeInput) {
+    const suggestedOtp = (status.autoFilledVerificationCode || "").trim();
+    if (suggestedOtp && codeInput.value.trim() !== suggestedOtp) {
+      codeInput.value = suggestedOtp;
+    }
+  } else if (codeInput && !showVerificationForm) {
+    codeInput.value = "";
+    lastAutoFilledOtpNoticeCode = "";
+  }
+  syncCodeSubmitButtonState();
+
+  if (showVerificationForm || showPasswordForm) {
+    startAuthStatusPolling();
+  } else {
+    stopAuthStatusPolling();
+  }
+
   if (showDashboard) {
     const displayName = status.displayName || status.email || "TeknisiHub User";
-    const email = status.email || "Email akun belum tersedia";
+    const accountIdentifier = status.email || "Nomor Telegram belum tersedia";
     currentChannelRole = status.channelRole || "";
     currentBiosChannelRole = status.biosChannelRole || status.channelRole || "";
     currentBoardviewChannelRole = status.boardviewChannelRole || "";
@@ -4707,20 +4775,20 @@ function applyStatus(status) {
     currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
     const representativeRole = getRepresentativeRoleLabel(status);
     setText(dashboardTitle, `Halo, ${displayName}`);
-    setText(dashboardLoginStatus, "Login Google aktif");
+    setText(dashboardLoginStatus, "Login Telegram aktif");
     setText(dashboardRoleChipIcon, representativeRole.icon);
     setText(dashboardRoleChip, representativeRole.label);
     setText(accessDisplayName, displayName);
-    setText(accessRole, `Role: ${representativeRole.label} | ${email}`);
-    setText(accessChannelCount, "Provider login: Google");
-    setText(dashboardChannelStatus, "Akses akun dikelola otomatis. Akun baru masuk sebagai Member sampai peran diperbarui.");
+    setText(accessRole, `Role: ${representativeRole.label} | ${accountIdentifier}`);
+    setText(accessChannelCount, "Provider login: Telegram");
+    setText(dashboardChannelStatus, "Role akun dikelola dari RTD. User baru otomatis masuk sebagai Member sampai peran diperbarui.");
     setText(
       dashboardAgreementStatus,
       status.hasAgreed ? "Persetujuan tersimpan" : "Menunggu persetujuan"
     );
 
     if (status.hasAgreed) {
-      setText(dashboardSubtitle, "Sesi login tersimpan aman di local service.");
+      setText(dashboardSubtitle, "Sesi login Telegram tersimpan aman di local service.");
       setText(accessState, `Terhubung. Akun aktif dengan role ${representativeRole.label}.`);
       setNotice("");
       renderCatalog([], currentCatalogView);
@@ -4732,19 +4800,24 @@ function applyStatus(status) {
 
     setText(
       dashboardSubtitle,
-      "Sesi login aktif. Simpan persetujuan lokal untuk membuka akses dashboard penuh."
+      "Sesi login Telegram aktif. Simpan persetujuan lokal untuk membuka akses dashboard penuh."
     );
     setText(accessState, "Login aktif. Simpan persetujuan untuk membuka dashboard.");
-    setText(dashboardLoginStatus, "Login Google aktif");
+    setText(dashboardLoginStatus, "Login Telegram aktif");
     setNotice("User sudah login lokal. Simpan persetujuan untuk membuka dashboard.");
     return;
   }
 
   currentChannelRole = "";
   resetCatalog();
-  isPhoneNumberChangeRequested = false;
-  sessionStorage.removeItem(activeOtpPhoneStorageKey);
-  syncVerificationPhoneDisplay();
+
+  if (!status.requiresVerificationCode) {
+    isPhoneNumberChangeRequested = false;
+    if (!status.requiresPassword && !status.isLoggedIn) {
+      sessionStorage.removeItem(activeOtpPhoneStorageKey);
+      syncVerificationPhoneDisplay();
+    }
+  }
 
   if (showAgreementPanel) {
     setNotice("Login berhasil. Simpan persetujuan untuk membuka dashboard.", true);
@@ -4757,16 +4830,25 @@ function applyStatus(status) {
   }
 
   if (status.requiresVerificationCode) {
-    setNotice("Status verifikasi lama sudah tidak dipakai lagi.", true);
+    const autoFilledOtp = (status.autoFilledVerificationCode || "").trim();
+    if (autoFilledOtp) {
+      if (lastAutoFilledOtpNoticeCode !== autoFilledOtp) {
+        lastAutoFilledOtpNoticeCode = autoFilledOtp;
+        setNotice("Kode OTP Telegram terdeteksi dan sudah diisikan otomatis. Periksa lalu tekan Kirim kode.");
+      }
+    } else {
+      lastAutoFilledOtpNoticeCode = "";
+      setNotice("Masukkan kode verifikasi Telegram yang diterima user.");
+    }
     return;
   }
 
   if (status.requiresPassword) {
-    setNotice("Status password lama sudah tidak dipakai lagi.", true);
+    setNotice("Akun menggunakan 2FA. Lanjutkan dengan password Telegram.");
     return;
   }
 
-  setNotice("Klik Login dengan Google untuk memulai sesi.");
+  setNotice("Masukkan nomor Telegram untuk memulai login lewat local service.");
 }
 
 function handleCatalogLoadFailureDuringRefresh(status, error) {
@@ -4798,6 +4880,7 @@ async function fetchJson(path, options = {}) {
   try {
     response = await fetch(requestUrl, {
       headers,
+      cache: options.cache || "no-store",
       ...options
     });
   } catch (error) {
@@ -5806,28 +5889,67 @@ async function joinSelectedChannels() {
 
 phoneForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setButtonLoading(phoneSubmitButton, true, "login", "Login dengan Google", "Membuka Google...");
+  const phoneNumber = buildInternationalPhoneNumber(phoneNumberInput?.value || "");
+  isPhoneNumberChangeRequested = false;
+  sessionStorage.setItem(activeOtpPhoneStorageKey, phoneNumber);
+  syncVerificationPhoneDisplay();
+  setButtonLoading(phoneSubmitButton, true, "send_to_mobile", "Minta kode login", "Meminta kode...");
 
   try {
-    const result = await fetchJson("/auth/google/start", {
+    const result = await fetchJson("/auth/start", {
       method: "POST",
-      body: JSON.stringify({})
+      body: JSON.stringify({ phoneNumber })
     });
-    const launchUrl = buildGoogleAuthLaunchUrl(result.authorizationUrl, result.forceConsent);
-
-    googleAuthTab = openGoogleAuthTab(launchUrl);
-
-    if (!googleAuthTab) {
-      setNotice("Browser memblokir tab login Google. Izinkan pembukaan tab baru lalu coba lagi.", true);
-      return;
-    }
-
-    setNotice(result.message || "Panduan login Google dibuka di tab baru. Lanjutkan dari tab tersebut.", "info");
-    startGoogleAuthPolling();
+    persistRememberedPhone();
+    setNotice(result.message);
+    await refreshStatus();
   } catch (error) {
     setNotice(error.message, true);
   } finally {
-    setButtonLoading(phoneSubmitButton, false, "login", "Login dengan Google", "Membuka Google...");
+    setButtonLoading(phoneSubmitButton, false, "send_to_mobile", "Minta kode login", "Meminta kode...");
+  }
+});
+
+codeForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const verificationCode = document.getElementById("verificationCode")?.value.trim() || "";
+  if (!verificationCode) {
+    syncCodeSubmitButtonState();
+    return;
+  }
+  setButtonLoading(codeSubmitButton, true, "password", "Kirim kode", "Mengirim kode...");
+
+  try {
+    const result = await fetchJson("/auth/code", {
+      method: "POST",
+      body: JSON.stringify({ verificationCode })
+    });
+    setNotice(result.message);
+    await refreshStatus();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    setButtonLoading(codeSubmitButton, false, "password", "Kirim kode", "Mengirim kode...");
+    syncCodeSubmitButtonState();
+  }
+});
+
+passwordForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = document.getElementById("password")?.value.trim() || "";
+  setButtonLoading(passwordSubmitButton, true, "lock_open_right", "Selesaikan login", "Memverifikasi...");
+
+  try {
+    const result = await fetchJson("/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ password })
+    });
+    setNotice(result.message);
+    await refreshStatus();
+  } catch (error) {
+    setNotice(error.message, true);
+  } finally {
+    setButtonLoading(passwordSubmitButton, false, "lock_open_right", "Selesaikan login", "Memverifikasi...");
   }
 });
 
@@ -5856,8 +5978,6 @@ if (logoutButton) {
         agreeCheckbox.checked = true;
       }
 
-      stopGoogleAuthPolling();
-      googleAuthTab = null;
       isPhoneNumberChangeRequested = false;
       sessionStorage.removeItem(activeOtpPhoneStorageKey);
       syncVerificationPhoneDisplay();
@@ -5869,6 +5989,28 @@ if (logoutButton) {
     }
   });
 }
+
+if (changePhoneButton) {
+  changePhoneButton.addEventListener("click", () => {
+    const codeInput = document.getElementById("verificationCode");
+    isPhoneNumberChangeRequested = true;
+
+    if (codeInput) {
+      codeInput.value = "";
+    }
+    syncCodeSubmitButtonState();
+
+    toggleElement(codeForm, false);
+    toggleElement(passwordForm, false);
+    toggleElement(phoneForm, true);
+    phoneNumberInput?.focus();
+    setNotice("Ganti nomor aktif. Masukkan nomor Telegram lain lalu minta kode login baru.", "info");
+  });
+}
+
+document.getElementById("verificationCode")?.addEventListener("input", () => {
+  syncCodeSubmitButtonState();
+});
 
 if (dashboardCheckUpdateButton) {
   dashboardCheckUpdateButton.addEventListener("click", async () => {

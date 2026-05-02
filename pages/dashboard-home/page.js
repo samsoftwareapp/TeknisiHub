@@ -63,7 +63,7 @@
       displayName: "TeknisiHub User",
       email: "-",
       role: "Member",
-      provider: "Google",
+      provider: "Telegram",
       lastLoginUtc: "",
       totalLocalMembers: 0,
       accessItems: [
@@ -206,7 +206,7 @@
         state.displayName = status.displayName || status.email || "TeknisiHub User";
         state.email = status.email || "-";
         state.role = status.channelRole || "Member";
-        state.provider = "Google";
+        state.provider = "Telegram";
         state.lastLoginUtc = status.lastLoginUtc || "";
         state.totalLocalMembers = Array.isArray(members) ? members.length : 0;
         state.accessItems = [

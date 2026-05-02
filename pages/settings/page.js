@@ -72,7 +72,7 @@
           <article class="catalog-card">
             <div class="catalog-card-top">
               <span class="catalog-category">${escapeHtml(member.role || "Member")}</span>
-              <span class="catalog-access">${escapeHtml(member.provider || "google")}</span>
+              <span class="catalog-access">${escapeHtml(member.provider || "telegram")}</span>
             </div>
             <h4>${escapeHtml(member.displayName || member.email || "User")}</h4>
             <div class="catalog-file-row">
@@ -162,7 +162,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Member Lokal</p>
-              <h4>Daftar akun Google yang pernah login di PC ini</h4>
+              <h4>Daftar akun Telegram yang pernah login di PC ini</h4>
             </div>
             <span class="spi-mini-badge">${escapeHtml(String(state.members.length))}</span>
           </div>

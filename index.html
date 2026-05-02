@@ -27,16 +27,16 @@
       </button>
       <div class="quote-intro-content">
         <span class="quote-intro-badge">Renungan Teknisi</span>
-        <div class="quote-intro-copy">
-          <p class="label">Quote Pembuka</p>
-          <h2 id="introQuoteTitle">Ilmu yang dibagi akan tetap hidup</h2>
-          <div id="introQuoteBody" class="quote-intro-body">
-            <p>Seharian duduk di kursi, sibuk memperbaiki, kadang lupa hidup bukan sekadar hari ini.</p>
-            <p>Ilmu di tangan jangan hanya untuk sendiri, karena bekal kita nanti hanya yang kita beri.</p>
-            <p>Yang kita bagi tak akan rugi, justru jadi jejak sampai nanti.</p>
-            <p>Di dunia mungkin terlihat biasa saja, di akhirat bisa jadi penyelamat kita.</p>
-          </div>
-        </div>
+  <div class="quote-intro-copy">
+  <p class="label">Quote Pembuka</p>
+  <h2 id="introQuoteTitle">Yang dibagi akan kekal abadi</h2>
+  <div id="introQuoteBody" class="quote-intro-body">
+    <p>Yang kita punya bisa hilang,</p>
+    <p>Yang kita bagi akan kekal.</p>
+    <p>Karena bekal kelak nanti,</p>
+    <p>Adalah apa yang kita beri.</p>
+  </div>
+</div>
         <blockquote class="quote-intro-einstein">
           <p>“Science without religion is lame, religion without science is blind.”</p>
           <footer>Albert Einstein</footer>
@@ -156,17 +156,48 @@
 
       <form id="phoneForm" class="form">
         <p class="label">Login Akses</p>
-        <h2>Login dengan Google</h2>
-        <p>Masuk pakai akun Google Anda untuk membuka akses TeknisiHub. Saat dibutuhkan, aplikasi akan meminta izin penyimpanan file untuk mengelola file kerja yang sudah diizinkan.</p>
+        <h2>Login dengan Telegram</h2>
+        <p>Masukkan nomor Telegram untuk membuka akses TeknisiHub.</p>
+        <label for="phoneNumber">Nomor Telegram</label>
+        <div class="phone-input-group">
+          <span class="phone-prefix">+62</span>
+          <input id="phoneNumber" name="phoneNumber" type="tel" inputmode="numeric" placeholder="81234567890" pattern="[0-9]{9,15}" required>
+        </div>
+        <label class="checkline remember-checkline">
+          <input id="rememberPhoneCheckbox" type="checkbox">
+          <span>Ingat nomor ini di browser ini</span>
+        </label>
         <button id="phoneSubmitButton" type="submit">
-          <span class="material-symbols-outlined">login</span>
-          <span>Login dengan Google</span>
+          <span class="material-symbols-outlined">send_to_mobile</span>
+          <span>Minta kode login</span>
         </button>
       </form>
 
-      <form id="codeForm" class="form hidden"></form>
+      <form id="codeForm" class="form hidden">
+        <div class="verification-phone-card">
+          <p class="label">OTP dikirim ke</p>
+          <strong id="verificationPhoneDisplay">+62-</strong>
+          <button id="changePhoneButton" class="ghost" type="button">
+            <span class="material-symbols-outlined">edit</span>
+            <span>Ganti nomor</span>
+          </button>
+        </div>
+        <label for="verificationCode">Kode verifikasi</label>
+        <input id="verificationCode" name="verificationCode" type="text" placeholder="12345">
+        <button id="codeSubmitButton" type="submit" disabled aria-disabled="true">
+          <span class="material-symbols-outlined">password</span>
+          <span>Kirim kode</span>
+        </button>
+      </form>
 
-      <form id="passwordForm" class="form hidden"></form>
+      <form id="passwordForm" class="form hidden">
+        <label for="password">Password 2FA Telegram</label>
+        <input id="password" name="password" type="password" placeholder="Password Telegram">
+        <button id="passwordSubmitButton" type="submit">
+          <span class="material-symbols-outlined">lock_open_right</span>
+          <span>Selesaikan login</span>
+        </button>
+      </form>
 
       <div id="agreementPanel" class="agreement hidden">
         <label class="checkline">
