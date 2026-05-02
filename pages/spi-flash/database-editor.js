@@ -2,6 +2,10 @@
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const chipTypeOptions = ["SPI_FLASH", "25_EEPROM", "93_EEPROM", "24_EEPROM", "95_EEPROM"];
   const voltageOptions = ["3.3 V", "1.8 V", "5.0 V"];
+  const themeModeStorageKey = "teknisihub_theme_mode";
+  const themeModeDateStorageKey = "teknisihub_theme_mode_wib_date";
+  const wibNightThemeStartHour = 18;
+  const wibNightThemeEndHour = 6;
   const state = {
     records: [],
     databasePath: "",
@@ -23,6 +27,80 @@
   const addRowButton = document.getElementById("databaseEditorAddRowButton");
   const saveButton = document.getElementById("databaseEditorSaveButton");
   const tableBody = document.getElementById("databaseEditorTableBody");
+
+  function getWibDateTimeParts() {
+    try {
+      const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jakarta",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        hour12: false
+      });
+      const parts = formatter.formatToParts(new Date());
+      const getPart = (type) => parts.find((part) => part.type === type)?.value || "";
+      const year = getPart("year");
+      const month = getPart("month");
+      const day = getPart("day");
+      const hour = Number.parseInt(getPart("hour"), 10);
+      return {
+        dateKey: `${year}-${month}-${day}`,
+        hour: Number.isFinite(hour) ? hour : 12
+      };
+    } catch {
+      const fallback = new Date();
+      return {
+        dateKey: fallback.toISOString().slice(0, 10),
+        hour: fallback.getHours()
+      };
+    }
+  }
+
+  function getAutomaticWibThemeMode() {
+    const { hour } = getWibDateTimeParts();
+    return hour >= wibNightThemeStartHour || hour < wibNightThemeEndHour ? "dark" : "light";
+  }
+
+  function clearSavedThemeMode() {
+    try {
+      localStorage.removeItem(themeModeStorageKey);
+      localStorage.removeItem(themeModeDateStorageKey);
+    } catch {
+      // Ignore storage failures.
+    }
+  }
+
+  function readSavedThemeMode() {
+    try {
+      const storedMode = localStorage.getItem(themeModeStorageKey);
+      const storedDateKey = localStorage.getItem(themeModeDateStorageKey);
+      const currentWibDateKey = getWibDateTimeParts().dateKey;
+      if ((storedMode === "dark" || storedMode === "light") && storedDateKey === currentWibDateKey) {
+        return storedMode;
+      }
+
+      if (storedMode || storedDateKey) {
+        clearSavedThemeMode();
+      }
+
+      return "";
+    } catch {
+      return "";
+    }
+  }
+
+  function getPreferredThemeMode() {
+    return readSavedThemeMode() || getAutomaticWibThemeMode();
+  }
+
+  function applyThemeMode(mode) {
+    document.body.classList.toggle("is-dark-mode", mode === "dark");
+  }
+
+  function syncThemeMode() {
+    applyThemeMode(getPreferredThemeMode());
+  }
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -321,6 +399,14 @@
       updateHeader();
     }
   }
+
+  syncThemeMode();
+  window.addEventListener("storage", (event) => {
+    if (!event.key || event.key === themeModeStorageKey || event.key === themeModeDateStorageKey) {
+      syncThemeMode();
+    }
+  });
+  window.setInterval(syncThemeMode, 60_000);
 
   async function saveDatabase() {
     syncDuplicateJedecState();

@@ -477,8 +477,10 @@
       <form id="catalogEditorForm" class="catalog-editor-form">
         <input id="catalogEditorMessageId" type="hidden">
 
-        <label id="catalogEditorFileLabel" for="catalogEditorFile">File BIOS</label>
-        <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr,.asc,.bdv,.brd,.bv,.cad,.cst,.gr,.f2b,.faz,.fz,.tvw">
+        <div class="catalog-editor-primary-file">
+          <label id="catalogEditorFileLabel" for="catalogEditorFile">File BIOS</label>
+          <input id="catalogEditorFile" name="file" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr,.asc,.bdv,.brd,.bv,.cad,.cst,.gr,.f2b,.faz,.fz,.tvw">
+        </div>
         <div id="catalogEditorAnalysisPanel" class="catalog-analysis-panel hidden"></div>
         <div id="catalogEditorAdditionalFilesSection" class="catalog-additional-files hidden">
           <div class="catalog-additional-files-head">
@@ -492,7 +494,7 @@
           <p id="catalogEditorAdditionalFilesNote" class="catalog-additional-files-note">Opsional untuk EC, FULL DUMP, DLL, dan file pendukung lain. Maksimal 5 file.</p>
         </div>
 
-        <div id="catalogEditorMetadataFields">
+        <div id="catalogEditorMetadataFields" class="catalog-editor-metadata-grid">
           <div id="catalogEditorAliasField" class="catalog-form-field hidden">
             <label for="catalogEditorAliasName">Nama Alias Arsip</label>
             <input id="catalogEditorAliasName" name="aliasName" type="text" maxlength="70" placeholder="Dipakai untuk nama arsip .7z jika nama file Boardview kurang dari 15 karakter. File utama di dalam arsip tetap nama asli.">

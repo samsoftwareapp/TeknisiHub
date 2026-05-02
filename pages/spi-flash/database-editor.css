@@ -228,6 +228,72 @@
   color: var(--muted);
 }
 
+.db-editor-body.is-dark-mode {
+  background:
+    radial-gradient(circle at top left, rgba(73, 214, 222, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(8, 18, 29, 0.98) 0%, rgba(10, 21, 34, 0.98) 44%, rgba(8, 19, 31, 0.98) 100%);
+  color: var(--deep);
+}
+
+.db-editor-body.is-dark-mode .db-editor-hero,
+.db-editor-body.is-dark-mode .db-meta-card,
+.db-editor-body.is-dark-mode .db-editor-toolbar,
+.db-editor-body.is-dark-mode .db-editor-grid-card,
+.db-editor-body.is-dark-mode .db-help-card {
+  border-color: rgba(112, 168, 211, 0.14);
+  background: rgba(10, 24, 36, 0.9);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.22);
+}
+
+.db-editor-body.is-dark-mode .db-editor-search {
+  border-color: rgba(112, 168, 211, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.db-editor-body.is-dark-mode .db-editor-message,
+.db-editor-body.is-dark-mode .db-editor-subtitle,
+.db-editor-body.is-dark-mode .db-help-card p:last-child,
+.db-editor-body.is-dark-mode .db-editor-empty {
+  color: #9fb7cc;
+}
+
+.db-editor-body.is-dark-mode .db-editor-table th,
+.db-editor-body.is-dark-mode .db-editor-table td {
+  border-bottom-color: rgba(112, 168, 211, 0.1);
+  border-right-color: rgba(112, 168, 211, 0.1);
+  background: rgba(10, 24, 36, 0.96);
+}
+
+.db-editor-body.is-dark-mode .db-editor-table th {
+  background: linear-gradient(180deg, rgba(11, 28, 42, 0.98) 0%, rgba(8, 22, 34, 0.98) 100%);
+  color: #9fb7cc;
+}
+
+.db-editor-body.is-dark-mode .db-editor-table th:first-child,
+.db-editor-body.is-dark-mode .db-editor-table td:first-child {
+  background: rgba(8, 22, 34, 0.98);
+}
+
+.db-editor-body.is-dark-mode .db-editor-cell-input,
+.db-editor-body.is-dark-mode .db-editor-cell-select {
+  border-color: rgba(112, 168, 211, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--deep);
+}
+
+.db-editor-body.is-dark-mode .db-editor-cell-input:focus,
+.db-editor-body.is-dark-mode .db-editor-cell-select:focus {
+  border-color: rgba(73, 214, 222, 0.58);
+  box-shadow: 0 0 0 4px rgba(73, 214, 222, 0.12);
+}
+
+.db-editor-body.is-dark-mode .db-editor-cell-input.is-invalid,
+.db-editor-body.is-dark-mode .db-editor-cell-select.is-invalid {
+  border-color: rgba(239, 111, 87, 0.68);
+  background: rgba(102, 31, 31, 0.34);
+  box-shadow: 0 0 0 3px rgba(239, 111, 87, 0.12);
+}
+
 @media (max-width: 1080px) {
   .db-editor-shell {
     width: min(100% - 20px, 1680px);
