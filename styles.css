@@ -2081,6 +2081,100 @@ body.is-dark-mode .catalog-empty {
   flex-wrap: wrap;
 }
 
+.catalog-ai-suggestion-modal-card {
+  width: min(720px, 100%);
+}
+
+.catalog-ai-suggestion-icon-shell {
+  background: linear-gradient(135deg, rgba(18, 169, 208, 0.18), rgba(62, 207, 142, 0.16));
+  color: #0b7da5;
+}
+
+.catalog-ai-suggestion-reasoning,
+.catalog-ai-suggestion-sources {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(31, 97, 139, 0.1);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.catalog-ai-suggestion-reasoning strong,
+.catalog-ai-suggestion-sources strong {
+  color: var(--deep);
+}
+
+.catalog-ai-suggestion-reasoning p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.catalog-ai-suggestion-source-list {
+  display: grid;
+  gap: 10px;
+}
+
+.catalog-ai-suggestion-source-link {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(31, 97, 139, 0.1);
+  background: rgba(22, 78, 125, 0.04);
+  text-decoration: none;
+}
+
+.catalog-ai-suggestion-source-link span {
+  color: var(--deep);
+  font-weight: 700;
+}
+
+.catalog-ai-suggestion-source-link small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.catalog-ai-suggestion-source-link:hover {
+  background: rgba(22, 78, 125, 0.08);
+}
+
+.catalog-ai-suggestion-apply-button {
+  background: linear-gradient(135deg, #17a8c9, #1bc07c);
+}
+
+body.is-dark-mode .catalog-ai-suggestion-icon-shell {
+  background: linear-gradient(135deg, rgba(24, 161, 210, 0.22), rgba(27, 192, 124, 0.18));
+  color: #93eaff;
+}
+
+body.is-dark-mode .catalog-ai-suggestion-reasoning,
+body.is-dark-mode .catalog-ai-suggestion-sources {
+  border-color: rgba(112, 168, 211, 0.16);
+  background: rgba(11, 24, 35, 0.86);
+}
+
+body.is-dark-mode .catalog-ai-suggestion-reasoning strong,
+body.is-dark-mode .catalog-ai-suggestion-sources strong,
+body.is-dark-mode .catalog-ai-suggestion-source-link span {
+  color: #e8f4ff;
+}
+
+body.is-dark-mode .catalog-ai-suggestion-reasoning p,
+body.is-dark-mode .catalog-ai-suggestion-source-link small {
+  color: #9fb7cc;
+}
+
+body.is-dark-mode .catalog-ai-suggestion-source-link {
+  border-color: rgba(112, 168, 211, 0.14);
+  background: rgba(24, 46, 63, 0.68);
+}
+
+body.is-dark-mode .catalog-ai-suggestion-source-link:hover {
+  background: rgba(33, 63, 84, 0.82);
+}
+
 .previous-versions-list {
   display: grid;
   gap: 12px;

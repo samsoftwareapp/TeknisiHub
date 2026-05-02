@@ -617,6 +617,60 @@
     </div>
   </div>
 
+  <div
+    id="catalogAiSuggestionModal"
+    class="catalog-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="catalogAiSuggestionTitle"
+    aria-describedby="catalogAiSuggestionDescription"
+  >
+    <div class="catalog-modal-card delete-confirm-modal-card catalog-ai-suggestion-modal-card">
+      <div class="delete-confirm-icon-shell catalog-ai-suggestion-icon-shell" aria-hidden="true">
+        <span class="material-symbols-outlined">auto_awesome</span>
+      </div>
+      <div class="delete-confirm-copy">
+        <p class="label">Saran Gemini</p>
+        <h3 id="catalogAiSuggestionTitle">Bantu isi field upload?</h3>
+        <p id="catalogAiSuggestionDescription">Gemini mencari referensi dari nama file dan internet untuk membantu mengisi Model Device dan Code Board. Serial Number tetap diisi manual.</p>
+      </div>
+      <div class="delete-confirm-target">
+        <span class="material-symbols-outlined" aria-hidden="true">description</span>
+        <strong id="catalogAiSuggestionTargetName">Nama file</strong>
+      </div>
+      <div class="delete-confirm-meta">
+        <div class="delete-confirm-meta-item">
+          <span>Kategori</span>
+          <strong id="catalogAiSuggestionCategoryValue">BIOS</strong>
+        </div>
+        <div class="delete-confirm-meta-item">
+          <span>Model</span>
+          <strong id="catalogAiSuggestionModelValue">-</strong>
+        </div>
+        <div class="delete-confirm-meta-item">
+          <span>Board</span>
+          <strong id="catalogAiSuggestionBoardValue">-</strong>
+        </div>
+        <div class="delete-confirm-meta-item">
+          <span>Confidence</span>
+          <strong id="catalogAiSuggestionConfidenceValue">medium</strong>
+        </div>
+      </div>
+      <div id="catalogAiSuggestionReasoning" class="catalog-ai-suggestion-reasoning hidden"></div>
+      <div id="catalogAiSuggestionSources" class="catalog-ai-suggestion-sources hidden"></div>
+      <div class="delete-confirm-actions">
+        <button id="catalogAiSuggestionCancelButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">edit</span>
+          <span>Isi Manual</span>
+        </button>
+        <button id="catalogAiSuggestionApplyButton" type="button" class="catalog-delete-confirm-button catalog-ai-suggestion-apply-button">
+          <span class="material-symbols-outlined">check_circle</span>
+          <span>Ya, Pakai Saran</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="aboutModal" class="catalog-modal hidden">
     <div class="catalog-modal-card about-modal-card">
       <div class="catalog-modal-head">

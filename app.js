@@ -132,6 +132,18 @@ const catalogDeleteModelValue = document.getElementById("catalogDeleteModelValue
 const catalogDeleteBoardValue = document.getElementById("catalogDeleteBoardValue");
 const catalogDeleteCancelButton = document.getElementById("catalogDeleteCancelButton");
 const catalogDeleteConfirmButton = document.getElementById("catalogDeleteConfirmButton");
+const catalogAiSuggestionModal = document.getElementById("catalogAiSuggestionModal");
+const catalogAiSuggestionTitle = document.getElementById("catalogAiSuggestionTitle");
+const catalogAiSuggestionDescription = document.getElementById("catalogAiSuggestionDescription");
+const catalogAiSuggestionTargetName = document.getElementById("catalogAiSuggestionTargetName");
+const catalogAiSuggestionCategoryValue = document.getElementById("catalogAiSuggestionCategoryValue");
+const catalogAiSuggestionModelValue = document.getElementById("catalogAiSuggestionModelValue");
+const catalogAiSuggestionBoardValue = document.getElementById("catalogAiSuggestionBoardValue");
+const catalogAiSuggestionConfidenceValue = document.getElementById("catalogAiSuggestionConfidenceValue");
+const catalogAiSuggestionReasoning = document.getElementById("catalogAiSuggestionReasoning");
+const catalogAiSuggestionSources = document.getElementById("catalogAiSuggestionSources");
+const catalogAiSuggestionCancelButton = document.getElementById("catalogAiSuggestionCancelButton");
+const catalogAiSuggestionApplyButton = document.getElementById("catalogAiSuggestionApplyButton");
 const aboutFooterButton = document.getElementById("aboutFooterButton");
 const aboutModal = document.getElementById("aboutModal");
 const aboutModalCloseButton = document.getElementById("aboutModalCloseButton");
@@ -387,6 +399,16 @@ let catalogSearchDebounceId = 0;
 let catalogEditorMode = "upload";
 let catalogBiosDuplicateCheckToken = 0;
 let catalogBiosDuplicateFound = false;
+let catalogMetadataAiSuggestionToken = 0;
+let catalogMetadataAiSuggestionRequestedSignature = "";
+let catalogMetadataAiSuggestionLookupSignature = "";
+let catalogMetadataAiSuggestionLookupStatus = "idle";
+let catalogMetadataAiSuggestionAbortController = null;
+let catalogMetadataAiSuggestionResolved = null;
+let catalogMetadataAiSuggestionEligibleSignature = "";
+let pendingCatalogMetadataAiSuggestion = null;
+let pendingCatalogMetadataAiSuggestionTriggerButton = null;
+let catalogMetadataAiAppliedSuggestion = null;
 let pendingCatalogDeleteItem = null;
 let pendingCatalogDeleteTriggerButton = null;
 let catalogDeleteSubmitting = false;
@@ -2279,6 +2301,182 @@ function supportsCatalogMd5Check(category) {
   return category === "BIOS" || category === "Boardview" || category === "Schematics" || category === "ProblemSolving" || category === "Datasheets";
 }
 
+function supportsCatalogMetadataAiSuggestion(category) {
+  return category === "BIOS" || category === "Boardview" || category === "Schematics";
+}
+
+function buildCatalogMetadataAiSuggestionSignature(category, fileName, md5 = "") {
+  return [
+    String(category || "").trim(),
+    String(fileName || "").trim().toLowerCase(),
+    String(md5 || "").trim().toUpperCase()
+  ].join("|");
+}
+
+function clearCatalogMetadataAiAppliedFieldsIfNeeded() {
+  if (!catalogMetadataAiAppliedSuggestion) {
+    return;
+  }
+
+  if (catalogEditorDeviceModel && catalogEditorDeviceModel.value.trim() === (catalogMetadataAiAppliedSuggestion.deviceModel || "")) {
+    catalogEditorDeviceModel.value = "";
+  }
+
+  if (catalogEditorBoardCode && catalogEditorBoardCode.value.trim() === (catalogMetadataAiAppliedSuggestion.boardCode || "")) {
+    catalogEditorBoardCode.value = "";
+  }
+
+  catalogMetadataAiAppliedSuggestion = null;
+}
+
+function resetCatalogMetadataAiSuggestionState({ closeModal = true, clearAppliedFields = false } = {}) {
+  catalogMetadataAiSuggestionToken += 1;
+  catalogMetadataAiSuggestionRequestedSignature = "";
+  catalogMetadataAiSuggestionLookupSignature = "";
+  catalogMetadataAiSuggestionLookupStatus = "idle";
+  catalogMetadataAiSuggestionResolved = null;
+  catalogMetadataAiSuggestionEligibleSignature = "";
+  if (catalogMetadataAiSuggestionAbortController) {
+    catalogMetadataAiSuggestionAbortController.abort();
+    catalogMetadataAiSuggestionAbortController = null;
+  }
+  pendingCatalogMetadataAiSuggestion = null;
+
+  if (clearAppliedFields) {
+    clearCatalogMetadataAiAppliedFieldsIfNeeded();
+  }
+
+  if (closeModal) {
+    closeCatalogAiSuggestionModal({ force: true, restoreFocus: false });
+  }
+}
+
+function cancelCatalogMetadataAiSuggestionLookup() {
+  if (catalogMetadataAiSuggestionAbortController) {
+    catalogMetadataAiSuggestionAbortController.abort();
+    catalogMetadataAiSuggestionAbortController = null;
+  }
+
+  catalogMetadataAiSuggestionLookupStatus = "cancelled";
+  catalogMetadataAiSuggestionEligibleSignature = "";
+}
+
+function handleCatalogMetadataAiManualFieldInput() {
+  if (!supportsCatalogMetadataAiSuggestion(currentCatalogView) || catalogEditorMode === "edit") {
+    return;
+  }
+
+  if (!(catalogEditorDeviceModel?.value.trim() || "") && !(catalogEditorBoardCode?.value.trim() || "")) {
+    return;
+  }
+
+  cancelCatalogMetadataAiSuggestionLookup();
+  closeCatalogAiSuggestionModal({ force: true, restoreFocus: false });
+  catalogMetadataAiAppliedSuggestion = null;
+}
+
+function startCatalogMetadataAiSuggestionLookup(category, fileName) {
+  if (!supportsCatalogMetadataAiSuggestion(category) || catalogEditorMode === "edit") {
+    return;
+  }
+
+  if ((catalogEditorDeviceModel?.value.trim() || "") || (catalogEditorBoardCode?.value.trim() || "")) {
+    return;
+  }
+
+  const signature = buildCatalogMetadataAiSuggestionSignature(category, fileName);
+  if (!signature || catalogMetadataAiSuggestionLookupSignature === signature) {
+    return;
+  }
+
+  cancelCatalogMetadataAiSuggestionLookup();
+  catalogMetadataAiSuggestionRequestedSignature = signature;
+  catalogMetadataAiSuggestionLookupSignature = signature;
+  catalogMetadataAiSuggestionLookupStatus = "pending";
+  catalogMetadataAiSuggestionResolved = null;
+
+  const token = ++catalogMetadataAiSuggestionToken;
+  const abortController = new AbortController();
+  catalogMetadataAiSuggestionAbortController = abortController;
+
+  fetchJson("/catalog/ai-suggest-metadata", {
+    method: "POST",
+    body: JSON.stringify({
+      category,
+      fileName
+    }),
+    signal: abortController.signal
+  }).then((suggestion) => {
+    if (token !== catalogMetadataAiSuggestionToken || catalogMetadataAiSuggestionLookupSignature !== signature) {
+      return;
+    }
+
+    catalogMetadataAiSuggestionAbortController = null;
+    catalogMetadataAiSuggestionLookupStatus = suggestion?.shouldSuggest && (suggestion.deviceModel || suggestion.boardCode)
+      ? "resolved"
+      : "empty";
+    catalogMetadataAiSuggestionResolved = suggestion?.shouldSuggest
+      ? {
+          ...suggestion,
+          signature
+        }
+      : null;
+
+    if (catalogMetadataAiSuggestionLookupStatus === "resolved" &&
+        catalogMetadataAiSuggestionEligibleSignature === signature &&
+        isCatalogEditorOpen() &&
+        !(catalogEditorDeviceModel?.value.trim() || "") &&
+        !(catalogEditorBoardCode?.value.trim() || "")) {
+      openCatalogAiSuggestionModal(
+        {
+          ...catalogMetadataAiSuggestionResolved,
+          signature
+        },
+        catalogEditorDeviceModel || catalogEditorBoardCode || catalogEditorFile
+      );
+    }
+  }).catch((error) => {
+    if (token !== catalogMetadataAiSuggestionToken || catalogMetadataAiSuggestionLookupSignature !== signature) {
+      return;
+    }
+
+    catalogMetadataAiSuggestionAbortController = null;
+    if (error?.name === "AbortError" || error?.isAbortError) {
+      catalogMetadataAiSuggestionLookupStatus = "cancelled";
+      return;
+    }
+
+    catalogMetadataAiSuggestionLookupStatus = "failed";
+    catalogMetadataAiSuggestionResolved = null;
+    console.warn("Catalog metadata AI suggestion failed", error);
+  });
+}
+
+function finalizeCatalogMetadataAiSuggestionAfterDuplicateCheck(category, fileName, md5 = "") {
+  const signature = buildCatalogMetadataAiSuggestionSignature(category, fileName);
+  if (!signature || catalogMetadataAiSuggestionLookupSignature !== signature) {
+    return;
+  }
+
+  catalogMetadataAiSuggestionEligibleSignature = signature;
+
+  if (catalogMetadataAiSuggestionLookupStatus !== "resolved" || !catalogMetadataAiSuggestionResolved) {
+    return;
+  }
+
+  if ((catalogEditorDeviceModel?.value.trim() || "") || (catalogEditorBoardCode?.value.trim() || "")) {
+    return;
+  }
+
+  openCatalogAiSuggestionModal(
+    {
+      ...catalogMetadataAiSuggestionResolved,
+      signature: buildCatalogMetadataAiSuggestionSignature(category, fileName, md5)
+    },
+    catalogEditorDeviceModel || catalogEditorBoardCode || catalogEditorFile
+  );
+}
+
 function validateCatalogFileNameLength(fileName, displayName, options = {}) {
   const normalizedFileName = String(fileName || "").trim();
   const minimumLength = options.skipMinimumLength ? 1 : minCatalogFileNameLength;
@@ -2350,6 +2548,7 @@ function updateCatalogAliasField(selectedFileName = "", category = currentCatalo
 function resetCatalogBiosDuplicateCheck() {
   catalogBiosDuplicateCheckToken += 1;
   catalogBiosDuplicateFound = false;
+  resetCatalogMetadataAiSuggestionState({ clearAppliedFields: true });
   if (catalogEditorMd5) {
     catalogEditorMd5.value = "-";
   }
@@ -2552,11 +2751,18 @@ async function checkSelectedCatalogDuplicate() {
       catalogEditorMd5.value = result.md5 || "-";
     }
     renderCatalogBiosDuplicateCheck("result", result);
+
+    if (!catalogBiosDuplicateFound) {
+      finalizeCatalogMetadataAiSuggestionAfterDuplicateCheck(currentCatalogView, selectedFile.name, result.md5 || "");
+    } else {
+      cancelCatalogMetadataAiSuggestionLookup();
+    }
   } catch (error) {
     if (token !== catalogBiosDuplicateCheckToken) {
       return;
     }
 
+    cancelCatalogMetadataAiSuggestionLookup();
     catalogBiosDuplicateFound = false;
     if (catalogEditorMd5) {
       catalogEditorMd5.value = "-";
@@ -2567,6 +2773,7 @@ async function checkSelectedCatalogDuplicate() {
 
 function openCatalogEditor(mode, item = null) {
   catalogEditorMode = mode;
+  resetCatalogMetadataAiSuggestionState({ clearAppliedFields: true });
   toggleElement(catalogEditorModal, true);
   if (!catalogEditorTitle || !catalogEditorSubmitButton) {
     return;
@@ -2655,6 +2862,7 @@ function openCatalogEditor(mode, item = null) {
 function closeCatalogEditor() {
   toggleElement(catalogEditorModal, false);
   catalogEditorMode = "upload";
+  resetCatalogMetadataAiSuggestionState({ clearAppliedFields: true });
   if (catalogEditorForm) {
     catalogEditorForm.reset();
   }
@@ -2762,6 +2970,118 @@ function closeCatalogDeleteModal({ force = false, restoreFocus = true } = {}) {
   if (restoreFocus && typeof focusTarget?.focus === "function") {
     window.requestAnimationFrame(() => focusTarget.focus());
   }
+}
+
+function formatCatalogAiConfidenceLabel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "high"
+    ? "High"
+    : normalized === "low"
+    ? "Low"
+    : "Medium";
+}
+
+function openCatalogAiSuggestionModal(suggestion, triggerButton = null) {
+  if (!suggestion) {
+    return;
+  }
+
+  pendingCatalogMetadataAiSuggestion = suggestion;
+  pendingCatalogMetadataAiSuggestionTriggerButton = triggerButton;
+
+  if (!catalogAiSuggestionModal || !catalogAiSuggestionApplyButton) {
+    const confirmed = window.confirm("Gemini menemukan saran Model Device dan Code Board. Pakai saran ini?");
+    if (confirmed) {
+      applyCatalogAiSuggestionToForm();
+    }
+    return;
+  }
+
+  setText(catalogAiSuggestionTitle, `Pakai saran ${suggestion.category || currentCatalogView}?`);
+  setText(
+    catalogAiSuggestionDescription,
+    "Gemini mencari referensi dari nama file dan internet untuk membantu mengisi Model Device dan Code Board. Serial Number tetap diisi manual."
+  );
+  setText(catalogAiSuggestionTargetName, suggestion.fileName || "Nama file");
+  setText(catalogAiSuggestionCategoryValue, suggestion.category || currentCatalogView);
+  setText(catalogAiSuggestionModelValue, suggestion.deviceModel || "Tidak yakin");
+  setText(catalogAiSuggestionBoardValue, suggestion.boardCode || "Tidak yakin");
+  setText(catalogAiSuggestionConfidenceValue, formatCatalogAiConfidenceLabel(suggestion.confidence));
+
+  if (catalogAiSuggestionReasoning) {
+    const reasoning = String(suggestion.reasoning || "").trim();
+    toggleElement(catalogAiSuggestionReasoning, Boolean(reasoning));
+    catalogAiSuggestionReasoning.innerHTML = reasoning
+      ? `
+        <strong>Alasan singkat</strong>
+        <p>${escapeHtml(reasoning)}</p>
+      `
+      : "";
+  }
+
+  if (catalogAiSuggestionSources) {
+    const sources = Array.isArray(suggestion.sources) ? suggestion.sources.slice(0, 3) : [];
+    toggleElement(catalogAiSuggestionSources, sources.length > 0);
+    catalogAiSuggestionSources.innerHTML = sources.length
+      ? `
+        <strong>Referensi web</strong>
+        <div class="catalog-ai-suggestion-source-list">
+          ${sources.map((source) => `
+            <a href="${escapeHtml(source.url || "#")}" target="_blank" rel="noreferrer noopener" class="catalog-ai-suggestion-source-link">
+              <span>${escapeHtml(source.title || source.url || "Sumber web")}</span>
+              <small>${escapeHtml(source.host || "")}</small>
+            </a>
+          `).join("")}
+        </div>
+      `
+      : "";
+  }
+
+  toggleElement(catalogAiSuggestionModal, true);
+  window.requestAnimationFrame(() => catalogAiSuggestionApplyButton.focus());
+}
+
+function closeCatalogAiSuggestionModal({ force = false, restoreFocus = true } = {}) {
+  if (!force && !catalogAiSuggestionModal) {
+    pendingCatalogMetadataAiSuggestion = null;
+    pendingCatalogMetadataAiSuggestionTriggerButton = null;
+    return;
+  }
+
+  toggleElement(catalogAiSuggestionModal, false);
+  pendingCatalogMetadataAiSuggestion = null;
+
+  const focusTarget = pendingCatalogMetadataAiSuggestionTriggerButton;
+  pendingCatalogMetadataAiSuggestionTriggerButton = null;
+  if (restoreFocus && typeof focusTarget?.focus === "function") {
+    window.requestAnimationFrame(() => focusTarget.focus());
+  }
+}
+
+function applyCatalogAiSuggestionToForm() {
+  if (!pendingCatalogMetadataAiSuggestion) {
+    return;
+  }
+
+  const suggestion = pendingCatalogMetadataAiSuggestion;
+  const deviceModel = String(suggestion.deviceModel || "").trim();
+  const boardCode = String(suggestion.boardCode || "").trim();
+
+  if (catalogEditorDeviceModel && deviceModel) {
+    catalogEditorDeviceModel.value = deviceModel;
+  }
+
+  if (catalogEditorBoardCode && boardCode) {
+    catalogEditorBoardCode.value = boardCode;
+  }
+
+  catalogMetadataAiAppliedSuggestion = {
+    signature: suggestion.signature || "",
+    deviceModel,
+    boardCode
+  };
+
+  closeCatalogAiSuggestionModal({ force: true, restoreFocus: false });
 }
 
 function openAboutModal() {
@@ -6738,12 +7058,28 @@ catalogDeleteModal?.addEventListener("click", (event) => {
   }
 });
 
+catalogAiSuggestionCancelButton?.addEventListener("click", () => closeCatalogAiSuggestionModal());
+
+catalogAiSuggestionApplyButton?.addEventListener("click", () => applyCatalogAiSuggestionToForm());
+
+catalogAiSuggestionModal?.addEventListener("click", (event) => {
+  if (event.target === catalogAiSuggestionModal) {
+    closeCatalogAiSuggestionModal();
+  }
+});
+
 catalogEditorFile?.addEventListener("change", () => {
-  updateCatalogAliasField(catalogEditorFile.files?.[0]?.name || "", currentCatalogView);
+  resetCatalogMetadataAiSuggestionState({ clearAppliedFields: true });
+  const selectedFileName = catalogEditorFile.files?.[0]?.name || "";
+  updateCatalogAliasField(selectedFileName, currentCatalogView);
+  startCatalogMetadataAiSuggestionLookup(currentCatalogView, selectedFileName);
   checkSelectedCatalogDuplicate().catch((error) => {
     renderCatalogBiosDuplicateCheck("error", { message: error.message });
   });
 });
+
+catalogEditorDeviceModel?.addEventListener("input", handleCatalogMetadataAiManualFieldInput);
+catalogEditorBoardCode?.addEventListener("input", handleCatalogMetadataAiManualFieldInput);
 
 catalogEditorAddFileButton?.addEventListener("click", appendCatalogAdditionalFileInput);
 
@@ -6774,6 +7110,7 @@ document.addEventListener("keydown", (event) => {
 
   closeIntroQuoteModal();
   closeCatalogDeleteModal();
+  closeCatalogAiSuggestionModal();
   closeAboutModal();
   closeProblemSolvingViewer();
   closePreviousVersionsModal();
@@ -6781,6 +7118,8 @@ document.addEventListener("keydown", (event) => {
 
 catalogEditorForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
+  cancelCatalogMetadataAiSuggestionLookup();
+  closeCatalogAiSuggestionModal({ force: true, restoreFocus: false });
   const previousMarkup = catalogEditorSubmitButton?.innerHTML || "";
   const submissionContext = { minimizedToTask: false };
   setCatalogEditorSubmitting(true, {
