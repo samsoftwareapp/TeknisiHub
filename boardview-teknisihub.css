@@ -844,21 +844,53 @@ body.boardviewer-native-page {
   white-space: nowrap;
 }
 
+.boardviewer-desktop-combobox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 170px;
+  height: 26px;
+  border: 1px solid #8d8d8d;
+  border-radius: 999px;
+  background: #fff;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
 .boardviewer-desktop-field select,
 .boardviewer-desktop-field input {
   min-width: 170px;
   height: 26px;
-  padding: 0 8px;
-  border: 1px solid #8d8d8d;
-  background: #fff;
+  padding: 0 26px 0 8px;
+  border: 0;
+  background: transparent;
   color: #111;
   font: inherit;
-  border-radius: 999px;
   box-sizing: border-box;
+  outline: none;
 }
 
-.boardviewer-desktop-field input[type="search"]::-webkit-search-cancel-button {
-  cursor: pointer;
+.boardviewer-desktop-field input::-ms-clear,
+.boardviewer-desktop-field input::-ms-reveal {
+  display: none;
+}
+
+.boardviewer-desktop-combobox-arrow {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #333;
+  transform: translateY(-25%);
+  pointer-events: none;
+}
+
+.boardviewer-desktop-combobox:focus-within {
+  border-color: #7a98c7;
+  box-shadow: inset 0 0 0 1px rgba(122, 152, 199, 0.4);
 }
 
 .boardviewer-desktop-main {

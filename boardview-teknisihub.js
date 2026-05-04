@@ -4604,16 +4604,19 @@
           </div>
           <label class="boardviewer-desktop-field">
             <span>Parts:</span>
-            <input
-              type="search"
-              list="boardviewerPartOptions"
-              value="${escapeHtml(activeFootprint.id || "")}"
-              data-part-select
-              placeholder="Cari part"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck="false"
-            >
+            <span class="boardviewer-desktop-combobox">
+              <input
+                type="text"
+                list="boardviewerPartOptions"
+                value="${escapeHtml(activeFootprint.id || "")}"
+                data-part-select
+                placeholder="Cari part"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              >
+              <span class="boardviewer-desktop-combobox-arrow" aria-hidden="true"></span>
+            </span>
             <datalist id="boardviewerPartOptions">
               ${partOptions.map((partId) => `
                 <option value="${escapeHtml(partId)}"></option>
@@ -4622,16 +4625,19 @@
           </label>
           <label class="boardviewer-desktop-field">
             <span>Nets:</span>
-            <input
-              type="search"
-              list="boardviewerNetOptions"
-              value="${escapeHtml(activeNetName || "")}"
-              data-net-select
-              placeholder="Cari net"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck="false"
-            >
+            <span class="boardviewer-desktop-combobox">
+              <input
+                type="text"
+                list="boardviewerNetOptions"
+                value="${escapeHtml(activeNetName || "")}"
+                data-net-select
+                placeholder="-"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              >
+              <span class="boardviewer-desktop-combobox-arrow" aria-hidden="true"></span>
+            </span>
             <datalist id="boardviewerNetOptions">
               <option value="-"></option>
               ${netOptions.map((netName) => `
