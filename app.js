@@ -5818,11 +5818,73 @@ function updateBoardviewOpenActionAvailability(target) {
 
 function buildBoardviewTeknisiHubUrl(sessionId) {
   const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
+  targetUrl.searchParams.set("v", "20260503g");
   if (sessionId) {
     targetUrl.searchParams.set("sessionId", sessionId);
   }
   targetUrl.searchParams.set("source", "catalog_boardview");
   return targetUrl.toString();
+}
+
+function openPendingBoardviewTeknisiHubWindow(fileName) {
+  const pendingWindow = window.open("", "_blank");
+  if (!pendingWindow) {
+    return null;
+  }
+
+  try {
+    pendingWindow.opener = null;
+    pendingWindow.document.title = "Menyiapkan Boardview TeknisiHub";
+    pendingWindow.document.body.innerHTML = `
+      <main style="font-family: 'Segoe UI', sans-serif; background:#09111f; color:#f5f8ff; min-height:100vh; margin:0; display:grid; place-items:center; padding:32px;">
+        <section style="max-width:560px; width:min(100%, 560px); background:rgba(18,29,49,0.94); border:1px solid rgba(130,177,255,0.18); border-radius:20px; padding:28px 24px; box-shadow:0 20px 60px rgba(0,0,0,0.28);">
+          <p style="margin:0 0 10px; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#8fbaff;">Boardview TeknisiHub</p>
+          <h1 style="margin:0 0 12px; font-size:28px; line-height:1.15;">Menyiapkan viewer</h1>
+          <p style="margin:0 0 10px; color:#d4def7; line-height:1.6;">Local service sedang menyiapkan session boardview untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>
+          <p style="margin:0; color:#9fb0d4; line-height:1.6;">Tab ini akan otomatis berpindah ke viewer begitu session siap.</p>
+        </section>
+      </main>
+    `;
+  } catch {
+    // Ignore temporary window rendering failure; navigation can still proceed later.
+  }
+
+  return pendingWindow;
+}
+
+function finalizePendingBoardviewTeknisiHubWindow(targetWindow, sessionId) {
+  const targetUrl = buildBoardviewTeknisiHubUrl(sessionId);
+  if (targetWindow && !targetWindow.closed) {
+    targetWindow.location.replace(targetUrl);
+    return;
+  }
+
+  const launchedWindow = window.open(targetUrl, "_blank");
+  if (!launchedWindow) {
+    throw new Error("Session Boardview TeknisiHub sudah siap, tetapi tab baru diblokir browser. Izinkan pop-up lalu klik Buka lagi.");
+  }
+}
+
+function disposePendingBoardviewTeknisiHubWindow(targetWindow, fileName, errorMessage) {
+  if (!targetWindow || targetWindow.closed) {
+    return;
+  }
+
+  try {
+    targetWindow.document.title = "Boardview TeknisiHub gagal dibuka";
+    targetWindow.document.body.innerHTML = `
+      <main style="font-family: 'Segoe UI', sans-serif; background:#09111f; color:#f5f8ff; min-height:100vh; margin:0; display:grid; place-items:center; padding:32px;">
+        <section style="max-width:560px; width:min(100%, 560px); background:rgba(18,29,49,0.94); border:1px solid rgba(255,132,132,0.2); border-radius:20px; padding:28px 24px; box-shadow:0 20px 60px rgba(0,0,0,0.28);">
+          <p style="margin:0 0 10px; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#ff9d9d;">Boardview TeknisiHub</p>
+          <h1 style="margin:0 0 12px; font-size:28px; line-height:1.15;">Viewer belum jadi dibuka</h1>
+          <p style="margin:0 0 10px; color:#d4def7; line-height:1.6;">Session untuk <strong>${escapeHtml(fileName || "Boardview")}</strong> belum berhasil disiapkan.</p>
+          <p style="margin:0; color:#ffcdcd; line-height:1.6;">${escapeHtml(errorMessage || "Silakan kembali ke tab utama lalu coba lagi.")}</p>
+        </section>
+      </main>
+    `;
+  } catch {
+    targetWindow.close();
+  }
 }
 
 const supportedFlashChipDevices = new Set(["CH341A", "STM32", "EZP2019"]);
@@ -6660,6 +6722,7 @@ if (catalogList) {
         const previousMarkup = openButton.innerHTML;
         let shouldRefreshCatalog = false;
         const operationId = createCatalogUploadOperationId();
+        let pendingBoardviewWindow = null;
         openButton.disabled = true;
         openButton.innerHTML = `
           <span class="material-symbols-outlined is-spinning">progress_activity</span>
@@ -6669,6 +6732,13 @@ if (catalogList) {
         try {
           if (!selectedViewer) {
             throw new Error("Pilih viewer Boardview dulu sebelum menekan tombol Buka.");
+          }
+
+          if (selectedViewer === "teknisihub") {
+            pendingBoardviewWindow = openPendingBoardviewTeknisiHubWindow(fileName);
+            if (!pendingBoardviewWindow) {
+              throw new Error("Browser memblokir tab Boardview TeknisiHub. Izinkan pop-up lalu klik Buka lagi.");
+            }
           }
 
           setNotice(
@@ -6706,11 +6776,8 @@ if (catalogList) {
               throw new Error("Session Boardview TeknisiHub belum diterima dari local service.");
             }
 
-            const targetUrl = buildBoardviewTeknisiHubUrl(result.sessionId);
-            const launchedWindow = window.open(targetUrl, "_blank", "noopener");
-            if (!launchedWindow) {
-              throw new Error("Session Boardview TeknisiHub sudah siap, tetapi tab baru diblokir browser. Izinkan pop-up lalu klik Buka lagi.");
-            }
+            finalizePendingBoardviewTeknisiHubWindow(pendingBoardviewWindow, result.sessionId);
+            pendingBoardviewWindow = null;
           }
 
           upsertCatalogUploadTask({
@@ -6734,6 +6801,11 @@ if (catalogList) {
           const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
 
           if (reconciledProgress?.active || ["preparing", "downloading", "extracting", "loading"].includes(reconciledStage)) {
+            disposePendingBoardviewTeknisiHubWindow(
+              pendingBoardviewWindow,
+              fileName,
+              "Proses masih berjalan di local service. Silakan tunggu hingga task selesai lalu klik Buka lagi."
+            );
             setNotice("Membuka Boardview masih diproses di local service. Progress akan lanjut di panel task.", "info");
             return;
           }
@@ -6750,6 +6822,11 @@ if (catalogList) {
               progressPercent: 100,
               message: completedMessage
             });
+            disposePendingBoardviewTeknisiHubWindow(
+              pendingBoardviewWindow,
+              fileName,
+              "Session sudah selesai di local service, tetapi tab viewer perlu dibuka ulang dari tombol Buka."
+            );
             setNotice(completedMessage);
             shouldRefreshCatalog = markBoardviewItemHasLocalCache(messageId);
             return;
@@ -6767,6 +6844,11 @@ if (catalogList) {
               message: reconciledProgress.message || "Membuka Boardview gagal.",
               lastError: reconciledProgress.lastError || ""
             });
+            disposePendingBoardviewTeknisiHubWindow(
+              pendingBoardviewWindow,
+              fileName,
+              reconciledProgress.lastError || reconciledProgress.message || error.message
+            );
             setNotice(reconciledProgress.lastError || reconciledProgress.message || error.message, true);
             return;
           }
@@ -6782,6 +6864,11 @@ if (catalogList) {
             message: "Membuka Boardview gagal.",
             lastError: error.message || "Membuka Boardview gagal."
           });
+          disposePendingBoardviewTeknisiHubWindow(
+            pendingBoardviewWindow,
+            fileName,
+            error.message || "Membuka Boardview gagal."
+          );
           setNotice(error.message, true);
         } finally {
           openButton.disabled = false;
