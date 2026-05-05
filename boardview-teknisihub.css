@@ -850,45 +850,54 @@ body.boardviewer-native-page {
   align-items: center;
   min-width: 170px;
   height: 26px;
-  border: 1px solid #8d8d8d;
-  border-radius: 999px;
-  background: #fff;
-  box-sizing: border-box;
-  overflow: hidden;
 }
 
 .boardviewer-desktop-field select,
 .boardviewer-desktop-field input {
   min-width: 170px;
   height: 26px;
-  padding: 0 26px 0 8px;
-  border: 0;
-  background: transparent;
+  padding: 0 24px 0 8px;
+  border: 1px solid #8d8d8d;
+  background: #fff;
   color: #111;
   font: inherit;
+  border-radius: 999px;
   box-sizing: border-box;
   outline: none;
 }
 
-.boardviewer-desktop-field input::-ms-clear,
-.boardviewer-desktop-field input::-ms-reveal {
-  display: none;
+.boardviewer-desktop-combobox > input {
+  width: 100%;
 }
 
-.boardviewer-desktop-combobox-arrow {
+.boardviewer-desktop-combobox-toggle {
   position: absolute;
-  right: 9px;
+  top: 0;
+  right: 0;
+  width: 24px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.boardviewer-desktop-combobox-toggle::before {
+  content: "";
+  position: absolute;
   top: 50%;
+  left: 50%;
   width: 0;
   height: 0;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
   border-top: 5px solid #333;
-  transform: translateY(-25%);
+  transform: translate(-50%, -25%);
   pointer-events: none;
 }
 
-.boardviewer-desktop-combobox:focus-within {
+.boardviewer-desktop-field input:focus,
+.boardviewer-desktop-field select:focus,
+.boardviewer-desktop-combobox:focus-within input {
   border-color: #7a98c7;
   box-shadow: inset 0 0 0 1px rgba(122, 152, 199, 0.4);
 }

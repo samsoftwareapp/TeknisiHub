@@ -4610,12 +4610,11 @@
                 list="boardviewerPartOptions"
                 value="${escapeHtml(activeFootprint.id || "")}"
                 data-part-select
-                placeholder="Cari part"
                 autocomplete="off"
                 autocapitalize="off"
                 spellcheck="false"
               >
-              <span class="boardviewer-desktop-combobox-arrow" aria-hidden="true"></span>
+              <button type="button" class="boardviewer-desktop-combobox-toggle" data-combobox-toggle="part" aria-label="Buka daftar part"></button>
             </span>
             <datalist id="boardviewerPartOptions">
               ${partOptions.map((partId) => `
@@ -4636,7 +4635,7 @@
                 autocapitalize="off"
                 spellcheck="false"
               >
-              <span class="boardviewer-desktop-combobox-arrow" aria-hidden="true"></span>
+              <button type="button" class="boardviewer-desktop-combobox-toggle" data-combobox-toggle="net" aria-label="Buka daftar net"></button>
             </span>
             <datalist id="boardviewerNetOptions">
               <option value="-"></option>
@@ -4925,6 +4924,32 @@
       if (nextNetName !== null) {
         event.preventDefault();
         applyNetPickerValue(nextNetName);
+      }
+    }
+  });
+
+  root?.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-combobox-toggle]");
+    if (!toggle) {
+      return;
+    }
+
+    const combobox = toggle.closest(".boardviewer-desktop-combobox");
+    const input = combobox?.querySelector("input[list]");
+    if (!input) {
+      return;
+    }
+
+    input.focus({ preventScroll: true });
+    if (typeof input.select === "function") {
+      input.select();
+    }
+
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker();
+      } catch {
+        // Chromium may block picker in some contexts; keeping focus is enough fallback.
       }
     }
   });
