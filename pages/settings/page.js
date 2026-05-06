@@ -76,9 +76,15 @@
             </div>
             <h4>${escapeHtml(member.displayName || member.email || "User")}</h4>
             <div class="catalog-file-row">
-              <span class="material-symbols-outlined">mail</span>
+              <span class="material-symbols-outlined">phone</span>
               <span>${escapeHtml(member.email || "-")}</span>
             </div>
+            ${(member.totalDownload || member.limitDownloadToday) ? `
+            <div class="catalog-file-row">
+              <span class="material-symbols-outlined">download</span>
+              <span>Total download: ${escapeHtml(member.totalDownload || "0")} | hari ini: ${escapeHtml(member.downloadTodayCount || "0")} / ${escapeHtml(member.limitDownloadToday || "-")}</span>
+            </div>
+            ` : ""}
             <div class="catalog-file-row">
               <span class="material-symbols-outlined">schedule</span>
               <span>Login terakhir: ${escapeHtml(formatDateTime(member.lastLoginUtc))}</span>
@@ -166,7 +172,7 @@
             </div>
             <span class="spi-mini-badge">${escapeHtml(String(state.members.length))}</span>
           </div>
-          <p class="settings-maintenance-copy">Owner dan Admin diambil dari mapping email pada konfigurasi local service. Akun lain otomatis menjadi Member.</p>
+          <p class="settings-maintenance-copy">Role akun dibaca dari RTDB berbasis nomor Telegram. Default limit harian saat field RTDB belum diisi adalah Member 5, Admin 100, dan Owner 1000, tetapi Anda tetap bisa override per user langsung dari Firebase.</p>
           <div class="catalog-list">
             ${membersMarkup}
           </div>
