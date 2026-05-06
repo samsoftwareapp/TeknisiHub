@@ -4820,6 +4820,22 @@ body.is-dark-mode .resistor-result-card {
   line-height: 1.6;
 }
 
+body.is-dark-mode .settings-toggle-card {
+  background: linear-gradient(180deg, rgba(18, 27, 41, 0.96), rgba(11, 19, 31, 0.98));
+  border-color: rgba(92, 129, 171, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body.is-dark-mode .settings-toggle-card strong {
+  color: #eaf4ff;
+}
+
+body.is-dark-mode .settings-toggle-card p,
+body.is-dark-mode .settings-maintenance-copy,
+body.is-dark-mode .settings-inline-meta {
+  color: rgba(208, 222, 242, 0.78);
+}
+
 .settings-inline-meta {
   margin-top: 16px;
   display: grid;
@@ -4834,6 +4850,12 @@ body.is-dark-mode .resistor-result-card {
   background: rgba(18, 58, 96, 0.08);
   color: var(--deep);
   overflow-wrap: anywhere;
+}
+
+body.is-dark-mode .settings-inline-meta code {
+  background: rgba(10, 17, 27, 0.92);
+  border: 1px solid rgba(92, 129, 171, 0.24);
+  color: #e8f3ff;
 }
 
 .settings-actions {

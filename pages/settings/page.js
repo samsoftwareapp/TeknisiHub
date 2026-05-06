@@ -95,7 +95,7 @@
             </div>
           </article>
         `).join("")
-      : `<p class="settings-maintenance-copy">${escapeHtml(state.membersLoading ? "Memuat daftar member lokal..." : "Belum ada akun yang pernah login di mesin ini.")}</p>`;
+      : `<div class="settings-maintenance-copy">${escapeHtml(state.membersLoading ? "Memuat daftar member lokal..." : "Belum ada akun yang pernah login di mesin ini.")}</div>`;
 
     return `
       <div class="spi-layout settings-layout">
@@ -155,7 +155,6 @@
               <h4>Bersihkan cache dan file temporary</h4>
             </div>
           </div>
-          <p class="settings-maintenance-copy">Membersihkan cache katalog, cache update, cache boardview, dan folder temporary TeknisiHub di Windows. Session login dan file pengaturan tidak ikut dihapus.</p>
           <div class="settings-actions">
             <button id="settingsCleanupButton" type="button" class="ghost"${disabledAttr}>
               <span class="material-symbols-outlined${state.cleaning ? " is-spinning" : ""}">${state.cleaning ? "progress_activity" : "cleaning_services"}</span>
@@ -172,7 +171,6 @@
             </div>
             <span class="spi-mini-badge">${escapeHtml(String(state.members.length))}</span>
           </div>
-          <p class="settings-maintenance-copy">Role akun dibaca dari RTDB berbasis nomor Telegram. Default limit harian saat field RTDB belum diisi adalah Member 5, Admin 100, dan Owner 1000, tetapi Anda tetap bisa override per user langsung dari Firebase.</p>
           <div class="catalog-list">
             ${membersMarkup}
           </div>
