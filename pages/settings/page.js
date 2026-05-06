@@ -225,7 +225,7 @@
       render();
 
       try {
-        const members = await fetchJson("/auth/members");
+        const members = await fetchJson("/auth/members", { cache: "no-store" });
         state.members = Array.isArray(members) ? members : [];
       } catch (error) {
         state.message = error.message || "Daftar member lokal belum bisa dimuat.";
