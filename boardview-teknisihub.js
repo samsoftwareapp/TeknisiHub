@@ -106,7 +106,7 @@ const LIST_LIMITS = {
 
 
 const SUPPORT_CONFIG = {
-  supportUrl: '/support-us',
+  supportUrl: '',
   tiers: [
     { key: '1', amount: '$1', label: 'Small support', description: 'Helps cover hosting, testing, and small interface fixes.' },
     { key: '2', amount: '$2', label: 'Feature support', description: 'Helps improve navigation, search, and board rendering performance.' },
@@ -145,13 +145,14 @@ const actionTabShareBtn = document.getElementById('action-tab-share');
 const actionTabSupportBtn = document.getElementById('action-tab-support');
 const sharePanelEl = document.getElementById('action-panel-share');
 const supportPanelEl = document.getElementById('action-panel-support');
+const aboutmeDockEl = document.getElementById('aboutme');
+const aboutmeButtonEl = document.getElementById('aboutme-button');
+const aboutmeCardEl = document.getElementById('aboutme-card');
 const supportFabBtn = document.getElementById('support-fab-btn');
 const supportConfigNoteEl = document.getElementById('support-config-note');
 const appTitleEl = document.getElementById('app-title');
 const fileInputEl = document.getElementById('file-input');
 const uploadNoteEl = document.getElementById('upload-note');
-const filePickerBtnEl = document.getElementById('file-picker-btn');
-const fileSelectedNameEl = document.getElementById('file-selected-name');
 const statusActionsEl = document.getElementById('status-actions');
 const reportIssueBtnEl = document.getElementById('report-issue-btn');
 const authPanelEl = document.getElementById('auth-panel');
@@ -463,8 +464,8 @@ async function fetchConfig() {
   state.config.authConfigured = false;
   state.config.currentUser = null;
   state.config.canViewMetrics = false;
-  if (appTitleEl) appTitleEl.textContent = 'BoardView Trace';
-  document.title = 'BoardView Trace Viewer';
+  if (appTitleEl) appTitleEl.textContent = 'Boardview TeknisiHub';
+  document.title = 'Boardview TeknisiHub';
   authPanelEl?.classList.add('is-hidden');
   loginRequiredNoteEl?.classList.add('is-hidden');
   if (fileInputEl) fileInputEl.disabled = false;
@@ -516,7 +517,7 @@ async function fetchConfig() {
     }
     if (fileInputEl) fileInputEl.disabled = !!(state.config.loginGateEnabled && !state.config.currentUser);
     if (state.config.supportUrl) {
-      SUPPORT_CONFIG.supportUrl = state.config.supportUrl || '/support-us';
+      SUPPORT_CONFIG.supportUrl = state.config.supportUrl || '';
     }
     if (versionTriggerBtn) versionTriggerBtn.textContent = `v${state.config.appVersion}`;
     if (viewerVersionChip) viewerVersionChip.textContent = `v${state.config.appVersion}`;
@@ -544,7 +545,7 @@ window.addEventListener('resize', resizeCanvas);
 
 
 function applySupportConfig() {
-  const url = SUPPORT_CONFIG.supportUrl || '/support-us';
+  const url = SUPPORT_CONFIG.supportUrl || '#';
   for (const tier of SUPPORT_CONFIG.tiers) {
     const link = document.getElementById(`support-tier-${tier.key}`);
     if (!link) continue;
@@ -2376,19 +2377,43 @@ function clearSelection() {
 
 
 // ── Part notes ────────────────────────────────────────────────────────────────
-function notesStorageKey() {
-  const fn = state.board?.filename || '';
-  return 'bvt-notes-' + fn.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+const sessionAnnotationFallback = {};
+const sessionAnnotationCache = {};
+
+function sessionAnnotationKey(kind) {
+  const sessionKey = getTeknisiHubSessionId() || state.boardId || state.board?.filename || 'manual';
+  const safeKey = String(sessionKey).toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+  return `bvt-session-${kind}-${safeKey}`;
 }
-function notesLoad() {
-  try { const r = localStorage.getItem(notesStorageKey()); return r ? JSON.parse(r) : {}; } catch (_) { return {}; }
+
+function sessionAnnotationLoad(kind) {
+  const key = sessionAnnotationKey(kind);
+  if (sessionAnnotationCache[key]) return sessionAnnotationCache[key];
+  try {
+    const raw = sessionStorage.getItem(key);
+    sessionAnnotationCache[key] = raw ? JSON.parse(raw) : {};
+    return sessionAnnotationCache[key];
+  } catch (_) {
+    sessionAnnotationCache[key] = { ...(sessionAnnotationFallback[key] || {}) };
+    return sessionAnnotationCache[key];
+  }
 }
-function notesSave(n) { try { localStorage.setItem(notesStorageKey(), JSON.stringify(n)); } catch (_) {} }
-function notesGet(partName) { return notesLoad()[partName] || ''; }
+
+function sessionAnnotationSave(kind, data) {
+  const key = sessionAnnotationKey(kind);
+  sessionAnnotationCache[key] = { ...data };
+  sessionAnnotationFallback[key] = { ...data };
+  try {
+    if (Object.keys(data).length) sessionStorage.setItem(key, JSON.stringify(data));
+    else sessionStorage.removeItem(key);
+  } catch (_) {}
+}
+
+function notesGet(partName) { return sessionAnnotationLoad('notes')[partName] || ''; }
 function notesSet(partName, text) {
-  const n = notesLoad();
+  const n = sessionAnnotationLoad('notes');
   if (text.trim()) n[partName] = text; else delete n[partName];
-  notesSave(n);
+  sessionAnnotationSave('notes', n);
 }
 
 // ── Component marking ─────────────────────────────────────────────────────────
@@ -2397,12 +2422,8 @@ const MARK_COLORS = {
   suspect: { stroke: '#fbbf24', fill: 'rgba(251,191,36,0.10)',  label: '⚠ Suspect' },
   bad:     { stroke: '#f87171', fill: 'rgba(248,113,113,0.12)', label: '✕ Bad' },
 };
-function marksKey() {
-  const fn = state.board?.filename || '';
-  return 'bvt-marks-' + fn.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
-}
-function marksLoad() { try { const r = localStorage.getItem(marksKey()); return r ? JSON.parse(r) : {}; } catch (_) { return {}; } }
-function marksSave(m) { try { localStorage.setItem(marksKey(), JSON.stringify(m)); } catch (_) {} }
+function marksLoad() { return sessionAnnotationLoad('marks'); }
+function marksSave(m) { sessionAnnotationSave('marks', m); }
 function markGet(partName) { return marksLoad()[partName] || null; }
 function markSet(partName, status) {
   const m = marksLoad();
@@ -2446,7 +2467,7 @@ function showContextMenu(part, screenX, screenY) {
   // Note section
   const noteSectionLabel = document.createElement('div');
   noteSectionLabel.className = 'ctx-section-label';
-  noteSectionLabel.textContent = 'Note';
+  noteSectionLabel.textContent = 'Note (session)';
   menu.appendChild(noteSectionLabel);
 
   const noteWrap = document.createElement('div');
@@ -2551,16 +2572,6 @@ function permalinkApply(pl) {
   }
   render();
 }
-function permalinkCopy() {
-  permalinkEncode();
-  const url = location.href;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(function() {
-      setStatus('Link copied to clipboard!');
-      setTimeout(function() { setStatus('Loaded: ' + (state.board ? state.board.filename : '')); }, 2500);
-    }).catch(function() { window.prompt('Copy this link:', url); });
-  } else { window.prompt('Copy this link:', url); }
-}
 function onViewChanged() { if (state.board) permalinkEncode(); }
 
 function notesRenderMarkBadge(partName) {
@@ -2585,7 +2596,7 @@ function notesRenderBlock(partName) {
   const block = document.createElement('div');
   block.className = 'note-block'; block.dataset.part = partName;
   block.innerHTML = `
-    <div class="note-label"><span>Notes</span><span class="note-saved-indicator muted small" id="note-saved-msg"></span></div>
+    <div class="note-label"><span>Notes <small class="note-session-badge">Session only</small></span><span class="note-saved-indicator muted small" id="note-saved-msg"></span></div>
     <textarea id="note-textarea" class="note-textarea" placeholder="e.g. tested OK, 3.3V nominal..." rows="3" maxlength="500">${escapeHtml(currentNote)}</textarea>
     <div class="note-actions"><span class="muted small" id="note-char-count">${currentNote.length}/500</span><button type="button" class="note-clear-btn muted small" id="note-clear-btn"${currentNote ? '' : ' disabled'}>Clear</button></div>
   `;
@@ -2595,11 +2606,11 @@ function notesRenderBlock(partName) {
   let saveTimer = null;
   ta.addEventListener('input', () => {
     cnt.textContent = ta.value.length + '/500'; clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { notesSet(partName, ta.value); msg.textContent = 'Saved'; clr.disabled = !ta.value.trim(); setTimeout(() => { msg.textContent = ''; }, 1800); }, 600);
+    saveTimer = setTimeout(() => { notesSet(partName, ta.value); render(); msg.textContent = 'Session saved'; clr.disabled = !ta.value.trim(); setTimeout(() => { msg.textContent = ''; }, 1800); }, 600);
   });
   clr.addEventListener('click', () => {
     ta.value = ''; cnt.textContent = '0/500'; notesSet(partName, '');
-    msg.textContent = 'Cleared'; clr.disabled = true; setTimeout(() => { msg.textContent = ''; }, 1800);
+    render(); msg.textContent = 'Cleared'; clr.disabled = true; setTimeout(() => { msg.textContent = ''; }, 1800);
   });
 }
 
@@ -2764,7 +2775,6 @@ async function handleUpload() {
   const maxMb = state.config.maxUploadMb || 25;
   if (selectedFile.size > maxMb * 1024 * 1024) {
     setStatus(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)} MB). Maximum is ${maxMb} MB. Try a smaller file or contact support.`, true);
-    if (fileSelectedNameEl) { fileSelectedNameEl.textContent = 'No file selected'; fileSelectedNameEl.title = 'No file selected'; }
     input.value = '';
     return;
   }
@@ -2802,7 +2812,6 @@ async function handleUpload() {
     setStatus(`Loaded: ${state.board.filename} (${state.board.meta.format_name || 'unknown format'})`);
     if (uploadNoteEl) uploadNoteEl.classList.add('is-hidden');
     input.value = '';
-    if (fileSelectedNameEl) { fileSelectedNameEl.textContent = 'No file selected'; fileSelectedNameEl.title = 'No file selected'; }
   } catch (err) {
     console.error(err);
     lastUploadFailure = await buildUploadFailureMeta(selectedFile, err.message || 'Upload failed');
@@ -2984,12 +2993,31 @@ function convertTeknisiHubSessionToLabBoard(session) {
       };
       let bbox = null;
       if (hasPins) {
-        const pad = Math.max(0.8, Math.min(4, ((Math.max(...xs) - Math.min(...xs)) + (Math.max(...ys) - Math.min(...ys))) * 0.08 || 1.5));
+        const boardSpan = Math.max(bounds.x_max - bounds.x_min, bounds.y_max - bounds.y_min);
+        const minPad = boardSpan > 0 && boardSpan < 100 ? 0.02 : 0.8;
+        const maxPad = boardSpan > 0 && boardSpan < 100 ? 0.12 : 4;
+        const fallbackPad = Math.max(minPad, Math.min(maxPad, ((Math.max(...xs) - Math.min(...xs)) + (Math.max(...ys) - Math.min(...ys))) * 0.08 || minPad));
+        let xMin = Number.POSITIVE_INFINITY;
+        let xMax = Number.NEGATIVE_INFINITY;
+        let yMin = Number.POSITIVE_INFINITY;
+        let yMax = Number.NEGATIVE_INFINITY;
+        sourcePins.forEach((pin) => {
+          const x = Number(pin.x);
+          const y = Number(pin.y);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+          const extents = getTeknisiHubPadExtents(pin);
+          const padX = extents.x > 0 ? extents.x : fallbackPad;
+          const padY = extents.y > 0 ? extents.y : fallbackPad;
+          xMin = Math.min(xMin, x - padX);
+          xMax = Math.max(xMax, x + padX);
+          yMin = Math.min(yMin, y - padY);
+          yMax = Math.max(yMax, y + padY);
+        });
         bbox = {
-          x_min: Math.min(...xs) - pad,
-          x_max: Math.max(...xs) + pad,
-          y_min: Math.min(...ys) - pad,
-          y_max: Math.max(...ys) + pad,
+          x_min: Number.isFinite(xMin) ? xMin : Math.min(...xs) - fallbackPad,
+          x_max: Number.isFinite(xMax) ? xMax : Math.max(...xs) + fallbackPad,
+          y_min: Number.isFinite(yMin) ? yMin : Math.min(...ys) - fallbackPad,
+          y_max: Number.isFinite(yMax) ? yMax : Math.max(...ys) + fallbackPad,
         };
       } else if (seed.width > 0 && seed.height > 0) {
         bbox = {
@@ -3105,10 +3133,6 @@ async function loadTeknisiHubNativeSessionFromQuery() {
     autoFitBoard();
     setStatus(`Loaded: ${state.board.filename} (${state.board.meta.format_name || 'TeknisiHub native'})`);
     if (uploadNoteEl) uploadNoteEl.classList.add('is-hidden');
-    if (fileSelectedNameEl) {
-      fileSelectedNameEl.textContent = state.board.filename;
-      fileSelectedNameEl.title = state.board.filename;
-    }
 
     const requestedPart = getTeknisiHubRequestedPart();
     const requestedPin = getTeknisiHubRequestedPin();
@@ -3280,6 +3304,10 @@ function handleHotkeys(ev) {
       closeActionCard();
       return;
     }
+    if (aboutmeCardEl && !aboutmeCardEl.classList.contains('is-hidden')) {
+      closeAboutmeCard();
+      return;
+    }
     if (updatesModalEl && !updatesModalEl.classList.contains('is-hidden')) {
       closeModal(updatesModalEl);
       return;
@@ -3306,7 +3334,7 @@ function applySupportLinks() {
     link.dataset.tier = tier.key;
     link.title = configured
       ? `Open support page for ${tier.amount}`
-      : 'Configure your WayForPay support URL first';
+      : 'Support eksternal dinonaktifkan untuk build TeknisiHub';
   }
 }
 
@@ -3335,6 +3363,7 @@ function setActionTab(kind = 'share') {
 
 function openActionCard(kind = 'share') {
   if (!actionCardEl) return;
+  closeAboutmeCard();
   setActionTab(kind);
   actionCardEl.classList.remove('is-hidden');
   document.getElementById('action-main-btn')?.setAttribute('aria-expanded', 'true');
@@ -3346,6 +3375,24 @@ function closeActionCard() {
   shareFabBtn?.setAttribute('aria-expanded', 'false');
   supportFabBtn?.setAttribute('aria-expanded', 'false');
   setShareStatus('');
+}
+
+function openAboutmeCard() {
+  if (!aboutmeCardEl) return;
+  closeActionCard();
+  aboutmeCardEl.classList.remove('is-hidden');
+  aboutmeButtonEl?.setAttribute('aria-expanded', 'true');
+}
+
+function closeAboutmeCard() {
+  if (!aboutmeCardEl) return;
+  aboutmeCardEl.classList.add('is-hidden');
+  aboutmeButtonEl?.setAttribute('aria-expanded', 'false');
+}
+
+function toggleAboutmeCard() {
+  if (aboutmeCardEl?.classList.contains('is-hidden')) openAboutmeCard();
+  else closeAboutmeCard();
 }
 
 function openShareMenu() {
@@ -3406,7 +3453,7 @@ async function shareSnapshot(target = 'generic') {
   try {
     const blob = await exportCanvasJpegBlob();
     const file = new File([blob], snapshotFilename('jpg'), { type: 'image/jpeg' });
-    const title = `${state.config.appTitle || 'BoardView Trace'} snapshot`;
+    const title = `${state.config.appTitle || 'Boardview TeknisiHub'} snapshot`;
     const text = `${state.board.filename} · ${state.visibleSide} view`;
     if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
       await navigator.share({
@@ -3420,13 +3467,11 @@ async function shareSnapshot(target = 'generic') {
     await saveSnapshotJpeg();
     const currentUrl = window.location.href;
     if (target === 'telegram') {
-      window.open(`https://t.me/share/url?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-      setShareStatus('JPG saved. Telegram opened in a new tab.', false);
+      setShareStatus('JPG saved. External Telegram share is disabled in TeknisiHub build.', false);
       return;
     }
     if (target === 'whatsapp') {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + currentUrl)}`, '_blank', 'noopener');
-      setShareStatus('JPG saved. WhatsApp opened in a new tab.', false);
+      setShareStatus('JPG saved. External WhatsApp share is disabled in TeknisiHub build.', false);
       return;
     }
     setShareStatus('JPG saved to your device.', false);
@@ -3465,21 +3510,10 @@ resultsEl.addEventListener('click', (ev) => {
   }
 });
 
-document.getElementById('file-input').addEventListener('change', async (ev) => {
+fileInputEl?.addEventListener('change', async (ev) => {
   const file = ev.target.files?.[0] || null;
-  if (fileSelectedNameEl) {
-    fileSelectedNameEl.textContent = file ? file.name : 'No file selected';
-    fileSelectedNameEl.title = file ? file.name : 'No file selected';
-  }
   if (!file) return;
   await handleUpload();
-});
-filePickerBtnEl?.addEventListener('click', () => {
-  if (!fileInputEl) return;
-  if (typeof fileInputEl.showPicker === 'function') {
-    try { fileInputEl.showPicker(); return; } catch (_) {}
-  }
-  fileInputEl.click();
 });
 reportIssueBtnEl?.addEventListener('click', reportUploadIssue);
 document.getElementById('search-all-btn').addEventListener('click', searchAll);
@@ -3652,7 +3686,6 @@ window.addEventListener('keydown', handleHotkeys);
 
 themeToggleBtn?.addEventListener('click', toggleTheme);
 document.getElementById('measure-btn')?.addEventListener('click', toggleMeasure);
-document.getElementById('permalink-btn')?.addEventListener('click', permalinkCopy);
 
 // ── Sidebar tabs ──────────────────────────────────────────────────────────────
 const SB_TABS = ['inspector', 'components', 'nets', 'info'];
@@ -3746,6 +3779,13 @@ if (actionMainBtn) {
   });
 }
 
+aboutmeButtonEl?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  toggleAboutmeCard();
+});
+
+aboutmeCardEl?.addEventListener('click', (ev) => ev.stopPropagation());
+
 shareSaveBtn?.addEventListener('click', async () => {
   await saveSnapshotJpeg().catch((err) => setShareStatus(err.message || 'Failed to save JPG.', true));
 });
@@ -3772,6 +3812,7 @@ document.addEventListener('click', (ev) => {
   const insideActionCard = actionCardEl && actionCardEl.contains(ev.target);
   const onMainBtn = actionMainBtn && actionMainBtn.contains(ev.target);
   if (!insideActionCard && !onMainBtn) closeActionCard();
+  if (aboutmeDockEl && !aboutmeDockEl.contains(ev.target)) closeAboutmeCard();
 });
 
 if (metricsClearBtn) {
