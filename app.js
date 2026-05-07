@@ -38,6 +38,7 @@ const dashboardPanel = document.getElementById("dashboardPanel");
 const refreshButton = document.getElementById("refreshButton");
 const agreeButton = document.getElementById("agreeButton");
 const agreeCheckbox = document.getElementById("agreeCheckbox");
+const newWindowTabCheckbox = document.getElementById("newWindowTabCheckbox");
 const logoutButton = document.getElementById("logoutButton");
 const dashboardCheckUpdateButton = document.getElementById("dashboardCheckUpdateButton");
 const dashboardTitle = document.getElementById("dashboardTitle");
@@ -4723,6 +4724,31 @@ function hideInteractivePanels() {
   resetCatalog();
 }
 
+function requestNewWindowTabPermission() {
+  const permissionWindow = window.open("", "teknisihub-catalog-window-permission", "popup,width=420,height=240");
+  if (!permissionWindow) {
+    return false;
+  }
+
+  try {
+    permissionWindow.document.title = "TeknisiHub";
+    permissionWindow.document.body.style.cssText = "margin:0;display:grid;place-items:center;height:100vh;font:14px system-ui,sans-serif;background:#0f172a;color:#f8fafc;text-align:center;padding:24px;";
+    permissionWindow.document.body.textContent = "Izin tab baru TeknisiHub berhasil dicek. Tab ini akan ditutup otomatis.";
+  } catch {
+    // The permission check already succeeded even if the browser blocks document writes.
+  }
+
+  window.setTimeout(() => {
+    try {
+      permissionWindow.close();
+    } catch {
+      // Ignore close failures; the opened tab/window can be closed manually.
+    }
+  }, 350);
+
+  return true;
+}
+
 function setDownloadLinkState(visible, href = defaultDownloadLocalServiceUrl, label = defaultDownloadLocalServiceLabel) {
   if (!downloadLocalServiceLink) {
     return;
@@ -5044,8 +5070,9 @@ function applyStatus(status) {
   currentProblemSolvingChannelInviteLink = status.problemSolvingChannelInviteLink || "";
   currentDatasheetsChannelInviteLink = status.datasheetsChannelInviteLink || "";
   const showJoinPanel = false;
-  const showAgreementPanel = status.isLoggedIn && !status.hasAgreed;
-  const showDashboard = status.isLoggedIn && status.hasAgreed;
+  const hasCompletedAgreement = status.hasAgreed && status.allowsNewWindowTab;
+  const showAgreementPanel = status.isLoggedIn && !hasCompletedAgreement;
+  const showDashboard = status.isLoggedIn && hasCompletedAgreement;
   const blockAuthForms = showJoinPanel || showAgreementPanel || showDashboard;
   const showPhoneEntryForm = (status.requiresPhoneNumber || isPhoneNumberChangeRequested) && !blockAuthForms;
   const showVerificationForm = status.requiresVerificationCode && !isPhoneNumberChangeRequested && !blockAuthForms;
@@ -5104,10 +5131,10 @@ function applyStatus(status) {
     setText(dashboardChannelStatus, "Role akun dikelola dari RTD. User baru otomatis masuk sebagai Member sampai peran diperbarui.");
     setText(
       dashboardAgreementStatus,
-      status.hasAgreed ? "Persetujuan tersimpan" : "Menunggu persetujuan"
+      hasCompletedAgreement ? "Persetujuan tersimpan" : "Menunggu persetujuan"
     );
 
-    if (status.hasAgreed) {
+    if (hasCompletedAgreement) {
       setText(dashboardSubtitle, "Sesi login Telegram tersimpan aman di local service.");
       setText(accessState, `Terhubung. Akun aktif dengan role ${representativeRole.label}.`);
       setNotice("");
@@ -5433,7 +5460,7 @@ async function refreshStatus(options = {}) {
     throw error;
   }
 
-  if (status?.isLoggedIn && status?.hasAgreed) {
+  if (status?.isLoggedIn && status?.hasAgreed && status?.allowsNewWindowTab) {
     setActiveNav(currentCatalogView);
     try {
       await loadCatalog();
@@ -6337,9 +6364,28 @@ passwordForm?.addEventListener("submit", async (event) => {
 
 agreeButton.addEventListener("click", async () => {
   try {
+    if (!agreeCheckbox.checked) {
+      setNotice("Centang persetujuan akses TeknisiHub terlebih dulu.", true);
+      return;
+    }
+
+    if (!newWindowTabCheckbox?.checked) {
+      setNotice("Centang izin tab/jendela baru untuk viewer katalog terlebih dulu.", true);
+      return;
+    }
+
+    const allowsNewWindowTab = requestNewWindowTabPermission();
+    if (!allowsNewWindowTab) {
+      setNotice("Browser memblokir tab/jendela baru. Izinkan pop-up untuk TeknisiHub lalu klik Simpan persetujuan lagi.", true);
+      return;
+    }
+
     const result = await fetchJson("/auth/agree", {
       method: "POST",
-      body: JSON.stringify({ accepted: agreeCheckbox.checked })
+      body: JSON.stringify({
+        accepted: agreeCheckbox.checked,
+        allowsNewWindowTab
+      })
     });
     setNotice(result.message);
     await refreshStatus();
@@ -6358,6 +6404,10 @@ if (logoutButton) {
 
       if (agreeCheckbox) {
         agreeCheckbox.checked = true;
+      }
+
+      if (newWindowTabCheckbox) {
+        newWindowTabCheckbox.checked = true;
       }
 
       isPhoneNumberChangeRequested = false;
