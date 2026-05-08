@@ -56,6 +56,8 @@ const state = {
     pointB: null,
     cursorWorld: null,
   },
+  searchMode: 'all',
+  searchFocusPulse: null,
 };
 
 const THEMES = {
@@ -128,6 +130,9 @@ const netListEl = document.getElementById('net-list');
 const matchListEl = document.getElementById('match-list');
 const matchCountEl = document.getElementById('match-count');
 const searchInput = document.getElementById('search-input');
+const searchAllBtn = document.getElementById('search-all-btn');
+const searchPartBtn = document.getElementById('search-part-btn');
+const searchNetBtn = document.getElementById('search-net-btn');
 const partListEl = document.getElementById('part-list');
 const partCountEl = document.getElementById('part-count');
 const partFilterInput = document.getElementById('part-filter-input');
@@ -186,7 +191,6 @@ tooltipEl.className = 'canvas-tooltip';
 tooltipEl.hidden = true;
 document.querySelector('.viewer-area').appendChild(tooltipEl);
 
-
 function applyTheme(themeName) {
   const next = themeName === 'light' ? 'light' : 'dark';
   state.theme = next;
@@ -215,9 +219,45 @@ function drawCanvasBackground(width, height) {
   ctx.fillRect(0, 0, width, height);
 }
 
+function drawCanvasWatermarkOverlay(width, height) {
+  ctx.save();
+  const now = performance.now() * 0.00018;
+  const driftX = Math.sin(now) * 24;
+  const driftY = Math.cos(now * 0.8) * 18;
+  const tileX = 320;
+  const tileY = 210;
+  const textColor = state.theme === 'light'
+    ? 'rgba(15, 23, 42, 0.045)'
+    : 'rgba(241, 245, 249, 0.04)';
+  ctx.translate(width / 2 + driftX, height / 2 + driftY);
+  ctx.rotate(-Math.PI / 5.6);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 34px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = textColor;
+  for (let y = -height; y <= height; y += tileY) {
+    for (let x = -width; x <= width; x += tileX) {
+      ctx.fillText('TEKNISI HUB', x, y);
+    }
+  }
+  ctx.restore();
+}
+
 function getDetailZoom() {
   const base = Math.max(state.camera.baseScale || state.camera.scale || 1, 1e-6);
   return state.camera.scale / base;
+}
+
+function isTvwComponentBoard() {
+  return isTvwBoardData(state.board);
+}
+
+function isTvwBoardData(board) {
+  return String(board?.meta?.format_name || '').toLowerCase().startsWith('tvw');
+}
+
+function hasTvwNativeSegments() {
+  return isTvwComponentBoard() && (state.board?.outline_segments?.length || 0) > 128;
 }
 
 function getBoardDensityFactor() {
@@ -250,6 +290,9 @@ function shouldShowPartLabel(part, bounds, zoom, flags = {}) {
   // This ensures labels appear progressively with zoom, not all at once
   const zoomBonus = Math.max(0, detailZoom - 1) * 15;
   const score = maxDim + minDim * 0.45 + Math.sqrt(area) * 0.55 + zoomBonus;
+  if (isTvwComponentBoard()) {
+    return detailZoom >= 1.05 && (score >= 18 || maxDim >= 10 || area >= 80);
+  }
   const threshold = (24 + nameLength * 1.35) * densityFactor;
   return score >= threshold && (maxDim >= 12 || area >= 90 || detailZoom >= 3.25);
 }
@@ -439,6 +482,33 @@ function clientHeaders(extra = {}) {
   return { 'X-BoardView-Client': 'webapp', ...extra };
 }
 
+function setViewerDocumentTitle(fileName = '') {
+  const baseTitle = 'Boardview TeknisiHub';
+  const cleanName = String(fileName || '').trim();
+  document.title = cleanName ? `${cleanName} | ${baseTitle}` : baseTitle;
+}
+
+function applyViewerVersionLabel(versionText = '') {
+  const cleanVersion = String(versionText || '').trim();
+  const label = cleanVersion ? `v${cleanVersion}` : 'v-';
+  if (versionTriggerBtn) versionTriggerBtn.textContent = label;
+  if (viewerVersionChip) viewerVersionChip.textContent = label;
+}
+
+async function fetchLocalServiceHealthVersion() {
+  try {
+    const resp = await fetch(`${getTeknisiHubServiceBaseUrl()}/health`, {
+      headers: clientHeaders(),
+      cache: 'no-store',
+    });
+    const payload = await resp.json().catch(() => ({}));
+    if (!resp.ok) return '';
+    return String(payload.version || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
 function basicAuthHeader() {
   const username = (authUsernameEl?.value || state.auth.username || '').trim();
   const password = authPasswordEl?.value || state.auth.password || '';
@@ -465,12 +535,16 @@ async function fetchConfig() {
   state.config.currentUser = null;
   state.config.canViewMetrics = false;
   if (appTitleEl) appTitleEl.textContent = 'Boardview TeknisiHub';
-  document.title = 'Boardview TeknisiHub';
+  setViewerDocumentTitle(state.board?.filename || '');
   authPanelEl?.classList.add('is-hidden');
   loginRequiredNoteEl?.classList.add('is-hidden');
   if (fileInputEl) fileInputEl.disabled = false;
-  if (versionTriggerBtn) versionTriggerBtn.textContent = 'v0.17 TH';
-  if (viewerVersionChip) viewerVersionChip.textContent = 'v0.17 TH';
+  applyViewerVersionLabel(state.config.appVersion);
+  const localServiceVersion = await fetchLocalServiceHealthVersion();
+  if (localServiceVersion) {
+    state.config.appVersion = localServiceVersion;
+    applyViewerVersionLabel(localServiceVersion);
+  }
   refreshAuthUi();
   applySupportLinks();
   return;
@@ -496,7 +570,7 @@ async function fetchConfig() {
     state.config.canViewMetrics = !!config.can_view_metrics;
 
     if (appTitleEl && config.app_title) appTitleEl.textContent = config.app_title;
-    if (config.app_title) document.title = `${config.app_title} Viewer`;
+    setViewerDocumentTitle(state.board?.filename || '');
     if (uploadNoteEl) {
       const parts = [];
       if (config.max_upload_mb) parts.push(`Max file: ${config.max_upload_mb} MB.`);
@@ -519,8 +593,7 @@ async function fetchConfig() {
     if (state.config.supportUrl) {
       SUPPORT_CONFIG.supportUrl = state.config.supportUrl || '';
     }
-    if (versionTriggerBtn) versionTriggerBtn.textContent = `v${state.config.appVersion}`;
-    if (viewerVersionChip) viewerVersionChip.textContent = `v${state.config.appVersion}`;
+    applyViewerVersionLabel(state.config.appVersion);
     refreshAuthUi();
     applySupportLinks();
   } catch (err) {
@@ -581,6 +654,7 @@ function resetSearchFields() {
   document.getElementById('part-side-bottom-btn').classList.remove('active');
   resultsEl.textContent = 'Nothing selected.';
   clearSelectedNetMembers();
+  setSearchMode('all');
 }
 
 async function buildUploadFailureMeta(file, detail) {
@@ -623,6 +697,7 @@ function resetUiForNewUpload(filename = '') {
   resetSearchFields();
   state.boardId = null;
   state.boardToken = null;
+  setViewerDocumentTitle(filename);
   if (filename) {
     setStatus(`Uploading: ${filename}…`);
   } else {
@@ -903,26 +978,203 @@ function getItemsNearPoint(grid, x, y, radiusWorld, cellSize) {
   return found;
 }
 
-function derivePartBBox(part, pins) {
-  if (part.bbox) {
-    return {
-      x_min: Math.min(part.bbox.x_min, part.bbox.x_max),
-      x_max: Math.max(part.bbox.x_min, part.bbox.x_max),
-      y_min: Math.min(part.bbox.y_min, part.bbox.y_max),
-      y_max: Math.max(part.bbox.y_min, part.bbox.y_max),
+function derivePinsBBox(pins) {
+  if (!pins.length) return null;
+  const xs = pins.map((pin) => pin.x);
+  const ys = pins.map((pin) => pin.y);
+  const pad = Math.max(0.8, Math.min(4, (Math.max(...xs) - Math.min(...xs) + Math.max(...ys) - Math.min(...ys)) * 0.08 || 1.5));
+  return {
+    x_min: Math.min(...xs) - pad,
+    x_max: Math.max(...xs) + pad,
+    y_min: Math.min(...ys) - pad,
+    y_max: Math.max(...ys) + pad,
+  };
+}
+
+function normalizeWorldBBox(box) {
+  const x1 = Number(box?.x_min);
+  const x2 = Number(box?.x_max);
+  const y1 = Number(box?.y_min);
+  const y2 = Number(box?.y_max);
+  if (![x1, x2, y1, y2].every(Number.isFinite)) return null;
+  return {
+    x_min: Math.min(x1, x2),
+    x_max: Math.max(x1, x2),
+    y_min: Math.min(y1, y2),
+    y_max: Math.max(y1, y2),
+  };
+}
+
+function expandWorldBBox(box, padX, padY = padX) {
+  const normalized = normalizeWorldBBox(box);
+  if (!normalized) return null;
+  return {
+    x_min: normalized.x_min - padX,
+    x_max: normalized.x_max + padX,
+    y_min: normalized.y_min - padY,
+    y_max: normalized.y_max + padY,
+  };
+}
+
+function unionWorldBBox(current, next) {
+  const box = normalizeWorldBBox(next);
+  if (!box) return current;
+  if (!current) return box;
+  return {
+    x_min: Math.min(current.x_min, box.x_min),
+    x_max: Math.max(current.x_max, box.x_max),
+    y_min: Math.min(current.y_min, box.y_min),
+    y_max: Math.max(current.y_max, box.y_max),
+  };
+}
+
+function getTvwSegmentType(segment) {
+  return Number(segment?.segment_type ?? segment?.segmentType ?? segment?.type ?? 0) || 0;
+}
+
+function getSegmentWorldBBox(segment) {
+  const x1 = Number(segment?.x1);
+  const y1 = Number(segment?.y1);
+  const x2 = Number(segment?.x2);
+  const y2 = Number(segment?.y2);
+  if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+  return {
+    x_min: Math.min(x1, x2),
+    x_max: Math.max(x1, x2),
+    y_min: Math.min(y1, y2),
+    y_max: Math.max(y1, y2),
+  };
+}
+
+function overlapSpan(aMin, aMax, bMin, bMax) {
+  return Math.min(aMax, bMax) - Math.max(aMin, bMin);
+}
+
+function sidesOverlap(a, b) {
+  const left = String(a || 'both').toLowerCase();
+  const right = String(b || 'both').toLowerCase();
+  return left === 'both' || right === 'both' || left === 'all' || right === 'all' || left === right;
+}
+
+function validateTvwFootprintBBox(candidate, pinBox, boardBounds) {
+  const box = normalizeWorldBBox(candidate);
+  const pins = normalizeWorldBBox(pinBox);
+  if (!box || !pins) return false;
+  const width = box.x_max - box.x_min;
+  const height = box.y_max - box.y_min;
+  const pinWidth = Math.max(pins.x_max - pins.x_min, 1);
+  const pinHeight = Math.max(pins.y_max - pins.y_min, 1);
+  if (width < pinWidth * 0.95 || height < pinHeight * 0.95) return false;
+  if (width <= pinWidth * 1.12 && height <= pinHeight * 1.12) return false;
+
+  const boardWidth = boardBounds ? boardBounds.x_max - boardBounds.x_min : 0;
+  const boardHeight = boardBounds ? boardBounds.y_max - boardBounds.y_min : 0;
+  const maxWidth = boardWidth > 0
+    ? Math.min(Math.max(pinWidth * 14, 70000), boardWidth * 0.36)
+    : Math.max(pinWidth * 14, 140000);
+  const maxHeight = boardHeight > 0
+    ? Math.min(Math.max(pinHeight * 14, 70000), boardHeight * 0.36)
+    : Math.max(pinHeight * 14, 140000);
+  if (width > maxWidth || height > maxHeight) return false;
+
+  const tolerance = Math.max(1800, Math.min(15000, Math.max(pinWidth, pinHeight) * 0.14));
+  if (box.x_min > pins.x_min + tolerance) return false;
+  if (box.x_max < pins.x_max - tolerance) return false;
+  if (box.y_min > pins.y_min + tolerance) return false;
+  if (box.y_max < pins.y_max - tolerance) return false;
+  return true;
+}
+
+function deriveTvwNativeFootprintBBox(part, pins, pinBox, board = state.board) {
+  const segments = Array.isArray(board?.outline_segments) ? board.outline_segments : [];
+  const normalizedPins = normalizeWorldBBox(pinBox);
+  if (!normalizedPins || pins.length < 6 || segments.length < 128) return null;
+
+  const pinWidth = Math.max(normalizedPins.x_max - normalizedPins.x_min, 1);
+  const pinHeight = Math.max(normalizedPins.y_max - normalizedPins.y_min, 1);
+  const pinSpan = Math.max(pinWidth, pinHeight, 1);
+  const boardBounds = normalizeWorldBBox(board?.bounds);
+  const searchPad = Math.max(25000, Math.min(180000, pinSpan * 4.8));
+  const searchBox = expandWorldBBox(normalizedPins, searchPad);
+  const side = part?.mounting_side || pins[0]?.side || 'both';
+  const xBand = expandWorldBBox(normalizedPins, Math.max(6500, Math.min(searchPad * 0.45, Math.max(pinWidth * 1.25, pinSpan * 0.35))), 0);
+  const yBand = expandWorldBBox(normalizedPins, 0, Math.max(6500, Math.min(searchPad * 0.45, Math.max(pinHeight * 1.25, pinSpan * 0.35))));
+  const minLineLength = Math.max(420, Math.min(2400, pinSpan * 0.026));
+  const verticals = [];
+  const horizontals = [];
+  let nearbyUnion = null;
+  let nearbyCount = 0;
+
+  for (const segment of segments) {
+    if (!sidesOverlap(side, segment.side)) continue;
+    const segBox = getSegmentWorldBBox(segment);
+    if (!segBox || !rectIntersectsWorldBounds(segBox, searchBox)) continue;
+    const x1 = Number(segment.x1);
+    const y1 = Number(segment.y1);
+    const x2 = Number(segment.x2);
+    const y2 = Number(segment.y2);
+    const dx = Math.abs(x2 - x1);
+    const dy = Math.abs(y2 - y1);
+    const length = Math.hypot(dx, dy);
+    const type = getTvwSegmentType(segment);
+    if (type === 25 || !Number.isFinite(length) || length < minLineLength) continue;
+
+    const verticalish = dy >= Math.max(dx * 2.2, minLineLength);
+    const horizontalish = dx >= Math.max(dy * 2.2, minLineLength);
+    if (!verticalish && !horizontalish) continue;
+
+    nearbyUnion = unionWorldBBox(nearbyUnion, segBox);
+    nearbyCount += 1;
+    if (verticalish && yBand && overlapSpan(segBox.y_min, segBox.y_max, yBand.y_min, yBand.y_max) > 0) {
+      verticals.push({ x: (x1 + x2) / 2, box: segBox });
+    }
+    if (horizontalish && xBand && overlapSpan(segBox.x_min, segBox.x_max, xBand.x_min, xBand.x_max) > 0) {
+      horizontals.push({ y: (y1 + y2) / 2, box: segBox });
+    }
+  }
+
+  const left = verticals.filter((line) => line.x <= normalizedPins.x_min + pinWidth * 0.25);
+  const right = verticals.filter((line) => line.x >= normalizedPins.x_max - pinWidth * 0.25);
+  const top = horizontals.filter((line) => line.y <= normalizedPins.y_min + pinHeight * 0.25);
+  const bottom = horizontals.filter((line) => line.y >= normalizedPins.y_max - pinHeight * 0.25);
+  if (left.length && right.length && top.length && bottom.length) {
+    const candidate = {
+      x_min: Math.min(...left.map((line) => line.box.x_min)),
+      x_max: Math.max(...right.map((line) => line.box.x_max)),
+      y_min: Math.min(...top.map((line) => line.box.y_min)),
+      y_max: Math.max(...bottom.map((line) => line.box.y_max)),
     };
+    const pad = Math.max(900, Math.min(6500, pinSpan * 0.045));
+    const expanded = expandWorldBBox(candidate, pad);
+    if (validateTvwFootprintBBox(expanded, normalizedPins, boardBounds)) return expanded;
+  }
+
+  if (nearbyCount >= 2) {
+    const pad = Math.max(900, Math.min(5500, pinSpan * 0.04));
+    const expanded = expandWorldBBox(nearbyUnion, pad);
+    if (validateTvwFootprintBBox(expanded, normalizedPins, boardBounds)) return expanded;
+  }
+
+  return null;
+}
+
+function derivePartBBox(part, pins, board = state.board) {
+  if (isTvwBoardData(board) && pins.length) {
+    const pinBox = derivePinsBBox(pins);
+    const footprintBox = deriveTvwNativeFootprintBBox(part, pins, pinBox, board);
+    if (footprintBox) return footprintBox;
+    const nativeBox = normalizeWorldBBox(part.native_bbox || part.placement_bbox);
+    if (nativeBox) return nativeBox;
+    if (part.bbox) return normalizeWorldBBox(part.bbox) || pinBox;
+    return pinBox;
+  }
+
+  if (part.bbox) {
+    return normalizeWorldBBox(part.bbox);
   }
 
   if (pins.length) {
-    const xs = pins.map((pin) => pin.x);
-    const ys = pins.map((pin) => pin.y);
-    const pad = Math.max(0.8, Math.min(4, (Math.max(...xs) - Math.min(...xs) + Math.max(...ys) - Math.min(...ys)) * 0.08 || 1.5));
-    return {
-      x_min: Math.min(...xs) - pad,
-      x_max: Math.max(...xs) + pad,
-      y_min: Math.min(...ys) - pad,
-      y_max: Math.max(...ys) + pad,
-    };
+    return derivePinsBBox(pins);
   }
 
   if (part.center) {
@@ -975,7 +1227,7 @@ function buildIndexes(board) {
 
   for (const part of board.parts) {
     const pins = state.indexes.pinsByPart.get(part.index) || [];
-    const box = derivePartBBox(part, pins);
+    const box = derivePartBBox(part, pins, board);
     if (!box) continue;
     state.indexes.partBoxes.set(part.index, box);
     addItemToGrid(state.indexes.partGrid, box, state.indexes.cellSize, part);
@@ -1102,7 +1354,7 @@ function updateHoverTooltip(clientX, clientY) {
   if (state.hoverPart) {
     const part = state.hoverPart;
     const pinCount = (state.board?.pins || []).filter((pin) => pin.part === part.index).length;
-    const note = notesGet(part.name);
+    const note = notesGet(partNoteKey(part.name));
     const mark = markGet(part.name);
     const markLabel = mark ? { ok: '✓ OK', suspect: '⚠ Suspect', bad: '✕ Bad' }[mark] : null;
     const lines = [
@@ -1242,6 +1494,104 @@ function centerOnPoint(x, y) {
   state.camera.offsetY = canvas.clientHeight / 2 - t.y * state.camera.scale;
 }
 
+function triggerSearchFocusPulse(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  state.searchFocusPulse = {
+    x,
+    y,
+    startedAt: performance.now(),
+    durationMs: 850,
+  };
+}
+
+function zoomToBounds(bounds, options = {}) {
+  if (!bounds) return;
+  const xMin = bounds.x_min ?? bounds.xMin ?? 0;
+  const xMax = bounds.x_max ?? bounds.xMax ?? 0;
+  const yMin = bounds.y_min ?? bounds.yMin ?? 0;
+  const yMax = bounds.y_max ?? bounds.yMax ?? 0;
+  const width = Math.max(1, Math.abs(xMax - xMin));
+  const height = Math.max(1, Math.abs(yMax - yMin));
+  const centerX = (xMin + xMax) / 2;
+  const centerY = (yMin + yMax) / 2;
+  const padding = options.padding ?? 0.42;
+  const maxScaleMultiplier = options.maxScaleMultiplier ?? 18;
+  const minScaleMultiplier = options.minScaleMultiplier ?? 1.8;
+  const fitScale = Math.min(
+    (canvas.clientWidth * padding) / width,
+    (canvas.clientHeight * padding) / height
+  );
+  const base = state.camera.baseScale || 1;
+  state.camera.scale = Math.max(base * minScaleMultiplier, Math.min(base * maxScaleMultiplier, fitScale));
+  centerOnPoint(centerX, centerY);
+  triggerSearchFocusPulse(centerX, centerY);
+}
+
+function focusPartSelection(part) {
+  const partBox = state.indexes.partBoxes.get(part.index);
+  if (partBox) {
+    zoomToBounds(partBox, { minScaleMultiplier: 2.2, maxScaleMultiplier: 22 });
+    return;
+  }
+  if (part?.center) {
+    centerOnPoint(part.center.x, part.center.y);
+    triggerSearchFocusPulse(part.center.x, part.center.y);
+  }
+}
+
+function focusPinSelection(pin) {
+  if (!pin) return;
+  const base = state.camera.baseScale || 1;
+  state.camera.scale = Math.max(state.camera.scale, base * 5);
+  centerOnPoint(pin.x, pin.y);
+  triggerSearchFocusPulse(pin.x, pin.y);
+}
+
+function focusNetSelection(netName) {
+  const pins = state.indexes.pinsByNet.get(String(netName || '').toLowerCase()) || [];
+  if (!pins.length) return;
+  const bounds = {
+    x_min: Number.POSITIVE_INFINITY,
+    x_max: Number.NEGATIVE_INFINITY,
+    y_min: Number.POSITIVE_INFINITY,
+    y_max: Number.NEGATIVE_INFINITY,
+  };
+  for (const pin of pins) {
+    bounds.x_min = Math.min(bounds.x_min, pin.x);
+    bounds.x_max = Math.max(bounds.x_max, pin.x);
+    bounds.y_min = Math.min(bounds.y_min, pin.y);
+    bounds.y_max = Math.max(bounds.y_max, pin.y);
+  }
+  zoomToBounds(bounds, { minScaleMultiplier: 1.3, maxScaleMultiplier: 8 });
+}
+
+function setSearchMode(mode) {
+  state.searchMode = mode === 'part' || mode === 'net' ? mode : 'all';
+  searchAllBtn?.classList.toggle('active', state.searchMode === 'all');
+  searchPartBtn?.classList.toggle('active', state.searchMode === 'part');
+  searchNetBtn?.classList.toggle('active', state.searchMode === 'net');
+}
+
+function getSearchQueryOrNotify() {
+  const raw = String(searchInput?.value || '').trim();
+  if (raw) return raw.toLowerCase();
+  setStatus('Isi kata kunci dulu untuk mencari part atau net.', true);
+  searchInput?.focus();
+  return '';
+}
+
+function runActiveSearch() {
+  if (state.searchMode === 'part') {
+    searchPart();
+    return;
+  }
+  if (state.searchMode === 'net') {
+    searchNet();
+    return;
+  }
+  searchAll();
+}
+
 
 function getNetPinCount(netName) {
   if (!state.board || !netName) return 0;
@@ -1287,6 +1637,7 @@ function renderNow() {
     ctx.fillStyle = state.theme === 'light' ? '#64748b' : '#9ca3af';
     ctx.font = '16px sans-serif';
     ctx.fillText('Upload a supported board file to start.', 24, 32);
+    drawCanvasWatermarkOverlay(w, h);
     state.renderLoop.lastDurationMs = performance.now() - started;
     updatePerfBadge();
     drawMinimap();
@@ -1302,8 +1653,10 @@ function renderNow() {
   if (state.showPins) drawPins();
   if (state.showNails) drawNails();
   drawSelectionHalo();
+  drawSearchFocusPulse();
   drawDenseNetBorderGlow();
   drawMeasure();
+  drawCanvasWatermarkOverlay(w, h);
   drawLegend();
   drawMinimap();
   ctx.restore();
@@ -1331,6 +1684,33 @@ function drawDenseNetBorderGlow() {
   ctx.lineWidth = thickness;
   ctx.strokeRect(0, 0, w, h);
   ctx.restore();
+}
+
+function drawSearchFocusPulse() {
+  const pulse = state.searchFocusPulse;
+  if (!pulse) return;
+  const elapsed = performance.now() - pulse.startedAt;
+  if (elapsed >= pulse.durationMs) {
+    state.searchFocusPulse = null;
+    return;
+  }
+  const progress = elapsed / pulse.durationMs;
+  const screen = worldToScreen(pulse.x, pulse.y);
+  const radius = 18 + progress * 58;
+  const alpha = (1 - progress) * 0.85;
+  ctx.save();
+  ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(125, 211, 252, ${alpha * 0.65})`;
+  ctx.lineWidth = 1.25;
+  ctx.beginPath();
+  ctx.arc(screen.x, screen.y, radius * 0.55, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  render();
 }
 
 function drawGrid() {
@@ -1377,8 +1757,13 @@ function drawOutline() {
   const segments = state.board.outline_segments || [];
   if (segments.length) {
     ctx.save();
-    ctx.strokeStyle = COLORS.outline;
-    ctx.lineWidth = 1.2;
+    const tvwNative = hasTvwNativeSegments();
+    ctx.strokeStyle = tvwNative
+      ? (state.theme === 'light' ? 'rgba(30,41,59,0.72)' : 'rgba(226,232,240,0.72)')
+      : COLORS.outline;
+    ctx.lineWidth = tvwNative ? Math.max(0.65, Math.min(1.25, 0.7 + getDetailZoom() * 0.1)) : 1.2;
+    ctx.beginPath();
+    let pending = 0;
     for (const seg of segments) {
       if (!isSideVisible(seg.side || 'both')) continue;
       const segBox = {
@@ -1390,11 +1775,16 @@ function drawOutline() {
       if (!rectIntersectsWorldBounds(segBox, viewport)) continue;
       const a = worldToScreen(seg.x1, seg.y1);
       const b = worldToScreen(seg.x2, seg.y2);
-      ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.stroke();
+      pending += 1;
+      if (pending >= 1800) {
+        ctx.stroke();
+        ctx.beginPath();
+        pending = 0;
+      }
     }
+    if (pending) ctx.stroke();
     ctx.restore();
     return;
   }
@@ -1424,7 +1814,19 @@ function partColor(part, alpha = 1) {
   return `rgba(${base},${alpha})`;
 }
 
-function getScreenBoundsForPart(part, pins, partBox) {
+function getPinBaseOuterRadius(detailZoom) {
+  if (detailZoom < 1.5) {
+    return Math.max(1.0, detailZoom * 1.2);
+  }
+
+  if (detailZoom < 3.2) {
+    return Math.max(1.8, 0.6 + detailZoom * 1.4);
+  }
+
+  return Math.max(3.0, Math.min(6.0, 1.4 + detailZoom * 1.6));
+}
+
+function getScreenBoundsForPart(part, pins, partBox, options = {}) {
   let bbox = partBox;
   if (!bbox && part.center) {
     bbox = { x_min: part.center.x - 1, x_max: part.center.x + 1, y_min: part.center.y - 1, y_max: part.center.y + 1 };
@@ -1443,6 +1845,17 @@ function getScreenBoundsForPart(part, pins, partBox) {
     xMax = Math.max(xMax, a.x, b.x);
     yMin = Math.min(yMin, a.y, b.y);
     yMax = Math.max(yMax, a.y, b.y);
+  }
+  if (isTvwComponentBoard() && pins.length) {
+    const dotRadius = Math.max(
+      getPinBaseOuterRadius(getDetailZoom()),
+      options.active ? 3.8 : 0,
+    );
+    const visualPad = dotRadius + 1.5;
+    xMin -= visualPad;
+    xMax += visualPad;
+    yMin -= visualPad;
+    yMax += visualPad;
   }
   const minSpan = Math.max(7, Math.min(18, 12 * Math.max(1, state.camera.scale)));
   if (xMax - xMin < minSpan) {
@@ -1509,6 +1922,8 @@ function drawPartMarker(kind, bounds, strokeStyle) {
 function drawParts() {
   const zoom = state.camera.scale;
   const detailZoom = getDetailZoom();
+  const tvwMode = isTvwComponentBoard();
+  const tvwNativeSegments = hasTvwNativeSegments();
   const selectedNetKey = (state.selectedNet || '').toLowerCase();
   const viewport = getViewportWorldBounds(90);
   // Spatial label deconfliction: track occupied screen rectangles
@@ -1536,7 +1951,9 @@ function drawParts() {
     const hasMark = state.board ? Boolean(markGet(part.name)) : false;
     const faded = (state.selectedPart || state.selectedNet || state.selectedPin) && !isSelectedPart && !partHasSelectedNet && !hasMark;
     if (!partBox && !pins.length && !part.center) continue;
-    const bounds = getScreenBoundsForPart(part, pins, partBox);
+    const bounds = getScreenBoundsForPart(part, pins, partBox, {
+      active: Boolean(isSelectedPart || isHoverPart || partHasSelectedNet),
+    });
     const kind = classifyPartGeometry(part, pins, bounds);
     const mark = state.board ? markGet(part.name) : null;
     const markStyle = mark ? MARK_COLORS[mark] : null;
@@ -1544,19 +1961,24 @@ function drawParts() {
       : markStyle && !faded ? markStyle.stroke
       : isHoverPart ? 'rgba(248,250,252,0.82)'
       : faded ? 'rgba(148,163,184,0.14)'
-      : partColor(part, part.mounting_side === 'bottom' ? 0.82 : 0.9);
+      : partColor(part, tvwMode ? 0.98 : (part.mounting_side === 'bottom' ? 0.82 : 0.9));
     const fillColor = isSelectedPart ? 'rgba(245,158,11,0.10)'
       : markStyle && !faded ? markStyle.fill
       : isHoverPart ? 'rgba(248,250,252,0.06)'
       : faded ? 'rgba(148,163,184,0.02)'
-      : part.mounting_side === 'bottom' ? 'rgba(244,114,182,0.05)' : 'rgba(96,165,250,0.05)';
+      : tvwMode
+        ? (part.mounting_side === 'bottom' ? 'rgba(244,114,182,0.045)' : 'rgba(96,165,250,0.045)')
+        : (part.mounting_side === 'bottom' ? 'rgba(244,114,182,0.05)' : 'rgba(96,165,250,0.05)');
 
     ctx.save();
     ctx.strokeStyle = edgeColor;
     ctx.fillStyle = fillColor;
-    ctx.lineWidth = isSelectedPart ? 1.8 : isHoverPart ? 1.4 : 1;
+    ctx.lineWidth = tvwMode
+      ? (isSelectedPart ? 2.4 : isHoverPart ? 2 : Math.max(1.35, Math.min(2.1, 1.2 + detailZoom * 0.22)))
+      : (isSelectedPart ? 1.8 : isHoverPart ? 1.4 : 1);
 
-    if (detailZoom >= 0.9) {
+    const drawArtificialPartBody = true;
+    if (detailZoom >= 0.9 && drawArtificialPartBody) {
       if (kind === 'passive') {
         const longHorizontal = bounds.width >= bounds.height;
         const padInset = Math.max(2, Math.min(7, longHorizontal ? bounds.width * 0.18 : bounds.height * 0.18));
@@ -1572,6 +1994,21 @@ function drawParts() {
       }
       ctx.fill();
       ctx.stroke();
+
+      if (tvwMode && !tvwNativeSegments && !faded) {
+        const center = part.center || { x: pins[0]?.x || 0, y: pins[0]?.y || 0 };
+        const c = worldToScreen(center.x, center.y);
+        const dotRadius = Math.max(2.2, Math.min(4.5, 2.4 + detailZoom * 0.45));
+        ctx.save();
+        ctx.fillStyle = part.mounting_side === 'bottom' ? '#f9a8d4' : '#93c5fd';
+        ctx.strokeStyle = state.theme === 'light' ? 'rgba(255,255,255,0.85)' : 'rgba(2,6,23,0.82)';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
 
       if (detailZoom >= 1.8 && (kind === 'diode' || kind === 'connector')) {
         drawPartMarker(kind, bounds, edgeColor);
@@ -1593,19 +2030,29 @@ function drawParts() {
       if (forced || labelFits(lx, ly, tw, th)) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
+        if (tvwMode) {
+          ctx.save();
+          ctx.lineWidth = 3.5;
+          ctx.strokeStyle = state.theme === 'light' ? 'rgba(255,255,255,0.9)' : 'rgba(2,6,23,0.92)';
+          ctx.strokeText(part.name, c.x, bounds.yMin - 4);
+          ctx.restore();
+          ctx.fillStyle = isSelectedPart
+            ? '#fde68a'
+            : part.mounting_side === 'bottom' ? '#fbcfe8' : '#bfdbfe';
+        }
         ctx.fillText(part.name, c.x, bounds.yMin - 4);
         if (!forced) labelRects.push({ x: lx, y: ly, w: tw, h: th });
       }
     }
 
     if (detailZoom >= 1.5 && state.board) {
-      const hasMark = Boolean(mark); const hasNote = Boolean(notesGet(part.name));
+      const hasMark = Boolean(mark); const hasNote = Boolean(notesGet(partNoteKey(part.name)));
       if (hasMark || hasNote) {
         ctx.save(); let dotX = bounds.xMax;
         if (hasMark) { const dr = Math.max(3, Math.min(5.5, zoom * 12)); dotX -= dr;
           ctx.beginPath(); ctx.arc(dotX, bounds.yMin + dr, dr, 0, Math.PI * 2); ctx.fillStyle = markStyle.stroke; ctx.fill(); dotX -= dr + 2; }
         if (hasNote) { const dr = Math.max(2.5, Math.min(4, zoom * 9)); dotX -= dr;
-          ctx.beginPath(); ctx.arc(dotX, bounds.yMin + dr, dr, 0, Math.PI * 2); ctx.fillStyle = '#f59e0b'; ctx.fill(); }
+          ctx.beginPath(); ctx.arc(dotX, bounds.yMin + dr, dr, 0, Math.PI * 2); ctx.fillStyle = '#84cc16'; ctx.fill(); }
         ctx.restore();
       }
     }
@@ -1619,6 +2066,7 @@ function drawPins() {
   const selectedPartIndex = state.selectedPart?.index || null;
   const hoverPartIndex = state.hoverPart?.index || null;
   const hoverPinIndex = state.hoverPin?.index || null;
+  const tvwNative = hasTvwNativeSegments();
   // Hover net: when hovering a pin, highlight all pins on its net
   const hoverNetKey = (state.hoverPin?.net || '').toLowerCase();
   const viewport = getViewportWorldBounds(50);
@@ -1635,7 +2083,6 @@ function drawPins() {
   for (const pin of state.board.pins) {
     if (!isSideVisible(pin.side)) continue;
     if (!pointInWorldBounds(pin.x, pin.y, viewport)) continue;
-    state.renderLoop.lastVisiblePins += 1;
 
     const isSelectedNet = selectedNetKey && (pin.net || '').toLowerCase() === selectedNetKey;
     const isSelectedPart = selectedPartIndex && pin.part === selectedPartIndex;
@@ -1644,6 +2091,8 @@ function drawPins() {
     const isHoverPin = hoverPinIndex && pin.index === hoverPinIndex;
     const isHoverNet = hoverNetKey && !isHoverPin && (pin.net || '').toLowerCase() === hoverNetKey;
     const isActive = isSelectedPin || isHoverPin || isHoverNet || isSelectedNet || isSelectedPart || isHoverPart;
+    const hasNote = notesGet(pinNoteKey(pin));
+    state.renderLoop.lastVisiblePins += 1;
 
     // Base size: starts tiny at overview, grows with zoom
     let outer = dz < 1.5
@@ -1681,6 +2130,15 @@ function drawPins() {
     }
 
     const s = worldToScreen(pin.x, pin.y);
+    if (tvwNative && !isActive && hasNote) {
+      const noteDot = Math.max(2.2, Math.min(4.5, outer * 0.75));
+      ctx.fillStyle = '#84cc16';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, noteDot, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+
     const effectiveMode = isActive ? 'full' : pinMode;
 
     if (effectiveMode === 'dot') {
@@ -1707,6 +2165,14 @@ function drawPins() {
       ctx.fillStyle = inner;
       ctx.beginPath();
       ctx.arc(s.x, s.y, Math.max(0.6, outer * 0.42), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (hasNote && dz >= 1.2) {
+      const noteDot = Math.max(2, Math.min(4, outer * 0.55));
+      ctx.fillStyle = '#84cc16';
+      ctx.beginPath();
+      ctx.arc(s.x + outer + noteDot, s.y - outer - noteDot, noteDot, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -1864,7 +2330,7 @@ function drawConnections() {
   if ((state.selectedNet || state.selectedPin?.net) && state.netLinesMode !== 'off') {
     points = state.netLinesMode === 'trace' ? getTracePointsForSelectedNet() : getConnectionPointsForSelectedNet();
     mode = 'net';
-  } else if (state.selectedPart && state.netLinesMode !== 'off') {
+  } else if (state.selectedPart && !hasTvwNativeSegments() && state.netLinesMode !== 'off') {
     points = getConnectionPointsForSelectedPart();
     mode = 'part';
   }
@@ -2266,10 +2732,22 @@ function populateMatches(items) {
     btn.className = 'list-item';
     if (item.kind === 'part') {
       btn.innerHTML = `${escapeHtml(item.part.name)} <small>${item.part.mounting_side} · ${(item.part.nets || []).slice(0, 3).join(', ') || 'no nets'}</small>`;
-      btn.addEventListener('click', () => selectPart(item.part));
+      btn.addEventListener('click', () => {
+        setSearchMode('part');
+        selectPart(item.part);
+        focusPartSelection(item.part);
+        render();
+        onViewChanged();
+      });
     } else {
       btn.innerHTML = `${escapeHtml(item.net.name)} <small>${item.net.pin_count} pins${item.net.route_count ? ` · ${item.net.route_count} routes` : ''}</small>`;
-      btn.addEventListener('click', () => selectNet(item.net.name));
+      btn.addEventListener('click', () => {
+        setSearchMode('net');
+        selectNet(item.net.name);
+        focusNetSelection(item.net.name);
+        render();
+        onViewChanged();
+      });
     }
     matchListEl.appendChild(btn);
   }
@@ -2291,7 +2769,11 @@ function showPartResult(part, pin = null) {
     <div class="chips">${nets.map((net) => `<button type="button" class="chip chip-button" data-net="${escapeAttr(net)}">${escapeHtml(net)}</button>`).join('') || '<span class="muted">—</span>'}</div>
   `;
   notesRenderMarkBadge(part.name);
-  notesRenderBlock(part.name);
+  notesRenderBlock({
+    key: partNoteKey(part.name),
+    label: `Notes: ${part.name}`,
+    placeholder: 'Catatan untuk komponen ini...'
+  });
 }
 
 function showNetResult(name, pins) {
@@ -2318,7 +2800,14 @@ function showPinResult(pin) {
     <div class="row"><strong>Net:</strong> ${pin.net ? `<button type="button" class="chip chip-button" data-net="${escapeAttr(pin.net)}">${escapeHtml(pin.net)}</button>` : '—'}</div>
     <div class="row"><strong>Position:</strong> ${Number(pin.x).toFixed(2)}, ${Number(pin.y).toFixed(2)}</div>
   `;
-  if (part) { notesRenderMarkBadge(part.name); notesRenderBlock(part.name); }
+  if (part) {
+    notesRenderMarkBadge(part.name);
+    notesRenderBlock({
+      key: pinNoteKey(pin),
+      label: `Notes: ${part.name} pin ${pin.name || `#${pin.index}`}`,
+      placeholder: 'Catatan untuk pin ini...'
+    });
+  }
 }
 
 function selectPart(part) {
@@ -2409,11 +2898,34 @@ function sessionAnnotationSave(kind, data) {
   } catch (_) {}
 }
 
-function notesGet(partName) { return sessionAnnotationLoad('notes')[partName] || ''; }
-function notesSet(partName, text) {
+function partNoteKey(partName) {
+  return `part:${String(partName || '').trim()}`;
+}
+
+function pinNoteKey(pin) {
+  return `pin:${pin?.index || ''}`;
+}
+
+function notesGet(noteKey) {
+  const notes = sessionAnnotationLoad('notes');
+  if (notes[noteKey]) return notes[noteKey];
+  if (String(noteKey || '').startsWith('part:')) {
+    const legacyPartName = String(noteKey).slice(5);
+    return notes[legacyPartName] || '';
+  }
+  return '';
+}
+
+function notesSet(noteKey, text) {
   const n = sessionAnnotationLoad('notes');
-  if (text.trim()) n[partName] = text; else delete n[partName];
+  if (text.trim()) n[noteKey] = text; else delete n[noteKey];
   sessionAnnotationSave('notes', n);
+}
+
+function stopNoteEditorEventPropagation(element) {
+  for (const eventName of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'touchstart']) {
+    element.addEventListener(eventName, (event) => event.stopPropagation());
+  }
 }
 
 // ── Component marking ─────────────────────────────────────────────────────────
@@ -2433,13 +2945,14 @@ function markSet(partName, status) {
 
 let _ctxMenu = null;
 function closeContextMenu() { if (_ctxMenu) { _ctxMenu.remove(); _ctxMenu = null; } }
-function showContextMenu(part, screenX, screenY) {
+function showContextMenu(part, screenX, screenY, pin = null) {
   closeContextMenu();
   const menu = document.createElement('div');
   menu.className = 'ctx-menu'; _ctxMenu = menu;
   const current = markGet(part.name);
   const header = document.createElement('div');
-  header.className = 'ctx-header'; header.textContent = part.name;
+  header.className = 'ctx-header';
+  header.textContent = pin ? `${part.name} pin ${pin.name || `#${pin.index}`}` : part.name;
   menu.appendChild(header);
 
   // Mark section
@@ -2472,25 +2985,43 @@ function showContextMenu(part, screenX, screenY) {
 
   const noteWrap = document.createElement('div');
   noteWrap.className = 'ctx-note-wrap';
-  const currentNote = notesGet(part.name);
+  stopNoteEditorEventPropagation(noteWrap);
+  const noteKey = pin ? pinNoteKey(pin) : partNoteKey(part.name);
+  const currentNote = notesGet(noteKey);
   const noteArea = document.createElement('textarea');
   noteArea.className = 'ctx-note-textarea';
-  noteArea.placeholder = 'e.g. 3.3V OK, replace cap…';
+  noteArea.placeholder = 'Contoh: 3.3V OK, ganti kapasitor...';
   noteArea.maxLength = 500;
   noteArea.rows = 2;
   noteArea.value = currentNote;
-  noteArea.addEventListener('mousedown', (e) => e.stopPropagation());
+  stopNoteEditorEventPropagation(noteArea);
   noteArea.addEventListener('keydown', (e) => e.stopPropagation());
-  let noteTimer = null;
-  noteArea.addEventListener('input', () => {
-    clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => {
-      notesSet(part.name, noteArea.value);
-      render();
-      if (state.selectedPart?.name === part.name) showPartResult(part);
-    }, 400);
+  noteArea.addEventListener('focus', () => { state.drag.active = false; });
+  noteArea.addEventListener('input', (e) => e.stopPropagation());
+  const noteActions = document.createElement('div');
+  noteActions.className = 'ctx-note-actions';
+  const noteStatus = document.createElement('span');
+  noteStatus.className = 'muted small ctx-note-status';
+  const saveNoteBtn = document.createElement('button');
+  saveNoteBtn.type = 'button';
+  saveNoteBtn.className = 'note-save-btn ctx-note-save-btn';
+  saveNoteBtn.textContent = 'Simpan';
+  stopNoteEditorEventPropagation(saveNoteBtn);
+  saveNoteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    notesSet(noteKey, noteArea.value);
+    noteStatus.textContent = 'Sesi tersimpan';
+    if (pin && state.selectedPin?.index === pin.index) showPinResult(pin);
+    else if (state.selectedPart?.name === part.name) showPartResult(part);
+    render();
+    setTimeout(() => { noteStatus.textContent = ''; }, 1800);
   });
+  noteArea.addEventListener('input', () => {
+    noteStatus.textContent = 'Belum disimpan';
+  });
+  noteActions.append(noteStatus, saveNoteBtn);
   noteWrap.appendChild(noteArea);
+  noteWrap.appendChild(noteActions);
   menu.appendChild(noteWrap);
 
   document.body.appendChild(menu);
@@ -2520,10 +3051,11 @@ function initContextMenu() {
     if (!state.board) return;
     const rect = canvas.getBoundingClientRect();
     const picked = pickAt(ev.clientX - rect.left, ev.clientY - rect.top);
+    const pin = picked?.kind === 'pin' ? picked.value : null;
     const part = picked?.kind === 'part' ? picked.value
-               : picked?.kind === 'pin'  ? (state.board.parts[picked.value.part - 1] || null)
+               : pin ? (state.board.parts[pin.part - 1] || null)
                : null;
-    if (part) showContextMenu(part, ev.clientX, ev.clientY); else closeContextMenu();
+    if (part) showContextMenu(part, ev.clientX, ev.clientY, pin); else closeContextMenu();
   });
 }
 
@@ -2585,31 +3117,50 @@ function notesRenderMarkBadge(partName) {
   resultsEl.appendChild(row);
 }
 
-function notesRenderBlock(partName) {
+function notesRenderBlock(target) {
+  const noteTarget = typeof target === 'string'
+    ? { key: partNoteKey(target), label: `Notes: ${target}`, placeholder: 'Catatan untuk komponen ini...' }
+    : target;
+  const noteKey = noteTarget?.key || '';
+  if (!noteKey) return;
   const existing = resultsEl.querySelector('.note-block');
-  if (existing && existing.dataset.part === partName) {
+  if (existing && existing.dataset.noteKey === noteKey) {
     const ta = existing.querySelector('#note-textarea');
     if (document.activeElement === ta) return;
   }
   if (existing) existing.remove();
-  const currentNote = notesGet(partName);
+  const currentNote = notesGet(noteKey);
   const block = document.createElement('div');
-  block.className = 'note-block'; block.dataset.part = partName;
+  block.className = 'note-block';
+  block.dataset.noteKey = noteKey;
   block.innerHTML = `
-    <div class="note-label"><span>Notes <small class="note-session-badge">Session only</small></span><span class="note-saved-indicator muted small" id="note-saved-msg"></span></div>
-    <textarea id="note-textarea" class="note-textarea" placeholder="e.g. tested OK, 3.3V nominal..." rows="3" maxlength="500">${escapeHtml(currentNote)}</textarea>
-    <div class="note-actions"><span class="muted small" id="note-char-count">${currentNote.length}/500</span><button type="button" class="note-clear-btn muted small" id="note-clear-btn"${currentNote ? '' : ' disabled'}>Clear</button></div>
+    <div class="note-label"><span>${escapeHtml(noteTarget.label || 'Notes')} <small class="note-session-badge">Session only</small></span><span class="note-saved-indicator muted small" id="note-saved-msg"></span></div>
+    <textarea id="note-textarea" class="note-textarea" placeholder="${escapeAttr(noteTarget.placeholder || 'Catatan sesi...')}" rows="3" maxlength="500">${escapeHtml(currentNote)}</textarea>
+    <div class="note-actions"><span class="muted small" id="note-char-count">${currentNote.length}/500</span><div class="note-action-buttons"><button type="button" class="note-clear-btn muted small" id="note-clear-btn"${currentNote ? '' : ' disabled'}>Clear</button><button type="button" class="note-save-btn" id="note-save-btn">Simpan</button></div></div>
   `;
   resultsEl.appendChild(block);
   const ta = block.querySelector('#note-textarea'), msg = block.querySelector('#note-saved-msg');
   const cnt = block.querySelector('#note-char-count'), clr = block.querySelector('#note-clear-btn');
-  let saveTimer = null;
+  const save = block.querySelector('#note-save-btn');
+  stopNoteEditorEventPropagation(block);
+  stopNoteEditorEventPropagation(ta);
+  stopNoteEditorEventPropagation(save);
+  stopNoteEditorEventPropagation(clr);
+  ta.addEventListener('focus', () => { state.drag.active = false; });
   ta.addEventListener('input', () => {
-    cnt.textContent = ta.value.length + '/500'; clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { notesSet(partName, ta.value); render(); msg.textContent = 'Session saved'; clr.disabled = !ta.value.trim(); setTimeout(() => { msg.textContent = ''; }, 1800); }, 600);
+    cnt.textContent = ta.value.length + '/500';
+    msg.textContent = 'Belum disimpan';
+    clr.disabled = !ta.value.trim();
+  });
+  save.addEventListener('click', () => {
+    notesSet(noteKey, ta.value);
+    msg.textContent = 'Session saved';
+    clr.disabled = !ta.value.trim();
+    render();
+    setTimeout(() => { msg.textContent = ''; }, 1800);
   });
   clr.addEventListener('click', () => {
-    ta.value = ''; cnt.textContent = '0/500'; notesSet(partName, '');
+    ta.value = ''; cnt.textContent = '0/500'; notesSet(noteKey, '');
     render(); msg.textContent = 'Cleared'; clr.disabled = true; setTimeout(() => { msg.textContent = ''; }, 1800);
   });
 }
@@ -2620,8 +3171,9 @@ function findPartByName(name) {
 
 function searchPart() {
   if (!state.board) return;
-  const q = searchInput.value.trim().toLowerCase();
+  const q = getSearchQueryOrNotify();
   if (!q) return;
+  setSearchMode('part');
   const parts = state.board.parts.filter((p) => p.name.toLowerCase().includes(q));
   if (!parts.length) {
     populateMatches([]);
@@ -2631,12 +3183,16 @@ function searchPart() {
   populateMatches(parts.map((part) => ({ kind: 'part', part })));
   setStatus(`Found ${parts.length} part match(es).`);
   selectPart(parts[0]);
+  focusPartSelection(parts[0]);
+  render();
+  onViewChanged();
 }
 
 function searchNet() {
   if (!state.board) return;
-  const q = searchInput.value.trim().toLowerCase();
+  const q = getSearchQueryOrNotify();
   if (!q) return;
+  setSearchMode('net');
   const nets = state.board.nets.filter((n) => n.name.toLowerCase().includes(q));
   if (!nets.length) {
     populateMatches([]);
@@ -2646,12 +3202,16 @@ function searchNet() {
   populateMatches(nets.map((net) => ({ kind: 'net', net })));
   setStatus(`Found ${nets.length} net match(es).`);
   selectNet(nets[0].name);
+  focusNetSelection(nets[0].name);
+  render();
+  onViewChanged();
 }
 
 function searchAll() {
   if (!state.board) return;
-  const q = searchInput.value.trim().toLowerCase();
+  const q = getSearchQueryOrNotify();
   if (!q) return;
+  setSearchMode('all');
   const parts = state.board.parts
     .filter((p) => p.name.toLowerCase().includes(q))
     .slice(0, 100)
@@ -2668,19 +3228,44 @@ function searchAll() {
   }
   const first = matches[0];
   setStatus(`Found ${matches.length} match(es).`);
-  if (first.kind === 'part') selectPart(first.part);
-  else selectNet(first.net.name);
+  if (first.kind === 'part') {
+    selectPart(first.part);
+    focusPartSelection(first.part);
+  } else {
+    selectNet(first.net.name);
+    focusNetSelection(first.net.name);
+  }
+  render();
+  onViewChanged();
+}
+
+function findNearestPinInPartAtScreenPoint(part, screenX, screenY, maxDistancePx) {
+  let bestPin = null;
+  let bestPinDist = maxDistancePx;
+  const pins = getPartPins(part);
+  for (const pin of pins) {
+    if (!isSideVisible(pin.side)) continue;
+    const s = worldToScreen(pin.x, pin.y);
+    const d = Math.hypot(screenX - s.x, screenY - s.y);
+    if (d < bestPinDist) {
+      bestPin = pin;
+      bestPinDist = d;
+    }
+  }
+  return bestPin;
 }
 
 function pickAt(screenX, screenY) {
   if (!state.board) return null;
 
+  const tvwNative = hasTvwNativeSegments();
   const world = screenToWorld(screenX, screenY);
-  const pinRadiusWorld = screenDistanceToWorld(10);
+  const pinRadiusPx = tvwNative ? 28 : 10;
+  const pinRadiusWorld = screenDistanceToWorld(pinRadiusPx);
   const partRadiusWorld = screenDistanceToWorld(26);
 
   let bestPin = null;
-  let bestPinDist = 10;
+  let bestPinDist = pinRadiusPx;
   const pinCandidates = getItemsNearPoint(state.indexes.pinGrid, world.x, world.y, pinRadiusWorld, state.indexes.cellSize);
   for (const pin of pinCandidates) {
     if (!isSideVisible(pin.side)) continue;
@@ -2717,6 +3302,10 @@ function pickAt(screenX, screenY) {
       const yMin = Math.min(a.y, b.y) - 8;
       const yMax = Math.max(a.y, b.y) + 8;
       if (screenX >= xMin && screenX <= xMax && screenY >= yMin && screenY <= yMax) {
+        if (tvwNative) {
+          const nearestPin = findNearestPinInPartAtScreenPoint(part, screenX, screenY, 56);
+          if (nearestPin) return { kind: 'pin', value: nearestPin };
+        }
         bestPart = part;
         bestPartDist = 0;
       }
@@ -2809,6 +3398,7 @@ async function handleUpload() {
     refreshToolbarButtons();
     const _pl = permalinkDecode();
     if (_pl) { autoFitBoard(); permalinkApply(_pl); } else { autoFitBoard(); }
+    setViewerDocumentTitle(state.board.filename);
     setStatus(`Loaded: ${state.board.filename} (${state.board.meta.format_name || 'unknown format'})`);
     if (uploadNoteEl) uploadNoteEl.classList.add('is-hidden');
     input.value = '';
@@ -2987,6 +3577,14 @@ function convertTeknisiHubSessionToLabBoard(session) {
       const xs = sourcePins.map((pin) => Number(pin.x)).filter(Number.isFinite);
       const ys = sourcePins.map((pin) => Number(pin.y)).filter(Number.isFinite);
       const hasPins = xs.length > 0 && ys.length > 0;
+      const nativeBBox = seed.width > 0 && seed.height > 0 && Number.isFinite(seed.sourceX) && Number.isFinite(seed.sourceY)
+        ? {
+            x_min: seed.sourceX - seed.width / 2,
+            x_max: seed.sourceX + seed.width / 2,
+            y_min: seed.sourceY - seed.height / 2,
+            y_max: seed.sourceY + seed.height / 2,
+          }
+        : null;
       const center = {
         x: hasPins ? xs.reduce((sum, value) => sum + value, 0) / xs.length : (Number.isFinite(seed.sourceX) ? seed.sourceX : bounds.x_min),
         y: hasPins ? ys.reduce((sum, value) => sum + value, 0) / ys.length : (Number.isFinite(seed.sourceY) ? seed.sourceY : bounds.y_min),
@@ -3019,13 +3617,8 @@ function convertTeknisiHubSessionToLabBoard(session) {
           y_min: Number.isFinite(yMin) ? yMin : Math.min(...ys) - fallbackPad,
           y_max: Number.isFinite(yMax) ? yMax : Math.max(...ys) + fallbackPad,
         };
-      } else if (seed.width > 0 && seed.height > 0) {
-        bbox = {
-          x_min: center.x - seed.width / 2,
-          x_max: center.x + seed.width / 2,
-          y_min: center.y - seed.height / 2,
-          y_max: center.y + seed.height / 2,
-        };
+      } else if (nativeBBox) {
+        bbox = nativeBBox;
       }
       return {
         index: index + 1,
@@ -3035,6 +3628,7 @@ function convertTeknisiHubSessionToLabBoard(session) {
         mounting_side: seed.mounting_side,
         center,
         bbox,
+        native_bbox: nativeBBox,
         nets: Array.from(seed.nets).sort(compareTeknisiHubNatural),
       };
     });
@@ -3106,6 +3700,7 @@ function convertTeknisiHubSessionToLabBoard(session) {
       y1: Number(segment.y1),
       x2: Number(segment.x2),
       y2: Number(segment.y2),
+      segment_type: Number(segment.segmentType ?? segment.segment_type ?? 0),
       side: toTeknisiHubLabSide(segment.layer),
     })).filter((segment) => [segment.x1, segment.y1, segment.x2, segment.y2].every(Number.isFinite)),
     outline: [],
@@ -3131,6 +3726,7 @@ async function loadTeknisiHubNativeSessionFromQuery() {
       || ((session.availableSides || []).some((side) => toTeknisiHubLabSide(side) === 'top') ? 'top' : 'both');
     refreshToolbarButtons();
     autoFitBoard();
+    setViewerDocumentTitle(state.board.filename);
     setStatus(`Loaded: ${state.board.filename} (${state.board.meta.format_name || 'TeknisiHub native'})`);
     if (uploadNoteEl) uploadNoteEl.classList.add('is-hidden');
 
@@ -3516,9 +4112,9 @@ fileInputEl?.addEventListener('change', async (ev) => {
   await handleUpload();
 });
 reportIssueBtnEl?.addEventListener('click', reportUploadIssue);
-document.getElementById('search-all-btn').addEventListener('click', searchAll);
-document.getElementById('search-part-btn').addEventListener('click', searchPart);
-document.getElementById('search-net-btn').addEventListener('click', searchNet);
+searchAllBtn?.addEventListener('click', searchAll);
+searchPartBtn?.addEventListener('click', searchPart);
+searchNetBtn?.addEventListener('click', searchNet);
 document.getElementById('clear-btn').addEventListener('click', clearAllQueries);
 document.getElementById('fit-btn').addEventListener('click', fitBoard);
 document.getElementById('side-both-btn').addEventListener('click', () => setSide('both'));
@@ -3579,7 +4175,7 @@ document.getElementById('toggle-outline-btn').addEventListener('click', () => {
 searchInput.addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter') {
     ev.preventDefault();
-    searchAll();
+    runActiveSearch();
   }
 });
 
@@ -3830,6 +4426,7 @@ for (const modal of [updatesModalEl, metricsModalEl]) {
 }
 
 applyTheme(state.theme);
+setSearchMode(state.searchMode);
 setActionTab('share');
 refreshToolbarButtons();
 applySupportLinks();

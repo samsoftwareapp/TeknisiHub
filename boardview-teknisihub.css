@@ -1839,21 +1839,46 @@ body[data-theme="light"] .support-legal-back {
   align-items: center;
   justify-content: space-between;
   margin-top: 5px;
+  gap: 10px;
 }
 
-.note-clear-btn {
+.note-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note-clear-btn,
+.note-save-btn {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--muted);
-  padding: 0;
   font-size: 0.78rem;
   font-family: inherit;
-  transition: color 0.15s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.note-clear-btn {
+  color: var(--muted);
+  padding: 0;
+}
+
+.note-save-btn {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: rgba(96, 165, 250, 0.12);
+  color: #bfdbfe;
+  font-weight: 700;
 }
 
 .note-clear-btn:hover:not(:disabled) {
   color: #f87171;
+}
+
+.note-save-btn:hover {
+  border-color: rgba(96, 165, 250, 0.75);
+  background: rgba(96, 165, 250, 0.2);
 }
 
 .note-clear-btn:disabled {
@@ -2227,6 +2252,23 @@ body[data-theme="light"] .sb-tab.active {
 
 .ctx-note-textarea:focus {
   border-color: #60a5fa;
+}
+
+.ctx-note-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.ctx-note-status {
+  min-height: 14px;
+}
+
+.ctx-note-save-btn {
+  padding: 4px 9px;
+  font-size: 0.72rem;
 }
 /* ─────────────────────────────────────────────────────────────────────────── */
 
