@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Boardview TeknisiHub</title>
   <link rel="icon" type="image/png" href="./assets/HubLogo.png">
-  <link rel="stylesheet" href="./boardview-teknisihub.css?v=20260508j">
+  <link rel="stylesheet" href="./boardview-teknisihub.css?v=20260508p">
 </head>
 <body data-theme="light">
 
@@ -65,13 +65,71 @@
         <!-- Inspector tab -->
         <div class="sb-tab-panel" id="tabpanel-inspector" role="tabpanel">
           <div id="upload-note" class="muted small upload-note is-hidden"><span class="upload-note-limits">Max file: 50 MB. Expires after 60 min. Sign-in required.</span><div class="upload-note-formats"><span class="upload-note-formats-label">Supported formats:</span> <span class="upload-note-format-list">.brd Â· .bdv Â· .fz Â· .cad Â· .gencad Â· .bv Â· .bvr Â· .tvw Â· .f2b Â· .gr Â· .zip (ASC)</span></div><div class="upload-note-asc-hint">ASC requires a ZIP archive with format.asc, parts.asc, pins.asc, nails.asc.</div></div>
-          <div id="results" class="results">Nothing selected.</div>
-          <section class="sb-match-section">
-            <div class="sb-section-head">
-              <span>Matches</span>
-              <span id="match-count" class="muted small">0</span>
+          <div class="inspector-mode-tabbar" role="tablist" aria-label="Inspector views">
+            <button id="inspector-mode-summary-btn" class="inspector-mode-tab is-active" type="button" aria-selected="true">Ringkas</button>
+            <button id="inspector-mode-tables-btn" class="inspector-mode-tab" type="button" aria-selected="false">Pin &amp; Net</button>
+          </div>
+
+          <div id="inspector-summary-pane" class="inspector-mode-pane">
+            <div id="results" class="results">Nothing selected.</div>
+            <section class="sb-match-section">
+              <div class="sb-section-head">
+                <span>Matches</span>
+                <span id="match-count" class="muted small">0</span>
+              </div>
+              <div id="match-list" class="scroll-list"></div>
+            </section>
+          </div>
+
+          <section id="inspector-linked-data" class="inspector-linked-data inspector-mode-pane is-hidden">
+            <div class="inspector-mini-tabbar" role="tablist" aria-label="Inspector data tabs">
+              <button id="inspector-panel-part-btn" class="inspector-mini-tab is-active" type="button" data-pane="part" aria-selected="true">Part</button>
+              <button id="inspector-panel-net-btn" class="inspector-mini-tab" type="button" data-pane="net" aria-selected="false">Net (0)</button>
             </div>
-            <div id="match-list" class="scroll-list"></div>
+
+            <div id="inspector-part-pane" class="inspector-pane" role="tabpanel">
+              <div class="inspector-table-head">
+                <span id="inspector-part-title" class="muted small">No part selected</span>
+                <span id="inspector-pin-count" class="muted small">0 pins</span>
+              </div>
+              <div class="inspector-table-shell">
+                <table class="inspector-grid-table">
+                  <thead>
+                    <tr>
+                      <th>Pin</th>
+                      <th>NetName</th>
+                      <th>Side</th>
+                      <th>Info</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inspector-part-pin-body">
+                    <tr><td colspan="4" class="inspector-table-empty">Select a part to see pin and net mapping.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="inspector-net-pane" class="inspector-pane is-hidden" role="tabpanel">
+              <div class="inspector-table-head">
+                <span id="inspector-net-title" class="muted small">No net selected</span>
+                <span id="inspector-net-member-count" class="muted small">0 rows</span>
+              </div>
+              <div class="inspector-table-shell">
+                <table class="inspector-grid-table">
+                  <thead>
+                    <tr>
+                      <th>Side</th>
+                      <th>Ref...</th>
+                      <th>Pin</th>
+                      <th>Info</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inspector-net-member-body">
+                    <tr><td colspan="4" class="inspector-table-empty">Select a pin or net to see related connections.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
         </div>
 
@@ -116,6 +174,7 @@
           <dl class="sb-stats-dl">
             <div><dt>File</dt><dd id="stat-file">Compal_LA_J643P_GPC52_Rev_1_0  (BDV)(.CAD) .cad</dd></div>
             <div><dt>Format</dt><dd id="stat-format">GenCAD</dd></div>
+            <div><dt>Parser</dt><dd id="stat-parser">CAD v1 GenCAD</dd></div>
             <div><dt>Units</dt><dd id="stat-units">USER 1000</dd></div>
             <div><dt>Parts</dt><dd id="stat-parts">2499</dd></div>
             <div><dt>Pins</dt><dd id="stat-pins">10841</dd></div>
@@ -329,6 +388,9 @@
           </div>
         </div>
         <div id="aboutme" class="action-dock aboutme-dock">
+          <button id="copy-session-button" class="mini-fab copy-session-fab" type="button" title="Copy session link">
+            <span>Copy Session</span>
+          </button>
           <button id="aboutme-button" class="mini-fab aboutme-fab" type="button" aria-expanded="false" aria-controls="aboutme-card">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M8 7.3v4"></path><path d="M8 4.8h.01"></path></svg>
             <span>Aboutme</span>
@@ -490,7 +552,7 @@
   </div>
 
   <script src="./service-config.js"></script>
-  <script src="./boardview-teknisihub.js?v=20260508j"></script>
+  <script src="./boardview-teknisihub.js?v=20260508p"></script>
 
 </body></html>
 

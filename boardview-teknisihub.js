@@ -14,6 +14,10 @@ const state = {
   selectedPart: null,
   selectedNet: null,
   selectedPin: null,
+  inspectorNet: null,
+  inspectorPane: 'part',
+  inspectorMode: 'summary',
+  annotationSync: { timer: 0, inFlight: false, queued: false, lastSavedJson: '' },
   hoverPart: null,
   hoverPin: null,
   hoverNet: null,
@@ -143,6 +147,20 @@ const selectedNetCountEl = document.getElementById('selected-net-count');
 const selectedNetGroupsEl = document.getElementById('selected-net-groups');
 const selectedPinGroupsEl = document.getElementById('selected-pin-groups');
 const selectedPinCountEl = document.getElementById('selected-pin-count');
+const inspectorModeSummaryBtn = document.getElementById('inspector-mode-summary-btn');
+const inspectorModeTablesBtn = document.getElementById('inspector-mode-tables-btn');
+const inspectorSummaryPaneEl = document.getElementById('inspector-summary-pane');
+const inspectorLinkedDataEl = document.getElementById('inspector-linked-data');
+const inspectorPanelPartBtn = document.getElementById('inspector-panel-part-btn');
+const inspectorPanelNetBtn = document.getElementById('inspector-panel-net-btn');
+const inspectorPartPaneEl = document.getElementById('inspector-part-pane');
+const inspectorNetPaneEl = document.getElementById('inspector-net-pane');
+const inspectorPartTitleEl = document.getElementById('inspector-part-title');
+const inspectorPinCountEl = document.getElementById('inspector-pin-count');
+const inspectorPartPinBodyEl = document.getElementById('inspector-part-pin-body');
+const inspectorNetTitleEl = document.getElementById('inspector-net-title');
+const inspectorNetMemberCountEl = document.getElementById('inspector-net-member-count');
+const inspectorNetMemberBodyEl = document.getElementById('inspector-net-member-body');
 
 const actionCardEl = document.getElementById('action-card');
 const actionCardCloseBtn = document.getElementById('action-card-close-btn');
@@ -151,6 +169,7 @@ const actionTabSupportBtn = document.getElementById('action-tab-support');
 const sharePanelEl = document.getElementById('action-panel-share');
 const supportPanelEl = document.getElementById('action-panel-support');
 const aboutmeDockEl = document.getElementById('aboutme');
+const copySessionButtonEl = document.getElementById('copy-session-button');
 const aboutmeButtonEl = document.getElementById('aboutme-button');
 const aboutmeCardEl = document.getElementById('aboutme-card');
 const supportFabBtn = document.getElementById('support-fab-btn');
@@ -728,6 +747,136 @@ function clearSelectedNetMembers() {
   selectedPinGroupsEl.innerHTML = '';
 }
 
+function setInspectorMode(nextMode) {
+  const mode = nextMode === 'tables' ? 'tables' : 'summary';
+  state.inspectorMode = mode;
+  inspectorModeSummaryBtn?.classList.toggle('is-active', mode === 'summary');
+  inspectorModeSummaryBtn?.setAttribute('aria-selected', mode === 'summary' ? 'true' : 'false');
+  inspectorModeTablesBtn?.classList.toggle('is-active', mode === 'tables');
+  inspectorModeTablesBtn?.setAttribute('aria-selected', mode === 'tables' ? 'true' : 'false');
+  inspectorSummaryPaneEl?.classList.toggle('is-hidden', mode !== 'summary');
+  inspectorLinkedDataEl?.classList.toggle('is-hidden', mode !== 'tables');
+  scheduleSessionAnnotationSync();
+}
+
+function setInspectorPane(nextPane) {
+  const pane = nextPane === 'net' ? 'net' : 'part';
+  state.inspectorPane = pane;
+  inspectorPanelPartBtn?.classList.toggle('is-active', pane === 'part');
+  inspectorPanelPartBtn?.setAttribute('aria-selected', pane === 'part' ? 'true' : 'false');
+  inspectorPanelNetBtn?.classList.toggle('is-active', pane === 'net');
+  inspectorPanelNetBtn?.setAttribute('aria-selected', pane === 'net' ? 'true' : 'false');
+  inspectorPartPaneEl?.classList.toggle('is-hidden', pane !== 'part');
+  inspectorNetPaneEl?.classList.toggle('is-hidden', pane !== 'net');
+  scheduleSessionAnnotationSync();
+}
+
+function getPartInfoLabel(part) {
+  return part?.device || part?.shape || part?.part_type || '';
+}
+
+function getPinInfoLabel(pin, part) {
+  return pin?.probe || getPartInfoLabel(part) || '';
+}
+
+function getNetMembersForInspector(netName) {
+  if (!state.board || !netName) return [];
+  const key = String(netName).toLowerCase();
+  return [...(state.indexes.pinsByNet.get(key) || [])]
+    .map((pin) => ({
+      pin,
+      part: state.board.parts[pin.part - 1] || null,
+    }))
+    .sort((left, right) => {
+      const partCmp = compareTeknisiHubNatural(left.part?.name || '', right.part?.name || '');
+      if (partCmp !== 0) return partCmp;
+      return compareTeknisiHubNatural(left.pin?.name || left.pin?.index, right.pin?.name || right.pin?.index);
+    });
+}
+
+function findPreferredInspectorNet(part, pin = null) {
+  if (pin?.net) return String(pin.net);
+  const partPins = part ? getPartPins(part) : [];
+  const netFromPin = partPins.find((item) => item?.net)?.net;
+  if (netFromPin) return String(netFromPin);
+  const netFromPart = Array.isArray(part?.nets) ? part.nets.find(Boolean) : '';
+  return netFromPart ? String(netFromPart) : null;
+}
+
+function updateInspectorNetTabLabel() {
+  const count = state.inspectorNet ? getNetMembersForInspector(state.inspectorNet).length : 0;
+  if (inspectorPanelNetBtn) {
+    inspectorPanelNetBtn.textContent = `Net (${count})`;
+  }
+}
+
+function renderInspectorPartTable(part = state.selectedPart, selectedPin = state.selectedPin) {
+  if (!inspectorPartPinBodyEl || !inspectorPartTitleEl || !inspectorPinCountEl) return;
+  const rows = part
+    ? getPartPins(part).slice().sort((left, right) => compareTeknisiHubNatural(left.name || left.index, right.name || right.index))
+    : [];
+  inspectorPartTitleEl.textContent = part ? `${part.name}${getPartInfoLabel(part) ? ` · ${getPartInfoLabel(part)}` : ''}` : 'No part selected';
+  inspectorPinCountEl.textContent = `${rows.length} pin${rows.length === 1 ? '' : 's'}`;
+
+  if (!rows.length) {
+    inspectorPartPinBodyEl.innerHTML = '<tr><td colspan="4" class="inspector-table-empty">Select a part to see pin and net mapping.</td></tr>';
+    return;
+  }
+
+  inspectorPartPinBodyEl.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  for (const pin of rows) {
+    const tr = document.createElement('tr');
+    tr.className = 'inspector-grid-row';
+    if (selectedPin && selectedPin.index === pin.index) tr.classList.add('is-active');
+    tr.innerHTML = `
+      <td class="inspector-grid-cell-main">${escapeHtml(pin.name || `#${pin.index}`)}</td>
+      <td class="inspector-grid-cell-main">${pin.net ? escapeHtml(pin.net) : '<span class="muted">-</span>'}</td>
+      <td class="inspector-grid-cell-meta">${escapeHtml(pin.side || part.mounting_side || '-')}</td>
+      <td class="inspector-grid-cell-meta">${escapeHtml(getPinInfoLabel(pin, part) || '-')}</td>
+    `;
+    tr.addEventListener('click', () => selectPin(pin, { preserveInspectorPane: true, focusInspectorNet: true, preferredMode: 'tables' }));
+    fragment.appendChild(tr);
+  }
+  inspectorPartPinBodyEl.appendChild(fragment);
+}
+
+function renderInspectorNetTable(netName = state.inspectorNet, selectedPin = state.selectedPin) {
+  if (!inspectorNetMemberBodyEl || !inspectorNetTitleEl || !inspectorNetMemberCountEl) return;
+  const rows = netName ? getNetMembersForInspector(netName) : [];
+  inspectorNetTitleEl.textContent = netName || 'No net selected';
+  inspectorNetMemberCountEl.textContent = `${rows.length} row${rows.length === 1 ? '' : 's'}`;
+  updateInspectorNetTabLabel();
+
+  if (!rows.length) {
+    inspectorNetMemberBodyEl.innerHTML = '<tr><td colspan="4" class="inspector-table-empty">Select a pin or net to see related connections.</td></tr>';
+    return;
+  }
+
+  inspectorNetMemberBodyEl.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  for (const entry of rows) {
+    const { pin, part } = entry;
+    const tr = document.createElement('tr');
+    tr.className = 'inspector-grid-row';
+    if (selectedPin && selectedPin.index === pin.index) tr.classList.add('is-active');
+    tr.innerHTML = `
+      <td class="inspector-grid-cell-meta">${escapeHtml(pin.side || part?.mounting_side || '-')}</td>
+      <td class="inspector-grid-cell-main">${escapeHtml(part?.name || 'Unknown')}</td>
+      <td class="inspector-grid-cell-main">${escapeHtml(pin.name || `#${pin.index}`)}</td>
+      <td class="inspector-grid-cell-meta">${escapeHtml(getPartInfoLabel(part) || pin.probe || '-')}</td>
+    `;
+    tr.addEventListener('click', () => selectPin(pin, { preserveInspectorPane: true, focusInspectorNet: true, preferredPane: 'net', preferredMode: 'tables' }));
+    fragment.appendChild(tr);
+  }
+  inspectorNetMemberBodyEl.appendChild(fragment);
+}
+
+function renderInspectorLinkedTables() {
+  renderInspectorPartTable(state.selectedPart, state.selectedPin);
+  renderInspectorNetTable(state.inspectorNet, state.selectedPin);
+}
+
 function normalizeSide(side) {
   if (!side) return 'other';
   const value = String(side).toLowerCase();
@@ -919,11 +1068,82 @@ function populateSelectedNetPins(netName) {
   }
 }
 
+function getParserVariantInfo(meta = {}) {
+  const formatName = String(meta?.format_name || '').trim();
+  const normalizedFormat = formatName.toLowerCase();
+  let code = String(meta?.parser_variant_code || '').trim();
+  let label = String(meta?.parser_variant_label || '').trim();
+
+  if (!code) {
+    if (normalizedFormat === 'gencad') code = 'cad-v1-gencad';
+    else if (normalizedFormat === 'neutral-cad') code = 'cad-v2-neutral';
+    else if (normalizedFormat === 'em-test-asc-bundle') code = 'asc-v1-bundle';
+    else if (normalizedFormat === 'great-river-boardview') code = 'gr-v1-text';
+    else if (normalizedFormat === 'fabmaster-faz') code = 'faz-v1-far-zip';
+    else if (normalizedFormat === 'fz-zlib-boardview') code = 'fz-v1-zlib';
+    else if (normalizedFormat === 'fz-rc6-boardview') code = 'fz-v2-rc6';
+    else if (normalizedFormat === 'cst-cdev-components') code = 'cst-v1-cdev';
+    else if (normalizedFormat === 'binary-refdes-preview') code = 'fallback-v1-refdes';
+    else if (normalizedFormat === 'binary-boardview') code = 'fallback-v0-binary';
+    else if (normalizedFormat.startsWith('tvw')) code = 'tvw-vx-generic';
+  }
+
+  if (!label) {
+    if (code === 'cad-v1-gencad') label = 'CAD v1 GenCAD';
+    else if (code === 'cad-v2-neutral') label = 'CAD v2 Neutral';
+    else if (code === 'asc-v1-bundle') label = 'ASC v1 Bundle';
+    else if (code === 'gr-v1-text') label = 'GreatRiver v1';
+    else if (code === 'faz-v1-far-zip') label = 'FAZ v1 FAR/ZIP';
+    else if (code === 'fz-v1-zlib') label = 'FZ v1 Zlib';
+    else if (code === 'fz-v2-rc6') label = 'FZ v2 RC6';
+    else if (code === 'cst-v1-cdev') label = 'CST v1 CDev';
+    else if (code === 'fallback-v1-refdes') label = 'Fallback RefDes';
+    else if (code === 'fallback-v0-binary') label = 'Fallback Binary';
+    else if (code === 'tvw-v1-lenovo-le') label = 'TVW v1 Lenovo/LE';
+    else if (code === 'tvw-v2-fab-be') label = 'TVW v2 FAB/BE';
+    else if (code === 'tvw-v0-segments') label = 'TVW v0 Segments';
+    else if (code === 'tvw-v0-components') label = 'TVW v0 Components';
+    else if (code === 'tvw-vx-native') label = 'TVW native';
+    else if (code === 'tvw-vx-components') label = 'TVW components';
+    else if (code === 'tvw-vx-generic') label = 'TVW generic';
+  }
+
+  let badge = '';
+  if (code.startsWith('tvw-v1')) badge = 'TVW1';
+  else if (code.startsWith('tvw-v2')) badge = 'TVW2';
+  else if (code.startsWith('tvw-v0')) badge = 'TVW0';
+  else if (code.startsWith('tvw-vx')) badge = 'TVW?';
+  else if (code.startsWith('cad-v1')) badge = 'CAD1';
+  else if (code.startsWith('cad-v2')) badge = 'CAD2';
+  else if (code.startsWith('fz-v1')) badge = 'FZ1';
+  else if (code.startsWith('fz-v2')) badge = 'FZ2';
+  else if (code.startsWith('asc-v1')) badge = 'ASC1';
+  else if (code.startsWith('faz-v1')) badge = 'FAZ1';
+  else if (code.startsWith('gr-v1')) badge = 'GR1';
+  else if (code.startsWith('cst-v1')) badge = 'CST1';
+  else if (code.startsWith('fallback-v1')) badge = 'REF';
+  else if (code.startsWith('fallback-v0')) badge = 'BIN';
+
+  return { code, label, badge };
+}
+
+function updateSidebarVariantBadge(board = state.board) {
+  const badge = board ? getParserVariantInfo(board.meta).badge : '';
+  for (const id of SB_TABS) {
+    const btn = document.getElementById('tab-' + id);
+    if (!btn) continue;
+    if (badge) btn.setAttribute('data-debug-variant', badge);
+    else btn.removeAttribute('data-debug-variant');
+  }
+}
+
 function updateStats(board) {
   const sideCounts = board.meta.side_counts || {};
   const partSides = sideCounts.parts || {};
+  const parserVariant = getParserVariantInfo(board.meta);
   document.getElementById('stat-file').textContent = board.filename || '—';
   document.getElementById('stat-format').textContent = board.meta.format_name || '—';
+  document.getElementById('stat-parser').textContent = parserVariant.label || parserVariant.code || '—';
   document.getElementById('stat-units').textContent = board.meta.units || '—';
   document.getElementById('stat-parts').textContent = String(board.meta.parts ?? board.parts.length);
   document.getElementById('stat-pins').textContent = String(board.meta.pins ?? board.pins.length);
@@ -931,7 +1151,13 @@ function updateStats(board) {
   document.getElementById('stat-routes').textContent = `${board.meta.routes || 0}${board.meta.arcs ? ` + ${board.meta.arcs} arcs` : ''}`;
   document.getElementById('stat-outline').textContent = `${board.meta.outline_segments || 0} segments`;
   document.getElementById('stat-sides').textContent = `${partSides.top || 0} / ${partSides.bottom || 0}`;
+  updateSidebarVariantBadge(board);
 }
+
+inspectorPanelPartBtn?.addEventListener('click', () => setInspectorPane('part'));
+inspectorPanelNetBtn?.addEventListener('click', () => setInspectorPane('net'));
+inspectorModeSummaryBtn?.addEventListener('click', () => setInspectorMode('summary'));
+inspectorModeTablesBtn?.addEventListener('click', () => setInspectorMode('tables'));
 
 function computeAutoCellSize(board) {
   const longest = Math.max(board.bounds?.width || 0, board.bounds?.height || 0, 1);
@@ -2774,6 +3000,7 @@ function showPartResult(part, pin = null) {
     label: `Notes: ${part.name}`,
     placeholder: 'Catatan untuk komponen ini...'
   });
+  renderInspectorLinkedTables();
 }
 
 function showNetResult(name, pins) {
@@ -2787,6 +3014,7 @@ function showNetResult(name, pins) {
     <div class="row"><strong>Parts:</strong></div>
     <div class="chips">${uniqueParts.map((partName) => `<button type="button" class="chip chip-button" data-part="${escapeAttr(partName)}">${escapeHtml(partName)}</button>`).join('') || '<span class="muted">—</span>'}</div>
   `;
+  renderInspectorLinkedTables();
 }
 
 function showPinResult(pin) {
@@ -2808,13 +3036,23 @@ function showPinResult(pin) {
       placeholder: 'Catatan untuk pin ini...'
     });
   }
+  renderInspectorLinkedTables();
 }
 
-function selectPart(part) {
+function selectPart(part, options = {}) {
+  const {
+    preserveInspectorPane = false,
+    preferredPane = 'part',
+    preferredMode = null,
+  } = options;
   switchSidebarTab('inspector');
   state.selectedPart = part;
   state.selectedPin = null;
   state.selectedNet = null;
+  state.inspectorNet = findPreferredInspectorNet(part, null);
+  if (preferredMode) setInspectorMode(preferredMode);
+  setInspectorPane(preserveInspectorPane ? state.inspectorPane : preferredPane);
+  scheduleSessionAnnotationSync();
   clearSelectedNetMembers();
   showPartResult(part);
   setStatus(`Part selected: ${part.name}`);
@@ -2822,11 +3060,23 @@ function selectPart(part) {
   onViewChanged();
 }
 
-function selectPin(pin) {
+function selectPin(pin, options = {}) {
+  const {
+    preserveInspectorPane = false,
+    preferredPane = 'part',
+    focusInspectorNet = true,
+    preferredMode = null,
+  } = options;
   switchSidebarTab('inspector');
   state.selectedPin = pin;
   state.selectedPart = state.board.parts[pin.part - 1] || null;
   state.selectedNet = pin.net || null;
+  if (focusInspectorNet) {
+    state.inspectorNet = pin.net || findPreferredInspectorNet(state.selectedPart, pin);
+  }
+  if (preferredMode) setInspectorMode(preferredMode);
+  setInspectorPane(preserveInspectorPane ? state.inspectorPane : preferredPane);
+  scheduleSessionAnnotationSync();
   if (state.selectedNet) populateSelectedNetMembers(state.selectedNet); else clearSelectedNetMembers();
   showPinResult(pin);
   setStatus(`Pin selected: ${pin.name || `#${pin.index}`}${pin.net ? ` · ${pin.net}` : ''}`);
@@ -2840,6 +3090,10 @@ function selectNet(netName) {
   state.selectedNet = netName;
   state.selectedPart = null;
   state.selectedPin = null;
+  state.inspectorNet = netName;
+  setInspectorMode('tables');
+  setInspectorPane('net');
+  scheduleSessionAnnotationSync();
   const pins = state.indexes.pinsByNet.get(netName.toLowerCase()) || [];
   populateSelectedNetMembers(netName);
   showNetResult(netName, pins);
@@ -2853,11 +3107,16 @@ function clearSelection() {
   state.selectedPart = null;
   state.selectedNet = null;
   state.selectedPin = null;
+  state.inspectorNet = null;
   state.hoverPart = null;
   state.hoverPin = null;
   state.hoverNet = null;
+  setInspectorMode('summary');
+  setInspectorPane('part');
+  scheduleSessionAnnotationSync();
   resultsEl.textContent = 'Nothing selected.';
   clearSelectedNetMembers();
+  renderInspectorLinkedTables();
   matchListEl.innerHTML = '';
   matchCountEl.textContent = '0';
   setStatus(state.board ? `Loaded: ${state.board.filename}` : 'Waiting for a file…');
@@ -2920,6 +3179,7 @@ function notesSet(noteKey, text) {
   const n = sessionAnnotationLoad('notes');
   if (text.trim()) n[noteKey] = text; else delete n[noteKey];
   sessionAnnotationSave('notes', n);
+  scheduleSessionAnnotationSync();
 }
 
 function stopNoteEditorEventPropagation(element) {
@@ -2935,7 +3195,10 @@ const MARK_COLORS = {
   bad:     { stroke: '#f87171', fill: 'rgba(248,113,113,0.12)', label: '✕ Bad' },
 };
 function marksLoad() { return sessionAnnotationLoad('marks'); }
-function marksSave(m) { sessionAnnotationSave('marks', m); }
+function marksSave(m) {
+  sessionAnnotationSave('marks', m);
+  scheduleSessionAnnotationSync();
+}
 function markGet(partName) { return marksLoad()[partName] || null; }
 function markSet(partName, status) {
   const m = marksLoad();
@@ -3421,6 +3684,218 @@ function getTeknisiHubSessionId() {
   return new URLSearchParams(window.location.search).get('sessionId') || '';
 }
 
+function getActiveTeknisiHubSessionId() {
+  return String(state.boardId || getTeknisiHubSessionId() || '').trim();
+}
+
+function buildTeknisiHubSessionLink(sessionId = getActiveTeknisiHubSessionId()) {
+  const normalized = String(sessionId || '').trim();
+  if (!normalized) return '';
+  return `${getTeknisiHubServiceBaseUrl()}/tools/boardviewer/native-session/${encodeURIComponent(normalized)}`;
+}
+
+function buildTeknisiHubSessionAnnotationsLink(sessionId = getActiveTeknisiHubSessionId()) {
+  const normalized = String(sessionId || '').trim();
+  if (!normalized) return '';
+  return `${getTeknisiHubServiceBaseUrl()}/tools/boardviewer/native-session/${encodeURIComponent(normalized)}/annotations`;
+}
+
+function normalizeAnnotationMap(source) {
+  const next = {};
+  if (!source || typeof source !== 'object') return next;
+  for (const [rawKey, rawValue] of Object.entries(source)) {
+    const key = String(rawKey || '').trim();
+    const value = String(rawValue || '').trim();
+    if (!key || !value) continue;
+    next[key] = value;
+  }
+  return next;
+}
+
+function createSessionAnnotationFocusPayload() {
+  return {
+    selectedPart: String(state.selectedPart?.name || '').trim(),
+    selectedNet: String(state.selectedNet || state.inspectorNet || '').trim(),
+    selectedPin: String(state.selectedPin?.name || '').trim(),
+    selectedPinIndex: Number.isFinite(Number(state.selectedPin?.index)) ? Number(state.selectedPin.index) : null,
+    visibleSide: String(state.visibleSide || '').trim(),
+    inspectorMode: String(state.inspectorMode || '').trim(),
+    inspectorPane: String(state.inspectorPane || '').trim(),
+  };
+}
+
+function createSessionAnnotationPayload() {
+  return {
+    notes: normalizeAnnotationMap(sessionAnnotationLoad('notes')),
+    marks: normalizeAnnotationMap(sessionAnnotationLoad('marks')),
+    focus: createSessionAnnotationFocusPayload(),
+  };
+}
+
+function hydrateSessionAnnotationsFromNativeSession(session) {
+  const remoteNotes = normalizeAnnotationMap(session?.annotations?.notes);
+  const remoteMarks = normalizeAnnotationMap(session?.annotations?.marks);
+  const localNotes = normalizeAnnotationMap(sessionAnnotationLoad('notes'));
+  const localMarks = normalizeAnnotationMap(sessionAnnotationLoad('marks'));
+  const mergedNotes = { ...remoteNotes, ...localNotes };
+  const mergedMarks = { ...remoteMarks, ...localMarks };
+  sessionAnnotationSave('notes', mergedNotes);
+  sessionAnnotationSave('marks', mergedMarks);
+
+  const focus = session?.annotations?.focus || {};
+  const normalizedRemoteFocus = focus && typeof focus === 'object' ? {
+    selectedPart: String(focus.selectedPart || '').trim(),
+    selectedNet: String(focus.selectedNet || '').trim(),
+    selectedPin: String(focus.selectedPin || '').trim(),
+    selectedPinIndex: Number.isFinite(Number(focus.selectedPinIndex)) ? Number(focus.selectedPinIndex) : null,
+    visibleSide: String(focus.visibleSide || '').trim(),
+    inspectorMode: String(focus.inspectorMode || '').trim(),
+    inspectorPane: String(focus.inspectorPane || '').trim(),
+  } : createSessionAnnotationFocusPayload();
+  if (focus && typeof focus === 'object') {
+    if (!state.selectedNet && !state.inspectorNet && focus.selectedNet) {
+      state.inspectorNet = String(focus.selectedNet).trim();
+    }
+    if (!state.visibleSide && focus.visibleSide) {
+      state.visibleSide = String(focus.visibleSide).trim().toLowerCase();
+    }
+    if (focus.inspectorMode) {
+      state.inspectorMode = String(focus.inspectorMode).trim().toLowerCase() === 'tables' ? 'tables' : 'summary';
+    }
+    if (focus.inspectorPane) {
+      state.inspectorPane = String(focus.inspectorPane).trim().toLowerCase() === 'net' ? 'net' : 'part';
+    }
+  }
+  const remotePayloadJson = JSON.stringify({
+    notes: remoteNotes,
+    marks: remoteMarks,
+    focus: normalizedRemoteFocus,
+  });
+  const mergedPayloadJson = JSON.stringify({
+    notes: mergedNotes,
+    marks: mergedMarks,
+    focus: normalizedRemoteFocus,
+  });
+  state.annotationSync.lastSavedJson = remotePayloadJson;
+  if (mergedPayloadJson !== remotePayloadJson) {
+    scheduleSessionAnnotationSync(50);
+  }
+}
+
+async function persistSessionAnnotationsNow() {
+  const sessionId = getActiveTeknisiHubSessionId();
+  const endpoint = buildTeknisiHubSessionAnnotationsLink(sessionId);
+  if (!endpoint) return false;
+  const payload = createSessionAnnotationPayload();
+  const payloadJson = JSON.stringify(payload);
+  if (payloadJson === state.annotationSync.lastSavedJson) {
+    return true;
+  }
+  if (state.annotationSync.inFlight) {
+    state.annotationSync.queued = true;
+    return false;
+  }
+
+  state.annotationSync.inFlight = true;
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payloadJson,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.message || body.detail || 'Gagal menyimpan anotasi session.');
+    }
+    state.annotationSync.lastSavedJson = payloadJson;
+    return true;
+  } catch (error) {
+    console.warn('TeknisiHub session annotation sync failed:', error);
+    return false;
+  } finally {
+    state.annotationSync.inFlight = false;
+    if (state.annotationSync.queued) {
+      state.annotationSync.queued = false;
+      window.setTimeout(() => { void persistSessionAnnotationsNow(); }, 0);
+    }
+  }
+}
+
+function scheduleSessionAnnotationSync(delayMs = 260) {
+  if (!getActiveTeknisiHubSessionId()) return;
+  if (state.annotationSync.timer) {
+    window.clearTimeout(state.annotationSync.timer);
+  }
+  state.annotationSync.timer = window.setTimeout(() => {
+    state.annotationSync.timer = 0;
+    void persistSessionAnnotationsNow();
+  }, delayMs);
+}
+
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+  const helper = document.createElement('textarea');
+  helper.value = text;
+  helper.setAttribute('readonly', 'true');
+  helper.style.position = 'fixed';
+  helper.style.opacity = '0';
+  helper.style.pointerEvents = 'none';
+  document.body.appendChild(helper);
+  helper.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } finally {
+    helper.remove();
+  }
+  return copied;
+}
+
+let copySessionFeedbackTimer = 0;
+
+function setCopySessionButtonFeedback(kind = '', label = 'Copy Session') {
+  if (!copySessionButtonEl) return;
+  copySessionButtonEl.classList.remove('is-success', 'is-error');
+  if (kind === 'success') copySessionButtonEl.classList.add('is-success');
+  if (kind === 'error') copySessionButtonEl.classList.add('is-error');
+  const labelEl = copySessionButtonEl.querySelector('span');
+  if (labelEl) labelEl.textContent = label;
+  if (copySessionFeedbackTimer) {
+    window.clearTimeout(copySessionFeedbackTimer);
+    copySessionFeedbackTimer = 0;
+  }
+  if (kind) {
+    copySessionFeedbackTimer = window.setTimeout(() => {
+      copySessionButtonEl.classList.remove('is-success', 'is-error');
+      const resetLabelEl = copySessionButtonEl.querySelector('span');
+      if (resetLabelEl) resetLabelEl.textContent = 'Copy Session';
+      copySessionFeedbackTimer = 0;
+    }, 1800);
+  }
+}
+
+async function handleCopySessionLink() {
+  const sessionLink = buildTeknisiHubSessionLink();
+  if (!sessionLink) {
+    setCopySessionButtonFeedback('error', 'No Session');
+    setStatus('Session aktif belum tersedia. Buka board lewat native session lebih dulu.', true);
+    return;
+  }
+  try {
+    const copied = await copyTextToClipboard(sessionLink);
+    if (!copied) throw new Error('Clipboard copy returned false.');
+    setCopySessionButtonFeedback('success', 'Copied');
+    setStatus(`Session link copied: ${sessionLink}`);
+  } catch (error) {
+    setCopySessionButtonFeedback('error', 'Copy Failed');
+    setStatus('Gagal menyalin session link ke clipboard.', true);
+  }
+}
+
 function getTeknisiHubRequestedPart() {
   return (new URLSearchParams(window.location.search).get('part') || '').trim();
 }
@@ -3678,6 +4153,8 @@ function convertTeknisiHubSessionToLabBoard(session) {
     filename: session?.fileName || 'TeknisiHub boardview',
     meta: {
       format_name: session?.formatHint || session?.fileExtension || 'TeknisiHub native',
+      parser_variant_code: session?.parserVariantCode || '',
+      parser_variant_label: session?.parserVariantLabel || '',
       units: 'native',
       parts: Number(session?.componentCount || parts.length),
       pins: Number(session?.padCount || pins.length),
@@ -3715,7 +4192,9 @@ async function loadTeknisiHubNativeSessionFromQuery() {
     const session = await fetchTeknisiHubNativeSession(sessionId);
     state.boardId = session.sessionId || sessionId;
     state.boardToken = '';
+    state.annotationSync.lastSavedJson = '';
     state.board = convertTeknisiHubSessionToLabBoard(session);
+    hydrateSessionAnnotationsFromNativeSession(session);
     buildIndexes(state.board);
     updateStats(state.board);
     populateNetList();
@@ -3761,6 +4240,7 @@ function setSide(side) {
   document.getElementById('side-top-btn').classList.toggle('active', side === 'top');
   document.getElementById('side-bottom-btn').classList.toggle('active', side === 'bottom');
   setStatus(`View side: ${side}`);
+  scheduleSessionAnnotationSync();
   refreshToolbarButtons();
   render();
   onViewChanged();
@@ -4306,6 +4786,7 @@ function initSidebarTabs() {
 
 initContextMenu();
 initSidebarTabs();
+updateSidebarVariantBadge(null);
 
 // ── Toolbar share dropdown ────────────────────────────────────────────────────
 (function() {
@@ -4378,6 +4859,11 @@ if (actionMainBtn) {
 aboutmeButtonEl?.addEventListener('click', (ev) => {
   ev.stopPropagation();
   toggleAboutmeCard();
+});
+
+copySessionButtonEl?.addEventListener('click', async (ev) => {
+  ev.stopPropagation();
+  await handleCopySessionLink();
 });
 
 aboutmeCardEl?.addEventListener('click', (ev) => ev.stopPropagation());

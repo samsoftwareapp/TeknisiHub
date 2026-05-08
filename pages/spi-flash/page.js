@@ -600,7 +600,7 @@
     `;
   }
 
-  function createWorkbenchMarkup(state, busy, hexView) {
+  function createWorkbenchMarkup(state, busy, deviceBusy, deviceMenuOpen, hexView) {
     const autoProcessEnabled = state.autoProcess !== false;
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
     const isDeviceConnected =
@@ -615,7 +615,7 @@
           note: "Pilih device programmer terlebih dahulu untuk mulai koneksi."
         };
     const progressWidth = Math.max(0, Math.min(100, Number(state.progress) || 0));
-    const controlsDisabled = !state.serviceAvailable || busy;
+    const controlsDisabled = !state.serviceAvailable || busy || deviceBusy;
     const disableAttr = controlsDisabled ? " disabled" : "";
     const actionDisableAttr = controlsDisabled || !state.selectedDevice ? " disabled" : "";
     const pageLabel = state.pageSize > 0 ? `${state.pageSize} byte` : "Belum ada data";
@@ -637,6 +637,9 @@
     const selectedDriver = normalizeDriverInfo(state.selectedDeviceDriver, state.selectedDevice);
     const driverInstallLabel = selectedDriver.installLabel || "Install driver";
     const showDriverPanel = Boolean(state.selectedDevice) && Boolean(state.driverInfoLoaded) && !selectedDriver.isPresent;
+    const availableDevices = getEnabledDeviceEntries();
+    const selectedDeviceLabel = resolveSelectedDeviceLabel(state.selectedDevice);
+    const selectedDeviceSubtext = resolveSelectedDeviceSubtext(state.selectedDevice, deviceBusy);
 
     return `
       <div class="spi-workbench-shell${busy ? " is-busy" : ""}">
@@ -664,15 +667,41 @@
             </div>
           </div>
           <label class="spi-device-select">
-            Device
-            <select id="spiFlashDeviceSelect"${disableAttr}>
-              <option value=""${state.selectedDevice ? "" : " selected"}>---Pilih Device Programmer---</option>
-              ${Object.entries(deviceProfiles).map(([key, item]) => `
-                <option value="${escapeHtml(key)}"${key === state.selectedDevice ? " selected" : ""}${disabledDeviceSelections.has(key) ? " disabled" : ""}>
-                  ${escapeHtml(item.label)} - ${escapeHtml(item.status)}
-                </option>
-              `).join("")}
-            </select>
+            <span>Device</span>
+            <div class="spi-device-combobox${deviceMenuOpen ? " is-open" : ""}${controlsDisabled ? " is-disabled" : ""}" data-open="${deviceMenuOpen ? "true" : "false"}">
+              <button
+                type="button"
+                class="spi-device-combobox-trigger"
+                id="spiFlashDeviceToggle"
+                aria-haspopup="listbox"
+                aria-expanded="${deviceMenuOpen ? "true" : "false"}"
+                aria-controls="spiFlashDeviceMenu"
+                ${controlsDisabled ? "disabled" : ""}
+              >
+                <span class="spi-device-combobox-copy">
+                  <strong>${escapeHtml(selectedDeviceLabel)}</strong>
+                  <small>${escapeHtml(selectedDeviceSubtext)}</small>
+                </span>
+                <span class="material-symbols-outlined">expand_more</span>
+              </button>
+              <div class="spi-device-combobox-menu" id="spiFlashDeviceMenu" role="listbox" aria-label="Pilih device programmer"${deviceMenuOpen ? "" : " hidden"}>
+                ${availableDevices.map(([key, item]) => `
+                  <button
+                    type="button"
+                    class="spi-device-combobox-option${key === state.selectedDevice ? " is-selected" : ""}"
+                    data-spi-device-option="${escapeHtml(key)}"
+                    role="option"
+                    aria-selected="${key === state.selectedDevice ? "true" : "false"}"
+                  >
+                    <span class="spi-device-combobox-option-copy">
+                      <strong>${escapeHtml(item.label)}</strong>
+                      <small>${escapeHtml(item.status)}</small>
+                    </span>
+                    ${key === state.selectedDevice ? `<span class="material-symbols-outlined">check</span>` : ""}
+                  </button>
+                `).join("")}
+              </div>
+            </div>
           </label>
           <div class="spi-inline-meta">
             <span>Status <strong>${escapeHtml(state.selectedDevice ? (state.connectionState || "Belum terhubung") : "Belum ada device dipilih")}</strong></span>
@@ -869,10 +898,36 @@
     `;
   }
 
+  function getEnabledDeviceEntries() {
+    return Object.entries(deviceProfiles).filter(([key]) => !disabledDeviceSelections.has(key));
+  }
+
+  function resolveSelectedDeviceLabel(selectedDevice) {
+    if (!selectedDevice || !deviceProfiles[selectedDevice]) {
+      return "---Pilih Device Programmer---";
+    }
+
+    return deviceProfiles[selectedDevice].label;
+  }
+
+  function resolveSelectedDeviceSubtext(selectedDevice, deviceBusy) {
+    if (deviceBusy && selectedDevice && deviceProfiles[selectedDevice]) {
+      return "Menyambungkan device...";
+    }
+
+    if (!selectedDevice || !deviceProfiles[selectedDevice]) {
+      return "Pilih device lalu konek otomatis.";
+    }
+
+    return deviceProfiles[selectedDevice].status;
+  }
+
   function createApi() {
     let state = createUnavailableState();
     let mountedContainer = null;
     let busy = false;
+    let deviceBusy = false;
+    let deviceMenuOpen = false;
     let sessionPollTimer = null;
     let sessionPollInFlight = false;
     let hexViewRequestToken = 0;
@@ -1148,6 +1203,17 @@
       }
     }
 
+    function toggleDeviceMenu(forceOpen) {
+      const nextState = typeof forceOpen === "boolean" ? forceOpen : !deviceMenuOpen;
+      if (deviceBusy || busy || !state.serviceAvailable) {
+        deviceMenuOpen = false;
+      } else {
+        deviceMenuOpen = nextState;
+      }
+
+      render();
+    }
+
     async function selectDeviceAndConnect(nextDevice) {
       const session = await fetchJson("/spi-flash/device", {
         method: "POST",
@@ -1157,16 +1223,72 @@
       applySessionState(session, { resetScroll: true });
       state.selectedDeviceDriver = normalizeDriverInfo(null, nextDevice);
       state.driverInfoLoaded = false;
-      render();
 
       try {
         const connectedSession = await runAction("connect");
         applySessionState(connectedSession);
-        render();
       } catch (error) {
         await fetchDriverInfo(nextDevice);
-        render();
         throw error;
+      }
+    }
+
+    async function handleDeviceSelection(nextDevice) {
+      if (busy || deviceBusy || !state.serviceAvailable) {
+        return;
+      }
+
+      const normalizedDevice = String(nextDevice || "").trim();
+      deviceMenuOpen = false;
+
+      if (!normalizedDevice) {
+        state.selectedDevice = "";
+        state.profile = deviceProfiles.CH347;
+        state.connectionState = "Belum ada device dipilih";
+        state.selectedDeviceDriver = normalizeDriverInfo(null, "");
+        state.driverInfoLoaded = false;
+        render();
+        return;
+      }
+
+      if (!deviceProfiles[normalizedDevice]) {
+        return;
+      }
+
+      if (disabledDeviceSelections.has(normalizedDevice)) {
+        notifyUser("CH347 sedang dinonaktifkan dan tidak bisa dipilih.", "warning");
+        render();
+        return;
+      }
+
+      deviceBusy = true;
+      state.errorMessage = "";
+      state.selectedDevice = normalizedDevice;
+      state.profile = deviceProfiles[normalizedDevice] || deviceProfiles.CH347;
+      state.connectionState = `Mencoba konek ${normalizedDevice}...`;
+      state.selectedDeviceDriver = normalizeDriverInfo(null, normalizedDevice);
+      state.driverInfoLoaded = false;
+      render();
+      startSessionPolling();
+
+      try {
+        await selectDeviceAndConnect(normalizedDevice);
+      } catch (error) {
+        if (state.selectedDevice && !state.driverInfoLoaded) {
+          try {
+            await fetchDriverInfo(state.selectedDevice);
+          } catch {
+            // Keep the original device-selection error as the main feedback.
+          }
+        }
+
+        state.errorMessage = error?.message || "Koneksi device SPI Flash gagal.";
+        notifyUser(state.errorMessage, "warning");
+      } finally {
+        stopSessionPolling();
+        await refreshSessionSilently();
+        deviceBusy = false;
+        render();
       }
     }
 
@@ -1175,7 +1297,7 @@
         return;
       }
 
-      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy, hexView);
+      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy, deviceBusy, deviceMenuOpen, hexView);
 
       const busyOverlay = mountedContainer.querySelector("#spiBusyOverlay");
       if (busyOverlay) {
@@ -1186,36 +1308,67 @@
         });
       }
 
-      const deviceSelect = mountedContainer.querySelector("#spiFlashDeviceSelect");
-      if (deviceSelect) {
-        deviceSelect.addEventListener("change", () => withBusy(async () => {
-          const nextDevice = deviceSelect.value;
-          if (!state.serviceAvailable) {
+      const deviceCombobox = mountedContainer.querySelector(".spi-device-combobox");
+      const deviceToggle = mountedContainer.querySelector("#spiFlashDeviceToggle");
+      if (deviceCombobox) {
+        deviceCombobox.addEventListener("focusout", (event) => {
+          if (deviceCombobox.contains(event.relatedTarget)) {
             return;
           }
 
-          if (!nextDevice) {
-            state.selectedDevice = "";
-            state.profile = deviceProfiles.CH347;
-            state.selectedDeviceDriver = normalizeDriverInfo(null, "");
-            state.driverInfoLoaded = false;
+          if (deviceMenuOpen) {
+            deviceMenuOpen = false;
             render();
-            return;
           }
-
-          if (!deviceProfiles[nextDevice]) {
-            return;
-          }
-
-          if (disabledDeviceSelections.has(nextDevice)) {
-            notifyUser("CH347 sedang dinonaktifkan dan tidak bisa dipilih.", "warning");
-            deviceSelect.value = "";
-            return;
-          }
-
-          await selectDeviceAndConnect(nextDevice);
-        }));
+        });
       }
+
+      if (deviceToggle) {
+        deviceToggle.addEventListener("click", () => {
+          toggleDeviceMenu();
+        });
+
+        deviceToggle.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleDeviceMenu(true);
+            mountedContainer.querySelector("[data-spi-device-option]")?.focus();
+          }
+        });
+      }
+
+      mountedContainer.querySelectorAll("[data-spi-device-option]").forEach((optionButton, index, optionButtons) => {
+        optionButton.addEventListener("click", async () => {
+          const nextDevice = optionButton.getAttribute("data-spi-device-option") || "";
+          await handleDeviceSelection(nextDevice);
+        });
+
+        optionButton.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            deviceMenuOpen = false;
+            render();
+            mountedContainer.querySelector("#spiFlashDeviceToggle")?.focus();
+            return;
+          }
+
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            optionButtons[Math.min(index + 1, optionButtons.length - 1)]?.focus();
+            return;
+          }
+
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            if (index <= 0) {
+              mountedContainer.querySelector("#spiFlashDeviceToggle")?.focus();
+              return;
+            }
+
+            optionButtons[index - 1]?.focus();
+          }
+        });
+      });
 
       mountedContainer.querySelectorAll("[data-field]").forEach((input) => {
         const handleFieldChange = () => {
@@ -1379,6 +1532,7 @@
       }
 
       busy = true;
+      deviceMenuOpen = false;
       render();
       startSessionPolling();
 

@@ -1,6 +1,24 @@
 (function initializeBoardViewerPage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const acceptedExtensions = ".asc,.bdv,.brd,.bv,.cad,.cst,.gr,.f2b,.faz,.fz,.tvw";
+  const supportedBoardviewFormats = [
+    ".asc",
+    ".bdv",
+    ".brd",
+    ".bv",
+    ".cad",
+    ".cst",
+    ".gr",
+    ".f2b",
+    ".faz",
+    ".fz",
+    ".tvw"
+  ];
+  const supportedParserVariants = [
+    "CAD: GenCAD, Neutral",
+    "FZ: Zlib, RC6",
+    "TVW: Lenovo LE, FAB BE"
+  ];
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -64,7 +82,7 @@
 
   function buildNativeViewerUrl(payload) {
     const targetUrl = new URL("boardview-teknisihub.html", globalScope.location.href);
-    targetUrl.searchParams.set("v", "20260508j");
+    targetUrl.searchParams.set("v", "20260508p");
     if (payload.sessionId) {
       targetUrl.searchParams.set("sessionId", payload.sessionId);
     }
@@ -113,6 +131,13 @@
                 <span class="material-symbols-outlined">open_in_new</span>
                 <span>Buka Boardview TeknisiHub</span>
               </button>
+            </div>
+            <div class="boardviewer-supported-formats">
+              <p class="label">Format didukung</p>
+              <div class="boardviewer-supported-format-list">
+                ${supportedBoardviewFormats.map((format) => `<span class="boardviewer-preview-chip">${escapeHtml(format)}</span>`).join("")}
+              </div>
+              <p class="boardviewer-supported-variants">Variant parser: ${escapeHtml(supportedParserVariants.join(" | "))}</p>
             </div>
             <p class="spi-note">${escapeHtml(state.nativeErrorMessage || state.nativeMessage)}</p>
           </section>
