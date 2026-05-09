@@ -1,4 +1,4 @@
-const serviceBaseUrl = window.resolveTeknisiHubServiceBaseUrl();
+﻿const serviceBaseUrl = window.resolveTeknisiHubServiceBaseUrl();
 
 const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
@@ -4190,7 +4190,7 @@ function renderCatalogUploadTasks() {
       : "is-failed";
     const progressPercent = Math.max(0, Math.min(100, Math.round(Number(task.progressPercent) || 0)));
     const icon = task.icon || "description";
-    const subtitle = `${task.displayName} • ${task.lastError || task.message || "Menyiapkan upload..."}`;
+    const subtitle = `${task.displayName} â€¢ ${task.lastError || task.message || "Menyiapkan upload..."}`;
 
     return `
       <article class="catalog-upload-task-item ${stageClass}">
@@ -4869,7 +4869,7 @@ function buildUpdateProgressMeta(operation) {
   const versionText = operation?.targetVersion ? `Target v.${operation.targetVersion}` : "";
 
   if (downloadedText && totalText) {
-    return `${versionText}${versionText ? " • " : ""}${downloadedText} / ${totalText}`;
+    return `${versionText}${versionText ? " â€¢ " : ""}${downloadedText} / ${totalText}`;
   }
 
   return versionText;
@@ -5851,7 +5851,7 @@ function updateBoardviewOpenActionAvailability(target) {
 
 function buildBoardviewTeknisiHubUrl(sessionId) {
   const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
-    targetUrl.searchParams.set("v", "20260509a");
+    targetUrl.searchParams.set("v", "20260509e");
   if (sessionId) {
     targetUrl.searchParams.set("sessionId", sessionId);
   }
@@ -7427,3 +7427,4 @@ navSettings?.addEventListener("click", () => {
   catalogItems = catalogCache;
   filterCatalogItems();
 });
+

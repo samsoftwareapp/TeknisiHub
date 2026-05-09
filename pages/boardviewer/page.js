@@ -1,4 +1,4 @@
-(function initializeBoardViewerPage(globalScope) {
+﻿(function initializeBoardViewerPage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const acceptedExtensions = ".asc,.bdv,.brd,.bv,.cad,.cst,.gr,.f2b,.faz,.fz,.tvw";
   const supportedBoardviewFormats = [
@@ -80,7 +80,7 @@
 
   function buildNativeViewerUrl(payload) {
     const targetUrl = new URL("boardview-teknisihub.html", globalScope.location.href);
-    targetUrl.searchParams.set("v", "20260509a");
+    targetUrl.searchParams.set("v", "20260509e");
     if (payload.sessionId) {
       targetUrl.searchParams.set("sessionId", payload.sessionId);
     }
@@ -386,3 +386,4 @@
   globalScope.teknisiHubPages = globalScope.teknisiHubPages || {};
   globalScope.teknisiHubPages.boardViewer = createApi();
 })(window);
+
