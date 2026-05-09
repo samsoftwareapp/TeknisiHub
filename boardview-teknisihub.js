@@ -1962,6 +1962,8 @@ function getNetGlowColor(netName) {
 }
 
 const DENSE_NET_THRESHOLD = 50;
+const PART_RATSNEST_TRACE_NEIGHBORS = 1;
+const PART_RATSNEST_FULL_NEIGHBORS = 3;
 
 function render() {
   if (state.renderLoop.scheduled) return;
@@ -2614,28 +2616,40 @@ function getTracePointsForSelectedNet() {
   return [anchor, ...sorted];
 }
 
-function getConnectionPointsForSelectedPart() {
+function getConnectionEdgesForSelectedPart() {
   if (!state.selectedPart) return [];
   const partPins = getPartPins(state.selectedPart);
-  const points = [];
+  const selectedPartIndex = state.selectedPart.index;
+  const neighborLimit = state.netLinesMode === 'full'
+    ? PART_RATSNEST_FULL_NEIGHBORS
+    : PART_RATSNEST_TRACE_NEIGHBORS;
+  const edges = [];
   const seen = new Set();
 
   for (const pin of partPins) {
-    if (!pin.net) continue;
-    const key = pin.net.toLowerCase();
-    const netPins = (state.indexes.pinsByNet.get(key) || []).filter((p) => isSideVisible(p.side));
+    if (!isSideVisible(pin.side)) continue;
+    const netName = String(pin.net || '').trim();
+    if (!netName || getNetPinCount(netName) >= DENSE_NET_THRESHOLD) continue;
+    const key = netName.toLowerCase();
+    const netPins = (state.indexes.pinsByNet.get(key) || [])
+      .filter((p) => isSideVisible(p.side) && p.index !== pin.index && p.part !== selectedPartIndex);
     const sorted = [...netPins]
       .sort((a, b) => distanceSq(a, pin) - distanceSq(b, pin))
-      .slice(0, 14);
+      .slice(0, neighborLimit);
     for (const match of sorted) {
-      const tag = `${match.index}`;
+      const left = Math.min(pin.index, match.index);
+      const right = Math.max(pin.index, match.index);
+      const tag = `${left}:${right}`;
       if (seen.has(tag)) continue;
       seen.add(tag);
-      points.push({ x: match.x, y: match.y, kind: 'pin', ref: match });
+      edges.push([
+        { x: pin.x, y: pin.y, kind: 'pin', ref: pin },
+        { x: match.x, y: match.y, kind: 'pin', ref: match },
+      ]);
     }
   }
 
-  return points;
+  return edges;
 }
 
 function distanceSq(a, b) {
@@ -2687,8 +2701,22 @@ function drawConnections() {
     points = state.netLinesMode === 'trace' ? getTracePointsForSelectedNet() : getConnectionPointsForSelectedNet();
     mode = 'net';
   } else if (state.selectedPart && !hasTvwNativeSegments() && state.netLinesMode !== 'off') {
-    points = getConnectionPointsForSelectedPart();
-    mode = 'part';
+    const edges = getConnectionEdgesForSelectedPart();
+    if (!edges.length) return;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(245,158,11,0.45)';
+    ctx.lineWidth = 1.2;
+    for (const [a, b] of edges) {
+      const sa = worldToScreen(a.x, a.y);
+      const sb = worldToScreen(b.x, b.y);
+      ctx.beginPath();
+      ctx.moveTo(sa.x, sa.y);
+      ctx.lineTo(sb.x, sb.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
   }
 
   if (!points.length) return;
