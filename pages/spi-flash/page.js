@@ -141,38 +141,155 @@
     return [model, voltage, capacity].filter(Boolean).join(" ");
   }
 
-  function createCompactProgressLabel(entry) {
-    return `${entry.deviceLabel} ${entry.actionLabel} ${formatDurationLabel(entry.durationMilliseconds)};`;
+  function isIdleOperationLabel(value) {
+    const label = String(value || "").trim().toLowerCase();
+    return !label ||
+      label === "idle" ||
+      label === "belum ada operasi" ||
+      label === "device dipilih" ||
+      label === "file siap dipakai";
   }
 
-  function createFullProgressLabel(entry) {
-    const chipSummary = createChipSummary(entry);
-    const parts = [
-      `${entry.deviceLabel}`,
-      `PageSize ${entry.pageSize || "-"}`,
-      `Speed ${formatSpeedLabel(entry.speedHz)}`,
-      chipSummary || "-",
-      `${entry.actionLabel} ${formatDurationLabel(entry.durationMilliseconds)}`
-    ];
-    return `${parts.join("; ")};`;
-  }
-
-  function createProgressHistoryMarkup(entries, emptyText = "Belum ada riwayat proses.", variant = "compact") {
-    const normalizedEntries = Array.isArray(entries) ? entries : [];
-    if (!normalizedEntries.length) {
-      return `<p class="spi-session-progress-empty">${escapeHtml(emptyText)}</p>`;
+  function getActionProgressIcon(label) {
+    const normalized = String(label || "").toLowerCase();
+    if (normalized.includes("jedec") || normalized.includes("detect")) {
+      return "radar";
     }
 
-    return `
-      <div class="spi-session-progress-list">
-        ${normalizedEntries.map((entry) => `
-          <div class="spi-session-progress-item">
-            <span class="spi-session-progress-seq">${escapeHtml(String(entry.sequence).padStart(3, "0"))}</span>
-            <span class="spi-session-progress-text">${escapeHtml(variant === "full" ? createFullProgressLabel(entry) : createCompactProgressLabel(entry))}</span>
-          </div>
-        `).join("")}
-      </div>
-    `;
+    if (normalized.includes("erase")) {
+      return "ink_eraser";
+    }
+
+    if (normalized.includes("write")) {
+      return "upload";
+    }
+
+    if (normalized.includes("verify")) {
+      return "rule";
+    }
+
+    if (normalized.includes("read")) {
+      return "download";
+    }
+
+    if (normalized.includes("connect") || normalized.includes("konek")) {
+      return "usb";
+    }
+
+    return "memory";
+  }
+
+  function createActionProgressMeta(entry) {
+    const chipSummary = createChipSummary(entry);
+    const parts = [
+      entry.deviceLabel,
+      chipSummary || "SPI Flash",
+      formatSpeedLabel(entry.speedHz)
+    ].filter((part) => part && part !== "-");
+    return parts.join(" - ");
+  }
+
+  function reportActionProgressTasks(state, busy, deviceBusy, progressWidth, reportTask) {
+    if (typeof reportTask !== "function") {
+      return;
+    }
+
+    const completedEntries = Array.isArray(state.fullProgressHistory)
+      ? state.fullProgressHistory
+      : [];
+    const activeOperation = String(state.activeOperation || "").trim();
+    const hasActiveOperation = (busy || deviceBusy) && !isIdleOperationLabel(activeOperation);
+    const lowerActiveOperation = activeOperation.toLowerCase();
+    const shouldShowCurrentResult =
+      !hasActiveOperation &&
+      Number(state.progress || 0) >= 100 &&
+      (lowerActiveOperation.includes("jedec") || lowerActiveOperation.includes("koneksi device"));
+    const failedMessage = !busy && !deviceBusy && state.errorMessage
+      ? String(state.errorMessage || "").trim()
+      : "";
+    const completedCount = completedEntries.length + (shouldShowCurrentResult ? 1 : 0);
+    const countLabel = hasActiveOperation && completedEntries.length === 0
+      ? "1 proses berjalan"
+      : `${completedCount} proses selesai`;
+    const activeMeta = [
+      state.selectedDevice ? resolveSelectedDeviceLabel(state.selectedDevice) : "",
+      state.jedec ? `JEDEC ${state.jedec}` : "",
+      state.fileName || ""
+    ].filter(Boolean).join(" - ") || "Menunggu update dari local service";
+
+    if (hasActiveOperation) {
+      reportTask({
+        operationId: "spi-flash-active",
+        fileName: activeOperation,
+        displayName: "SPI Flash",
+        icon: "progress_activity",
+        message: activeMeta,
+        stage: "running",
+        active: true,
+        success: false,
+        progressPercent: progressWidth
+      });
+    } else if (completedEntries.length > 0) {
+      const latestEntry = completedEntries[0];
+      reportTask({
+        operationId: "spi-flash-active",
+        fileName: latestEntry.actionLabel || "SPI Flash action",
+        displayName: "SPI Flash",
+        icon: getActionProgressIcon(latestEntry.actionLabel),
+        message: `${createActionProgressMeta(latestEntry)} - ${formatDurationLabel(latestEntry.durationMilliseconds)}`,
+        stage: "completed",
+        active: false,
+        success: true,
+        progressPercent: 100,
+        updatedAt: Date.now()
+      });
+    } else if (shouldShowCurrentResult) {
+      reportTask({
+        operationId: "spi-flash-active",
+        fileName: activeOperation,
+        displayName: "SPI Flash",
+        icon: getActionProgressIcon(activeOperation),
+        message: activeMeta,
+        stage: "completed",
+        active: false,
+        success: true,
+        progressPercent: 100
+      });
+    }
+
+    if (failedMessage) {
+      reportTask({
+        operationId: `spi-flash-failed-${failedMessage.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80)}`,
+        fileName: "Proses gagal",
+        displayName: "SPI Flash",
+        icon: "error",
+        message: failedMessage,
+        lastError: failedMessage,
+        stage: "failed",
+        active: false,
+        success: false,
+        progressPercent: Math.max(0, progressWidth)
+      });
+    }
+
+    completedEntries.slice(1).forEach((entry) => {
+      reportTask({
+        operationId: `spi-flash-history-${entry.sequence}`,
+        fileName: entry.actionLabel || "SPI Flash action",
+        displayName: "SPI Flash",
+        icon: getActionProgressIcon(entry.actionLabel),
+        message: `${createActionProgressMeta(entry)} - ${formatDurationLabel(entry.durationMilliseconds)}`,
+        stage: "completed",
+        active: false,
+        success: true,
+        progressPercent: 100,
+        updatedAt: Date.now() - Math.max(0, Number(entry.sequence || 0))
+      });
+    });
+
+    if (!hasActiveOperation && !failedMessage && completedCount === 0) {
+      return;
+    }
   }
 
   function createUnavailableState(message = "") {
@@ -784,13 +901,6 @@
               </label>
             ` : ""}
           </div>
-          <div class="spi-session-progress-log">
-            <div class="spi-session-progress-head">
-              <span class="label">Log Session Progress</span>
-              <span>${escapeHtml(`${state.progressHistory.length} item`)}</span>
-            </div>
-            ${createProgressHistoryMarkup(state.progressHistory, "Belum ada riwayat sesi aktif.", "compact")}
-          </div>
         </section>
 
         <section class="spi-card">
@@ -847,16 +957,6 @@
               <span>Edit Database</span>
             </button>
           </div>
-          <div class="spi-progress-panel">
-            <div class="spi-progress-copy">
-              <span class="label">Session Progress</span>
-              <strong>${escapeHtml(state.activeOperation || "Belum ada operasi")}</strong>
-              <span>${escapeHtml(`${progressWidth}%`)}</span>
-            </div>
-            <div class="spi-progress-track" aria-hidden="true">
-              <span style="width: ${progressWidth}%;"></span>
-            </div>
-          </div>
         </section>
       </div>
 
@@ -880,18 +980,6 @@
             </div>
           </div>
           ${createHexPreviewMarkup(state, hexView)}
-        </section>
-        <section class="spi-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Session History</p>
-              <h4>Full Log Session Progress</h4>
-            </div>
-            <span class="spi-mini-badge">${escapeHtml(`${state.fullProgressHistory.length} item`)}</span>
-          </div>
-          <div class="spi-session-progress-log">
-            ${createProgressHistoryMarkup(state.fullProgressHistory, "Belum ada full log session.", "full")}
-          </div>
         </section>
       </div>
       </div>
@@ -925,6 +1013,7 @@
   function createApi() {
     let state = createUnavailableState();
     let mountedContainer = null;
+    let reportTask = () => {};
     let busy = false;
     let deviceBusy = false;
     let deviceMenuOpen = false;
@@ -1297,6 +1386,13 @@
         return;
       }
 
+      reportActionProgressTasks(
+        state,
+        busy,
+        deviceBusy,
+        Math.max(0, Math.min(100, Number(state.progress) || 0)),
+        reportTask
+      );
       mountedContainer.innerHTML = createWorkbenchMarkup(state, busy, deviceBusy, deviceMenuOpen, hexView);
 
       const busyOverlay = mountedContainer.querySelector("#spiBusyOverlay");
@@ -1578,6 +1674,7 @@
         if (typeof options.notify === "function") {
           pageNotifier = options.notify;
         }
+        reportTask = typeof options.reportTask === "function" ? options.reportTask : () => {};
         await loadSessionFromService();
         render();
       },

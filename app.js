@@ -488,7 +488,11 @@ dashboardHomePage.mount?.({
 
 spiFlashPage.mount?.({
   container: spiFlashWorkbench,
-  notify: (message, tone) => setNotice(message, tone)
+  notify: (message, tone) => setNotice(message, tone),
+  reportTask: (task) => {
+    catalogUploadTaskDismissed = false;
+    upsertCatalogUploadTask(task);
+  }
 });
 
 meAnalyzerPage.mount?.({
@@ -4185,12 +4189,13 @@ function renderCatalogUploadTasks() {
       ? "is-cancelled"
       : "is-failed";
     const progressPercent = Math.max(0, Math.min(100, Math.round(Number(task.progressPercent) || 0)));
+    const icon = task.icon || "description";
     const subtitle = `${task.displayName} • ${task.lastError || task.message || "Menyiapkan upload..."}`;
 
     return `
       <article class="catalog-upload-task-item ${stageClass}">
         <div class="catalog-upload-task-file">
-          <span class="material-symbols-outlined catalog-upload-task-file-icon">description</span>
+          <span class="material-symbols-outlined catalog-upload-task-file-icon">${escapeHtml(icon)}</span>
           <div class="catalog-upload-task-copy">
             <strong title="${escapeHtml(task.fileName)}">${escapeHtml(task.fileName)}</strong>
             <span title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</span>
@@ -4234,6 +4239,7 @@ function upsertCatalogUploadTask(taskUpdate = {}) {
     operationId,
     fileName: String(taskUpdate.fileName || existingTask.fileName || "upload.bin").trim(),
     displayName: String(taskUpdate.displayName || existingTask.displayName || currentCatalogView || "Katalog").trim(),
+    icon: String(taskUpdate.icon || existingTask.icon || "description").trim(),
     message: String(taskUpdate.message || existingTask.message || "Menyiapkan upload...").trim(),
     lastError: String(taskUpdate.lastError || existingTask.lastError || "").trim(),
     stage,
@@ -5845,7 +5851,7 @@ function updateBoardviewOpenActionAvailability(target) {
 
 function buildBoardviewTeknisiHubUrl(sessionId) {
   const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
-    targetUrl.searchParams.set("v", "20260508p");
+    targetUrl.searchParams.set("v", "20260509a");
   if (sessionId) {
     targetUrl.searchParams.set("sessionId", sessionId);
   }

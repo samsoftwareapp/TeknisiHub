@@ -110,6 +110,8 @@ const LIST_LIMITS = {
   netPinsStep: 250,
 };
 
+const TVW2_UNPOSITIONED_PRIMITIVE_TYPES = new Set([1, 3, 4, 5, 10]);
+
 
 const SUPPORT_CONFIG = {
   supportUrl: '',
@@ -1258,6 +1260,41 @@ function getTvwSegmentType(segment) {
   return Number(segment?.segment_type ?? segment?.segmentType ?? segment?.type ?? 0) || 0;
 }
 
+function isTvwV2FabBoard(board = state.board) {
+  const variant = getParserVariantInfo(board?.meta || {});
+  return String(variant.code || '').toLowerCase().startsWith('tvw-v2');
+}
+
+function isTvwNearOriginPoint(x, y, limit = 5000) {
+  return Math.abs(Number(x) || 0) <= limit && Math.abs(Number(y) || 0) <= limit;
+}
+
+function getTvwSegmentMaxAbs(segment) {
+  return Math.max(
+    Math.abs(Number(segment?.x1) || 0),
+    Math.abs(Number(segment?.y1) || 0),
+    Math.abs(Number(segment?.x2) || 0),
+    Math.abs(Number(segment?.y2) || 0),
+  );
+}
+
+function isTvwV2UnpositionedPrimitiveSegment(segment, board = state.board, tvwV2Fab = isTvwV2FabBoard(board)) {
+  if (!tvwV2Fab) return false;
+
+  const type = getTvwSegmentType(segment);
+  if (!TVW2_UNPOSITIONED_PRIMITIVE_TYPES.has(type)) return false;
+
+  const endpointLooksLikePrimitiveFlags =
+    isTvwNearOriginPoint(segment.x1, segment.y1) ||
+    isTvwNearOriginPoint(segment.x2, segment.y2);
+  const primitiveLocalBox = getTvwSegmentMaxAbs(segment) <= 250000;
+  return endpointLooksLikePrimitiveFlags || primitiveLocalBox;
+}
+
+function shouldRenderTvwNativeSegment(segment, board = state.board, tvwV2Fab = isTvwV2FabBoard(board)) {
+  return !isTvwV2UnpositionedPrimitiveSegment(segment, board, tvwV2Fab);
+}
+
 function getSegmentWorldBBox(segment) {
   const x1 = Number(segment?.x1);
   const y1 = Number(segment?.y1);
@@ -1326,6 +1363,7 @@ function deriveTvwNativeFootprintBBox(part, pins, pinBox, board = state.board) {
   const xBand = expandWorldBBox(normalizedPins, Math.max(6500, Math.min(searchPad * 0.45, Math.max(pinWidth * 1.25, pinSpan * 0.35))), 0);
   const yBand = expandWorldBBox(normalizedPins, 0, Math.max(6500, Math.min(searchPad * 0.45, Math.max(pinHeight * 1.25, pinSpan * 0.35))));
   const minLineLength = Math.max(420, Math.min(2400, pinSpan * 0.026));
+  const tvwV2Fab = isTvwV2FabBoard(board);
   const verticals = [];
   const horizontals = [];
   let nearbyUnion = null;
@@ -1333,6 +1371,7 @@ function deriveTvwNativeFootprintBBox(part, pins, pinBox, board = state.board) {
 
   for (const segment of segments) {
     if (!sidesOverlap(side, segment.side)) continue;
+    if (!shouldRenderTvwNativeSegment(segment, board, tvwV2Fab)) continue;
     const segBox = getSegmentWorldBBox(segment);
     if (!segBox || !rectIntersectsWorldBounds(segBox, searchBox)) continue;
     const x1 = Number(segment.x1);
@@ -1988,10 +2027,12 @@ function drawOutline() {
       ? (state.theme === 'light' ? 'rgba(30,41,59,0.72)' : 'rgba(226,232,240,0.72)')
       : COLORS.outline;
     ctx.lineWidth = tvwNative ? Math.max(0.65, Math.min(1.25, 0.7 + getDetailZoom() * 0.1)) : 1.2;
+    const tvwV2Fab = isTvwV2FabBoard();
     ctx.beginPath();
     let pending = 0;
     for (const seg of segments) {
       if (!isSideVisible(seg.side || 'both')) continue;
+      if (!shouldRenderTvwNativeSegment(seg, state.board, tvwV2Fab)) continue;
       const segBox = {
         x_min: Math.min(seg.x1, seg.x2),
         x_max: Math.max(seg.x1, seg.x2),

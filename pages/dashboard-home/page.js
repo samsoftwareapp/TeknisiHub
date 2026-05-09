@@ -1,6 +1,20 @@
 (function initializeDashboardHomePage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
 
+  const catalogDefinitions = [
+    { key: "BIOS", label: "BIOS", icon: "memory", countKey: "biosCount" },
+    { key: "Boardview", label: "Boardview", icon: "developer_board", countKey: "boardviewCount" },
+    { key: "Schematics", label: "Schematics", icon: "schema", countKey: "schematicsCount" },
+    { key: "ProblemSolving", label: "Problem Solving", icon: "psychology", countKey: "problemSolvingCount" },
+    { key: "Datasheets", label: "Datasheets", icon: "picture_as_pdf", countKey: "datasheetsCount" }
+  ];
+
+  const rolePriority = {
+    owner: 3,
+    admin: 2,
+    member: 1
+  };
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -46,136 +60,543 @@
     }).format(date);
   }
 
+  function formatCompactNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return "0";
+    }
+
+    return new Intl.NumberFormat("id-ID", {
+      notation: number >= 10000 ? "compact" : "standard",
+      maximumFractionDigits: 1
+    }).format(number);
+  }
+
+  function parseInteger(value, fallback = 0) {
+    if (value === null || value === undefined || value === "") {
+      return fallback;
+    }
+
+    const number = Number.parseInt(String(value), 10);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function getDefaultLimitForRole(role) {
+    const normalizedRole = String(role || "").trim().toLowerCase();
+    if (normalizedRole === "owner") {
+      return 1000;
+    }
+
+    if (normalizedRole === "admin") {
+      return 100;
+    }
+
+    return 5;
+  }
+
   function getRoleLabel(value) {
     const role = String(value || "").trim();
     return role || "-";
+  }
+
+  function getRepresentativeRole(accessItems, fallbackRole) {
+    return accessItems
+      .map((item) => item.role)
+      .filter((role) => role && role !== "-")
+      .sort((left, right) => {
+        const leftScore = rolePriority[String(left).toLowerCase()] || 0;
+        const rightScore = rolePriority[String(right).toLowerCase()] || 0;
+        return rightScore - leftScore;
+      })[0] || getRoleLabel(fallbackRole || "Member");
   }
 
   function isAccessActive(roleValue) {
     return Boolean(String(roleValue || "").trim());
   }
 
-  function createInitialState() {
+  function createAccessItems(status = {}) {
+    return [
+      {
+        key: "BIOS",
+        label: "BIOS",
+        role: getRoleLabel(status.biosChannelRole || status.channelRole),
+        active: isAccessActive(status.biosChannelRole || status.channelRole)
+      },
+      {
+        key: "Boardview",
+        label: "Boardview",
+        role: getRoleLabel(status.boardviewChannelRole),
+        active: isAccessActive(status.boardviewChannelRole)
+      },
+      {
+        key: "Schematics",
+        label: "Schematics",
+        role: getRoleLabel(status.schematicsChannelRole),
+        active: isAccessActive(status.schematicsChannelRole)
+      },
+      {
+        key: "ProblemSolving",
+        label: "Problem Solving",
+        role: getRoleLabel(status.problemSolvingChannelRole),
+        active: isAccessActive(status.problemSolvingChannelRole)
+      },
+      {
+        key: "Datasheets",
+        label: "Datasheets",
+        role: getRoleLabel(status.datasheetsChannelRole),
+        active: isAccessActive(status.datasheetsChannelRole)
+      }
+    ];
+  }
+
+  function normalizeIdentity(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function findCurrentMember(members, status) {
+    if (!Array.isArray(members) || members.length === 0) {
+      return null;
+    }
+
+    const currentIdentity = normalizeIdentity(status?.email);
+    if (currentIdentity) {
+      const matchedByIdentity = members.find((member) => normalizeIdentity(member.email) === currentIdentity);
+      if (matchedByIdentity) {
+        return matchedByIdentity;
+      }
+    }
+
+    const currentName = normalizeIdentity(status?.displayName);
+    if (currentName) {
+      return members.find((member) => normalizeIdentity(member.displayName) === currentName) || null;
+    }
+
+    return null;
+  }
+
+  function resolveQuota(member, role) {
+    const limit = parseInteger(member?.limitDownloadToday, getDefaultLimitForRole(role));
+    const used = parseInteger(member?.downloadTodayCount, 0);
+    const total = parseInteger(member?.totalDownload, 0);
+    const remaining = Math.max(0, limit - used);
+
     return {
-      message: "Memuat ringkasan dashboard...",
-      version: "-",
-      status: "Memeriksa local service...",
-      displayName: "TeknisiHub User",
-      email: "-",
-      role: "Member",
-      provider: "Telegram",
-      lastLoginUtc: "",
-      totalLocalMembers: 0,
-      accessItems: [
-        { label: "BIOS", role: "-", active: false },
-        { label: "Boardview", role: "-", active: false },
-        { label: "Schematics", role: "-", active: false },
-        { label: "Problem Solving", role: "-", active: false },
-        { label: "Datasheets", role: "-", active: false }
-      ]
+      limit,
+      used,
+      total,
+      remaining,
+      isEmpty: limit > 0 && remaining <= 0,
+      isLow: limit > 0 && remaining > 0 && remaining <= Math.max(2, Math.ceil(limit * 0.12))
     };
   }
 
-  function createAccessCards(state) {
-    return state.accessItems.map((item) => `
-      <article class="spi-card dashboard-home-access-card${item.active ? " is-success" : ""}">
-        <div class="dashboard-home-access-top">
-          <span class="spi-mini-badge">${escapeHtml(item.label)}</span>
-          <span class="dashboard-home-access-state${item.active ? " is-active" : ""}">${item.active ? "Aktif" : "Belum aktif"}</span>
+  function resolveUpdateLabel(health) {
+    const update = health?.update || {};
+    if (update.mustUpdate) {
+      return {
+        tone: "danger",
+        label: "Wajib update",
+        value: update.latestVersion ? `v${update.latestVersion}` : "Update"
+      };
+    }
+
+    if (update.lastError) {
+      return {
+        tone: "warning",
+        label: "Cek gagal",
+        value: "Ulangi"
+      };
+    }
+
+    if (update.checked) {
+      return {
+        tone: "success",
+        label: "Terbaru",
+        value: health?.version ? `v${health.version}` : "Siap"
+      };
+    }
+
+    return {
+      tone: "neutral",
+      label: "Belum dicek",
+      value: health?.version ? `v${health.version}` : "-"
+    };
+  }
+
+  function createInitialState() {
+    const accessItems = createAccessItems();
+    return {
+      loaded: false,
+      message: "Memuat dashboard...",
+      version: "-",
+      serviceReady: false,
+      isLoggedIn: false,
+      hasAgreed: false,
+      allowsNewWindowTab: false,
+      displayName: "TeknisiHub User",
+      identity: "-",
+      provider: "Telegram",
+      role: "Member",
+      lastLoginUtc: "",
+      totalLocalMembers: 0,
+      quota: resolveQuota(null, "Member"),
+      cacheStats: {},
+      cacheStatsLoaded: false,
+      updateLabel: { tone: "neutral", label: "Belum dicek", value: "-" },
+      update: {},
+      updateOperation: {},
+      accessItems
+    };
+  }
+
+  function createStatusCards(state) {
+    const activeAccess = state.accessItems.filter((item) => item.active).length;
+    const totalAccess = state.accessItems.length;
+    const serviceTone = state.serviceReady && state.isLoggedIn ? "success" : state.serviceReady ? "warning" : "danger";
+    const serviceLabel = state.serviceReady && state.isLoggedIn ? "Siap" : state.serviceReady ? "Login" : "Cek service";
+    const quotaTone = state.quota.isEmpty ? "danger" : state.quota.isLow ? "warning" : "success";
+    const accessTone = activeAccess === totalAccess ? "success" : activeAccess > 0 ? "warning" : "danger";
+    const cards = [
+      {
+        icon: "hub",
+        label: "Service",
+        value: serviceLabel,
+        meta: state.version === "-" ? "-" : `v${state.version}`,
+        tone: serviceTone
+      },
+      {
+        icon: "system_update_alt",
+        label: "Update",
+        value: state.updateLabel.label,
+        meta: state.updateLabel.value,
+        tone: state.updateLabel.tone
+      },
+      {
+        icon: "download",
+        label: "Kuota Hari Ini",
+        value: `${formatCompactNumber(state.quota.used)}/${formatCompactNumber(state.quota.limit)}`,
+        meta: `${formatCompactNumber(state.quota.remaining)} sisa`,
+        tone: quotaTone
+      },
+      {
+        icon: "verified_user",
+        label: "Akses",
+        value: `${activeAccess}/${totalAccess}`,
+        meta: state.role,
+        tone: accessTone
+      }
+    ];
+
+    return cards.map((card) => `
+      <article class="dashboard-home-status-card is-${escapeHtml(card.tone)}">
+        <span class="material-symbols-outlined">${escapeHtml(card.icon)}</span>
+        <div>
+          <small>${escapeHtml(card.label)}</small>
+          <strong>${escapeHtml(card.value)}</strong>
+          <em>${escapeHtml(card.meta)}</em>
         </div>
-        <strong>${escapeHtml(item.role)}</strong>
-        <p>${item.active ? "Akses sudah siap dipakai." : "Aktivasi akses dilakukan oleh Owner/Admin."}</p>
       </article>
+    `).join("");
+  }
+
+  function createAuditItems(state) {
+    const items = [];
+    const missingAccess = state.accessItems
+      .filter((item) => !item.active)
+      .map((item) => item.label);
+
+    if (!state.serviceReady) {
+      items.push({
+        tone: "danger",
+        icon: "settings_alert",
+        title: "Local service belum siap",
+        meta: "Cek konfigurasi service"
+      });
+    } else if (!state.isLoggedIn) {
+      items.push({
+        tone: "warning",
+        icon: "login",
+        title: "Login belum aktif",
+        meta: "Masuk dengan Telegram"
+      });
+    }
+
+    if (state.isLoggedIn && !state.hasAgreed) {
+      items.push({
+        tone: "warning",
+        icon: "fact_check",
+        title: "Persetujuan belum disimpan",
+        meta: "Selesaikan sekali saja"
+      });
+    }
+
+    if (state.isLoggedIn && state.hasAgreed && !state.allowsNewWindowTab) {
+      items.push({
+        tone: "warning",
+        icon: "open_in_new",
+        title: "Izin tab baru belum aktif",
+        meta: "Dibutuhkan viewer file"
+      });
+    }
+
+    if (state.update?.mustUpdate) {
+      items.push({
+        tone: "danger",
+        icon: "system_update_alt",
+        title: "Update wajib",
+        meta: state.update.latestVersion ? `Target v${state.update.latestVersion}` : "Jalankan update"
+      });
+    } else if (state.update?.lastError) {
+      items.push({
+        tone: "warning",
+        icon: "sync_problem",
+        title: "Cek update gagal",
+        meta: state.update.lastError
+      });
+    }
+
+    if (state.updateOperation?.active) {
+      items.push({
+        tone: "warning",
+        icon: "progress_activity",
+        title: "Update berjalan",
+        meta: `${state.updateOperation.progressPercent || 0}% ${state.updateOperation.stage || ""}`.trim()
+      });
+    }
+
+    if (state.quota.isEmpty) {
+      items.push({
+        tone: "danger",
+        icon: "block",
+        title: "Kuota download habis",
+        meta: "Tunggu reset harian"
+      });
+    } else if (state.quota.isLow) {
+      items.push({
+        tone: "warning",
+        icon: "hourglass_bottom",
+        title: "Kuota mulai menipis",
+        meta: `${formatCompactNumber(state.quota.remaining)} download tersisa`
+      });
+    }
+
+    if (missingAccess.length > 0) {
+      items.push({
+        tone: "warning",
+        icon: "lock",
+        title: "Akses belum lengkap",
+        meta: missingAccess.slice(0, 3).join(", ") + (missingAccess.length > 3 ? "..." : "")
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        tone: "success",
+        icon: "task_alt",
+        title: "Semua siap",
+        meta: "Tidak ada blocker utama"
+      });
+    }
+
+    return items.map((item) => `
+      <article class="dashboard-home-check-item is-${escapeHtml(item.tone)}">
+        <span class="material-symbols-outlined">${escapeHtml(item.icon)}</span>
+        <div>
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${escapeHtml(item.meta)}</small>
+        </div>
+      </article>
+    `).join("");
+  }
+
+  function getCatalogCount(state, countKey) {
+    return parseInteger(state.cacheStats?.[countKey], 0);
+  }
+
+  function getCatalogCountLabel(state, countKey) {
+    return state.cacheStatsLoaded ? formatCompactNumber(getCatalogCount(state, countKey)) : "-";
+  }
+
+  function getAccessMap(state) {
+    return state.accessItems.reduce((map, item) => {
+      map[item.key] = item;
+      return map;
+    }, {});
+  }
+
+  function createActionButtons(state) {
+    const accessMap = getAccessMap(state);
+    const actionItems = [
+      {
+        target: "BIOS",
+        icon: "memory",
+        label: "BIOS",
+        meta: "Cari / flash",
+        badge: getCatalogCountLabel(state, "biosCount"),
+        active: accessMap.BIOS?.active
+      },
+      {
+        target: "tool_spi_flash",
+        icon: "developer_board",
+        label: "SPI Flash",
+        meta: "Read / write",
+        badge: "Tool",
+        active: true
+      },
+      {
+        target: "Boardview",
+        icon: "account_tree",
+        label: "Boardview",
+        meta: "Open viewer",
+        badge: getCatalogCountLabel(state, "boardviewCount"),
+        active: accessMap.Boardview?.active
+      },
+      {
+        target: "Schematics",
+        icon: "schema",
+        label: "Schematics",
+        meta: "PDF board",
+        badge: getCatalogCountLabel(state, "schematicsCount"),
+        active: accessMap.Schematics?.active
+      },
+      {
+        target: "ProblemSolving",
+        icon: "psychology",
+        label: "Problem",
+        meta: "Kasus servis",
+        badge: getCatalogCountLabel(state, "problemSolvingCount"),
+        active: accessMap.ProblemSolving?.active
+      },
+      {
+        target: "Datasheets",
+        icon: "picture_as_pdf",
+        label: "Datasheets",
+        meta: "PDF komponen",
+        badge: getCatalogCountLabel(state, "datasheetsCount"),
+        active: accessMap.Datasheets?.active
+      },
+      {
+        target: "tool_file_hash_compare",
+        icon: "fingerprint",
+        label: "Cek Hash",
+        meta: "MD5 / SHA",
+        badge: "Tool",
+        active: true
+      },
+      {
+        target: "ComponentEquivalents",
+        icon: "conversion_path",
+        label: "Persamaan",
+        meta: "Cari part",
+        badge: "DB",
+        active: true
+      }
+    ];
+
+    return actionItems.map((item) => `
+      <button type="button" class="dashboard-home-action-button${item.active ? "" : " is-locked"}" data-view-target="${escapeHtml(item.target)}">
+        <span class="material-symbols-outlined">${escapeHtml(item.icon)}</span>
+        <span class="dashboard-home-action-copy">
+          <strong>${escapeHtml(item.label)}</strong>
+          <small>${escapeHtml(item.meta)}</small>
+        </span>
+        <em>${escapeHtml(item.active ? item.badge : "Lock")}</em>
+      </button>
+    `).join("");
+  }
+
+  function createCatalogItems(state) {
+    const accessMap = getAccessMap(state);
+    return catalogDefinitions.map((item) => {
+      const access = accessMap[item.key] || { role: "-", active: false };
+      const count = getCatalogCountLabel(state, item.countKey);
+      return `
+        <article class="dashboard-home-catalog-item${access.active ? " is-active" : " is-locked"}">
+          <span class="material-symbols-outlined">${escapeHtml(item.icon)}</span>
+          <div>
+            <strong>${escapeHtml(item.label)}</strong>
+            <small>${escapeHtml(count)} file</small>
+          </div>
+          <em>${escapeHtml(access.active ? access.role : "Belum aktif")}</em>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function createAccountRows(state) {
+    const rows = [
+      ["User", state.displayName],
+      ["ID", state.identity],
+      ["Role", state.role],
+      ["Login", formatDateTime(state.lastLoginUtc)],
+      ["Total download", formatCompactNumber(state.quota.total)],
+      ["Akun lokal", formatCompactNumber(state.totalLocalMembers)]
+    ];
+
+    return rows.map(([label, value]) => `
+      <div class="dashboard-home-kv">
+        <small>${escapeHtml(label)}</small>
+        <strong>${escapeHtml(value)}</strong>
+      </div>
     `).join("");
   }
 
   function createWorkbenchMarkup(state) {
     return `
-      <section class="spi-workbench-hero dashboard-home-hero">
-        <div>
-          <p class="label">Dashboard</p>
-          <h3>Halo, ${escapeHtml(state.displayName)}</h3>
-          <p class="spi-workbench-copy">Ringkasan cepat untuk status local service, akses akun aktif, dan jalur kerja utama TeknisiHub di mesin ini.</p>
-        </div>
-        <div class="spi-workbench-badge-row">
-          <span class="spi-status-pill">${escapeHtml(state.provider)}</span>
-          <span class="spi-status-pill is-preview">${escapeHtml(state.role)}</span>
-        </div>
+      <section class="dashboard-home-status-grid" aria-label="Status utama dashboard">
+        ${createStatusCards(state)}
       </section>
 
-      <div class="spi-layout dashboard-home-summary-grid">
-        <section class="spi-card">
-          <div class="spi-card-head">
+      <div class="dashboard-home-main-grid">
+        <section class="spi-card dashboard-home-panel">
+          <div class="dashboard-home-section-head">
             <div>
-              <p class="label">Status Service</p>
-              <h4>Koneksi local service</h4>
+              <p class="label">Audit</p>
+              <h4>Perlu dicek</h4>
             </div>
-            <span class="spi-mini-badge">v${escapeHtml(state.version)}</span>
+            <span class="spi-mini-badge">${escapeHtml(state.loaded ? "Live" : "Loading")}</span>
           </div>
-          <p class="spi-note">${escapeHtml(state.status)}</p>
-          <div class="dashboard-home-metric-list">
-            <div class="dashboard-home-metric">
-              <span class="material-symbols-outlined">person</span>
-              <div>
-                <strong>${escapeHtml(state.displayName)}</strong>
-                <p>${escapeHtml(state.email)}</p>
-              </div>
-            </div>
-            <div class="dashboard-home-metric">
-              <span class="material-symbols-outlined">groups</span>
-              <div>
-                <strong>${escapeHtml(String(state.totalLocalMembers))} akun lokal</strong>
-                <p>Daftar akun yang pernah login di PC ini</p>
-              </div>
-            </div>
-            <div class="dashboard-home-metric">
-              <span class="material-symbols-outlined">schedule</span>
-              <div>
-                <strong>Login terakhir</strong>
-                <p>${escapeHtml(formatDateTime(state.lastLoginUtc))}</p>
-              </div>
-            </div>
+          <div class="dashboard-home-check-list">
+            ${createAuditItems(state)}
           </div>
         </section>
 
-        <section class="spi-card">
-          <div class="spi-card-head">
+        <section class="spi-card dashboard-home-panel">
+          <div class="dashboard-home-section-head">
             <div>
-              <p class="label">Quick Actions</p>
-              <h4>Masuk ke area kerja</h4>
+              <p class="label">Akun</p>
+              <h4>Ringkasan sesi</h4>
             </div>
+            <span class="spi-mini-badge">${escapeHtml(state.provider)}</span>
           </div>
-          <div class="dashboard-home-action-grid">
-            <button type="button" class="dashboard-home-action-button" data-view-target="BIOS">
-              <span class="material-symbols-outlined">memory</span>
-              <span>BIOS</span>
-            </button>
-            <button type="button" class="dashboard-home-action-button" data-view-target="Boardview">
-              <span class="material-symbols-outlined">developer_board</span>
-              <span>Boardview</span>
-            </button>
-            <button type="button" class="dashboard-home-action-button" data-view-target="Schematics">
-              <span class="material-symbols-outlined">schema</span>
-              <span>Schematics</span>
-            </button>
-            <button type="button" class="dashboard-home-action-button" data-view-target="settings">
-              <span class="material-symbols-outlined">settings</span>
-              <span>Pengaturan</span>
-            </button>
+          <div class="dashboard-home-kv-list">
+            ${createAccountRows(state)}
           </div>
-          <p class="spi-note">${escapeHtml(state.message)}</p>
         </section>
       </div>
 
-      <section class="spi-card">
-        <div class="spi-card-head">
+      <section class="spi-card dashboard-home-panel">
+        <div class="dashboard-home-section-head">
           <div>
-            <p class="label">Akses Akun</p>
-            <h4>Status per kategori utama</h4>
+            <p class="label">Shortcut</p>
+            <h4>Pekerjaan cepat</h4>
           </div>
         </div>
-        <div class="dashboard-home-access-grid">
-          ${createAccessCards(state)}
+        <div class="dashboard-home-action-grid">
+          ${createActionButtons(state)}
+        </div>
+      </section>
+
+      <section class="spi-card dashboard-home-panel">
+        <div class="dashboard-home-section-head">
+          <div>
+            <p class="label">Katalog</p>
+            <h4>Jumlah file & akses</h4>
+          </div>
+          <span class="spi-mini-badge">${escapeHtml(state.cacheStatsLoaded ? formatCompactNumber(state.cacheStats?.totalCount || 0) : "-")} total</span>
+        </div>
+        <div class="dashboard-home-catalog-grid">
+          ${createCatalogItems(state)}
         </div>
       </section>
     `;
@@ -193,33 +614,47 @@
       }
 
       try {
-        const [health, status, members] = await Promise.all([
+        const [health, status, members, cacheStats, updateOperation] = await Promise.all([
           fetchJson("/health"),
           fetchJson("/auth/status"),
-          fetchJson("/auth/members").catch(() => [])
+          fetchJson("/auth/members").catch(() => []),
+          fetchJson("/catalog/cache-stats").catch(() => null),
+          fetchJson("/update/status").catch(() => ({}))
         ]);
+        const accessItems = createAccessItems(status);
+        const role = getRepresentativeRole(accessItems, status.channelRole);
+        const currentMember = findCurrentMember(members, status);
 
-        state.version = health.version || "-";
-        state.status = status.serviceReady
-          ? (status.isLoggedIn ? "Local service aktif dan sesi login tersedia." : "Local service aktif, menunggu login akun.")
-          : "Local service aktif, tetapi konfigurasi akses belum lengkap.";
-        state.displayName = status.displayName || status.email || "TeknisiHub User";
-        state.email = status.email || "-";
-        state.role = status.channelRole || "Member";
-        state.provider = "Telegram";
-        state.lastLoginUtc = status.lastLoginUtc || "";
-        state.totalLocalMembers = Array.isArray(members) ? members.length : 0;
-        state.accessItems = [
-          { label: "BIOS", role: getRoleLabel(status.biosChannelRole || status.channelRole), active: isAccessActive(status.biosChannelRole || status.channelRole) },
-          { label: "Boardview", role: getRoleLabel(status.boardviewChannelRole), active: isAccessActive(status.boardviewChannelRole) },
-          { label: "Schematics", role: getRoleLabel(status.schematicsChannelRole), active: isAccessActive(status.schematicsChannelRole) },
-          { label: "Problem Solving", role: getRoleLabel(status.problemSolvingChannelRole), active: isAccessActive(status.problemSolvingChannelRole) },
-          { label: "Datasheets", role: getRoleLabel(status.datasheetsChannelRole), active: isAccessActive(status.datasheetsChannelRole) }
-        ];
-        state.message = "Dashboard siap dipakai. Pilih area kerja dari quick actions atau sidebar.";
+        state = {
+          loaded: true,
+          message: "Dashboard siap.",
+          version: health.version || "-",
+          serviceReady: Boolean(status.serviceReady),
+          isLoggedIn: Boolean(status.isLoggedIn),
+          hasAgreed: Boolean(status.hasAgreed),
+          allowsNewWindowTab: Boolean(status.allowsNewWindowTab),
+          displayName: status.displayName || status.email || "TeknisiHub User",
+          identity: status.email || "-",
+          provider: String(status.authProvider || "telegram").toUpperCase(),
+          role,
+          lastLoginUtc: currentMember?.lastLoginUtc || "",
+          totalLocalMembers: Array.isArray(members) ? members.length : 0,
+          quota: resolveQuota(currentMember, role),
+          cacheStats: cacheStats || {},
+          cacheStatsLoaded: Boolean(cacheStats && Object.keys(cacheStats).length > 0),
+          updateLabel: resolveUpdateLabel(health),
+          update: health.update || {},
+          updateOperation: updateOperation || {},
+          accessItems
+        };
       } catch (error) {
-        state.status = "Dashboard belum bisa memuat data.";
-        state.message = error.message || "Terjadi kesalahan saat memuat dashboard.";
+        state = {
+          ...state,
+          loaded: true,
+          message: error.message || "Dashboard belum bisa dimuat.",
+          serviceReady: false,
+          updateLabel: { tone: "danger", label: "Offline", value: "Service" }
+        };
         notify(state.message, true);
       }
 
@@ -250,7 +685,7 @@
       viewKey: "dashboard_home",
       eyebrow: "Dashboard",
       title: "Dashboard",
-      subtitle: "Ringkasan local service dan akses akun aktif.",
+      subtitle: "Status kerja, kuota, akses, dan shortcut utama.",
       items: [],
       mount(context = {}) {
         mountedContainer = context.container || null;
