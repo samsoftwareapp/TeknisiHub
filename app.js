@@ -3236,6 +3236,16 @@ function syncThemeModeWithWibClock() {
   }
 }
 
+function handleSharedThemeModeStorageChange(event) {
+  if (event.key &&
+      event.key !== themeModeStorageKey &&
+      event.key !== themeModeDateStorageKey) {
+    return;
+  }
+
+  syncThemeModeWithWibClock();
+}
+
 function toggleThemeMode() {
   const nextMode = document.body.classList.contains("is-dark-mode") ? "light" : "dark";
   applyThemeMode(nextMode);
@@ -5851,12 +5861,537 @@ function updateBoardviewOpenActionAvailability(target) {
 
 function buildBoardviewTeknisiHubUrl(sessionId) {
   const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
-    targetUrl.searchParams.set("v", "20260509e");
+  targetUrl.searchParams.set("v", "20260509i");
   if (sessionId) {
     targetUrl.searchParams.set("sessionId", sessionId);
   }
   targetUrl.searchParams.set("source", "catalog_boardview");
   return targetUrl.toString();
+}
+
+function buildBoardviewOpenPath(messageId, operationId, viewerType, candidateIndex = null) {
+  const queryParams = new URLSearchParams();
+  if (operationId) {
+    queryParams.set("operationId", operationId);
+  }
+  if (viewerType) {
+    queryParams.set("viewerType", viewerType);
+  }
+  if (candidateIndex !== null && candidateIndex !== undefined) {
+    queryParams.set("candidateIndex", String(candidateIndex));
+  }
+  const query = queryParams.size > 0 ? `?${queryParams.toString()}` : "";
+  return `/catalog/boardview/${messageId}/open${query}`;
+}
+
+function getBoardviewTeknisiHubLaunchBackgroundUrl() {
+  try {
+    return new URL("assets/teknisiHubBg.png", window.location.href).toString();
+  } catch {
+    return "assets/teknisiHubBg.png";
+  }
+}
+
+function getBoardviewTeknisiHubLaunchThemeMode(themeMode) {
+  if (themeMode === "dark" || themeMode === "light") {
+    return themeMode;
+  }
+
+  if (document.body?.classList.contains("is-dark-mode")) {
+    return "dark";
+  }
+
+  return "light";
+}
+
+function applyBoardviewTeknisiHubLaunchTheme(targetWindow, themeMode, options = {}) {
+  if (!targetWindow || targetWindow.closed) {
+    return;
+  }
+
+  const resolvedMode = themeMode === "dark" ? "dark" : "light";
+  const launchRoot = targetWindow.document.querySelector(".th-launch");
+  if (launchRoot) {
+    launchRoot.classList.toggle("th-theme-dark", resolvedMode === "dark");
+    launchRoot.classList.toggle("th-theme-light", resolvedMode !== "dark");
+  }
+
+  targetWindow.document.body.dataset.thTheme = resolvedMode;
+  const toggleButton = targetWindow.document.querySelector("[data-th-theme-toggle]");
+  if (toggleButton) {
+    const nextModeLabel = resolvedMode === "dark" ? "Gunakan mode terang" : "Gunakan mode gelap";
+    toggleButton.dataset.themeMode = resolvedMode;
+    toggleButton.setAttribute("aria-label", nextModeLabel);
+    toggleButton.setAttribute("title", nextModeLabel);
+    toggleButton.setAttribute("aria-pressed", String(resolvedMode === "dark"));
+  }
+
+  if (options.persist) {
+    applyThemeMode(resolvedMode);
+  }
+}
+
+function bindBoardviewTeknisiHubLaunchThemeToggle(targetWindow) {
+  if (!targetWindow || targetWindow.closed) {
+    return;
+  }
+
+  const toggleButton = targetWindow.document.querySelector("[data-th-theme-toggle]");
+  if (!toggleButton) {
+    return;
+  }
+
+  toggleButton.addEventListener("click", () => {
+    const currentMode = toggleButton.dataset.themeMode === "dark" ? "dark" : "light";
+    const nextMode = currentMode === "dark" ? "light" : "dark";
+    applyBoardviewTeknisiHubLaunchTheme(targetWindow, nextMode, { persist: true });
+  });
+}
+
+function renderBoardviewTeknisiHubLaunchWindow(targetWindow, options = {}) {
+  if (!targetWindow || targetWindow.closed) {
+    return false;
+  }
+
+  const supportedModes = new Set(["pending", "selection", "loading", "error"]);
+  const mode = supportedModes.has(options.mode) ? options.mode : "pending";
+  const themeMode = getBoardviewTeknisiHubLaunchThemeMode(options.themeMode);
+  const backgroundUrl = getBoardviewTeknisiHubLaunchBackgroundUrl();
+  const panelWidth = options.panelWidth || (mode === "selection" ? "660px" : "540px");
+  const documentTitle = options.documentTitle || "Boardview TeknisiHub";
+  const eyebrow = escapeHtml(options.eyebrow || "Boardview TeknisiHub");
+  const heading = escapeHtml(options.heading || "Boardview TeknisiHub");
+  const copyMarkup = options.copyMarkup || "";
+  const contentMarkup = options.contentMarkup || "";
+  const footerMarkup = options.footerMarkup || "";
+
+  try {
+    targetWindow.document.title = documentTitle;
+    targetWindow.document.body.innerHTML = `
+      <style>
+        html,
+        body {
+          min-height: 100%;
+          margin: 0;
+        }
+
+        body {
+          font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          color: #0c2435;
+          background: #f3fbfd;
+          color-scheme: light;
+          overflow: auto;
+        }
+
+        body[data-th-theme="dark"] {
+          color: #edf8ff;
+          background: #020812;
+          color-scheme: dark;
+        }
+
+        .th-launch {
+          --panel-width: ${panelWidth};
+          min-height: 100vh;
+          box-sizing: border-box;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(320px, var(--panel-width));
+          align-items: center;
+          gap: clamp(24px, 5vw, 84px);
+          padding: clamp(22px, 5vw, 76px);
+          background-color: #f3fbfd;
+          background-image:
+            linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.24) 42%, rgba(255, 255, 255, 0.88) 68%, rgba(255, 255, 255, 0.97) 100%),
+            url(${JSON.stringify(backgroundUrl)});
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+
+        .th-launch.th-theme-dark {
+          background-color: #020812;
+          background-image:
+            linear-gradient(90deg, rgba(2, 8, 18, 0.7) 0%, rgba(2, 8, 18, 0.48) 38%, rgba(3, 14, 25, 0.86) 68%, rgba(2, 8, 18, 0.96) 100%),
+            url(${JSON.stringify(backgroundUrl)});
+        }
+
+        .th-brand-space {
+          min-height: 52vh;
+        }
+
+        .th-panel {
+          position: relative;
+          width: min(100%, var(--panel-width));
+          justify-self: end;
+          box-sizing: border-box;
+          border: 1px solid rgba(13, 82, 110, 0.18);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.86);
+          box-shadow: 0 24px 70px rgba(10, 46, 63, 0.22);
+          backdrop-filter: blur(18px) saturate(1.12);
+          padding: clamp(22px, 3vw, 34px);
+        }
+
+        .th-theme-dark .th-panel {
+          border-color: rgba(94, 234, 212, 0.18);
+          background: rgba(4, 16, 28, 0.84);
+          box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+        }
+
+        .th-panel--error {
+          border-color: rgba(178, 48, 48, 0.2);
+        }
+
+        .th-theme-toggle {
+          position: absolute;
+          top: 18px;
+          right: 18px;
+          width: 38px;
+          height: 38px;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(13, 82, 110, 0.16);
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.64);
+          cursor: pointer;
+          transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+        }
+
+        .th-theme-toggle:hover,
+        .th-theme-toggle:focus-visible {
+          transform: translateY(-1px);
+          border-color: rgba(16, 160, 178, 0.62);
+          background: rgba(255, 255, 255, 0.94);
+          box-shadow: 0 12px 28px rgba(12, 72, 92, 0.18);
+          outline: none;
+        }
+
+        .th-theme-dark .th-theme-toggle {
+          border-color: rgba(94, 234, 212, 0.18);
+          background: rgba(3, 18, 32, 0.78);
+        }
+
+        .th-theme-dark .th-theme-toggle:hover,
+        .th-theme-dark .th-theme-toggle:focus-visible {
+          border-color: rgba(94, 234, 212, 0.54);
+          background: rgba(8, 31, 50, 0.94);
+          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+        }
+
+        .th-theme-toggle-icon {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #082337;
+          box-shadow: inset -5px -4px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .th-theme-dark .th-theme-toggle-icon {
+          background: #ffd86b;
+          box-shadow:
+            0 0 0 4px rgba(255, 216, 107, 0.16),
+            0 0 18px rgba(94, 234, 212, 0.22);
+        }
+
+        .th-kicker {
+          margin: 0 0 12px;
+          padding-right: 52px;
+          color: #0d7890;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.16em;
+          line-height: 1.35;
+          text-transform: uppercase;
+        }
+
+        .th-theme-dark .th-kicker {
+          color: #5eead4;
+        }
+
+        .th-panel--error .th-kicker {
+          color: #b73838;
+        }
+
+        .th-theme-dark .th-panel--error .th-kicker {
+          color: #ff9c9c;
+        }
+
+        .th-title {
+          margin: 0;
+          color: #082337;
+          font-size: clamp(30px, 4vw, 46px);
+          line-height: 1.02;
+          font-weight: 850;
+        }
+
+        .th-theme-dark .th-title {
+          color: #f7fdff;
+        }
+
+        .th-copy {
+          margin-top: 16px;
+          color: #2d4b5c;
+          font-size: 15px;
+          line-height: 1.68;
+        }
+
+        .th-theme-dark .th-copy {
+          color: #c6d8e8;
+        }
+
+        .th-copy p,
+        .th-footer {
+          margin: 0;
+        }
+
+        .th-copy strong {
+          color: #082337;
+          font-weight: 800;
+        }
+
+        .th-theme-dark .th-copy strong {
+          color: #ffffff;
+        }
+
+        .th-content {
+          margin-top: 22px;
+        }
+
+        .th-footer {
+          margin-top: 18px;
+          color: #527083;
+          font-size: 13px;
+          line-height: 1.55;
+        }
+
+        .th-theme-dark .th-footer {
+          color: #93adbd;
+        }
+
+        .th-progress {
+          height: 8px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(9, 58, 82, 0.12);
+        }
+
+        .th-theme-dark .th-progress {
+          background: rgba(183, 236, 245, 0.12);
+        }
+
+        .th-progress span {
+          display: block;
+          width: 46%;
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, #0c5574, #1eb9c3, #5cd3a1);
+          animation: th-progress-pulse 1.25s ease-in-out infinite;
+        }
+
+        .th-candidate-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .th-candidate {
+          width: 100%;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 13px;
+          border: 1px solid rgba(13, 82, 110, 0.16);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.72);
+          color: #0c2435;
+          cursor: pointer;
+          padding: 13px 14px;
+          text-align: left;
+          transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+        }
+
+        .th-theme-dark .th-candidate {
+          border-color: rgba(94, 234, 212, 0.14);
+          background: rgba(6, 18, 32, 0.72);
+          color: #edf8ff;
+        }
+
+        .th-candidate:hover,
+        .th-candidate:focus-visible {
+          transform: translateY(-1px);
+          border-color: rgba(16, 160, 178, 0.7);
+          background: rgba(255, 255, 255, 0.96);
+          box-shadow: 0 14px 34px rgba(12, 72, 92, 0.16);
+          outline: none;
+        }
+
+        .th-theme-dark .th-candidate:hover,
+        .th-theme-dark .th-candidate:focus-visible {
+          border-color: rgba(94, 234, 212, 0.58);
+          background: rgba(10, 34, 54, 0.94);
+          box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+        }
+
+        .th-candidate-number {
+          width: 34px;
+          height: 34px;
+          display: grid;
+          place-items: center;
+          border-radius: 50%;
+          background: #0d5672;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 850;
+        }
+
+        .th-theme-dark .th-candidate-number {
+          background: #5eead4;
+          color: #03202b;
+        }
+
+        .th-candidate-title {
+          display: block;
+          min-width: 0;
+          color: #082337;
+          font-size: 15px;
+          font-weight: 850;
+          line-height: 1.35;
+          word-break: break-word;
+        }
+
+        .th-theme-dark .th-candidate-title {
+          color: #f7fdff;
+        }
+
+        .th-candidate-path {
+          display: block;
+          margin-top: 4px;
+          color: #426679;
+          font-size: 12px;
+          line-height: 1.45;
+          word-break: break-word;
+        }
+
+        .th-theme-dark .th-candidate-path {
+          color: #9eb8ca;
+        }
+
+        .th-candidate-meta {
+          display: block;
+          margin-top: 7px;
+          color: #0d7890;
+          font-size: 12px;
+          font-weight: 750;
+        }
+
+        .th-theme-dark .th-candidate-meta {
+          color: #68e7df;
+        }
+
+        .th-badge {
+          border: 1px solid rgba(25, 128, 88, 0.24);
+          border-radius: 999px;
+          background: rgba(40, 180, 128, 0.12);
+          color: #146547;
+          font-size: 10px;
+          font-weight: 850;
+          letter-spacing: 0.08em;
+          line-height: 1;
+          padding: 7px 9px;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .th-theme-dark .th-badge {
+          border-color: rgba(74, 222, 128, 0.24);
+          background: rgba(34, 197, 94, 0.12);
+          color: #a7f3c4;
+        }
+
+        .th-alert {
+          border: 1px solid rgba(178, 48, 48, 0.16);
+          border-radius: 8px;
+          background: rgba(255, 242, 242, 0.88);
+          color: #8a2525;
+          font-size: 14px;
+          line-height: 1.55;
+          padding: 13px 14px;
+        }
+
+        .th-theme-dark .th-alert {
+          border-color: rgba(248, 113, 113, 0.2);
+          background: rgba(75, 18, 28, 0.5);
+          color: #ffd2d2;
+        }
+
+        @keyframes th-progress-pulse {
+          0% {
+            transform: translateX(-80%);
+          }
+          50% {
+            transform: translateX(75%);
+          }
+          100% {
+            transform: translateX(230%);
+          }
+        }
+
+        @media (max-width: 820px) {
+          .th-launch {
+            min-height: 100vh;
+            grid-template-columns: 1fr;
+            align-items: end;
+            padding: 46vh 18px 18px;
+            background-image:
+              linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.58) 48%, rgba(255, 255, 255, 0.96) 100%),
+              url(${JSON.stringify(backgroundUrl)});
+            background-position: center top;
+          }
+
+          .th-launch.th-theme-dark {
+            background-image:
+              linear-gradient(180deg, rgba(2, 8, 18, 0.24) 0%, rgba(2, 8, 18, 0.66) 48%, rgba(2, 8, 18, 0.97) 100%),
+              url(${JSON.stringify(backgroundUrl)});
+          }
+
+          .th-brand-space {
+            display: none;
+          }
+
+          .th-panel {
+            justify-self: stretch;
+            width: 100%;
+            padding: 20px;
+          }
+
+          .th-candidate {
+            grid-template-columns: 30px minmax(0, 1fr);
+          }
+
+          .th-badge {
+            grid-column: 2;
+            justify-self: start;
+          }
+        }
+      </style>
+      <main class="th-launch th-launch--${mode} th-theme-${themeMode}">
+        <div class="th-brand-space" aria-hidden="true"></div>
+        <section class="th-panel th-panel--${mode}" aria-live="polite">
+          <button type="button" class="th-theme-toggle" data-th-theme-toggle>
+            <span class="th-theme-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <p class="th-kicker">${eyebrow}</p>
+          <h1 class="th-title">${heading}</h1>
+          ${copyMarkup ? `<div class="th-copy">${copyMarkup}</div>` : ""}
+          ${contentMarkup ? `<div class="th-content">${contentMarkup}</div>` : ""}
+          ${footerMarkup ? `<p class="th-footer">${footerMarkup}</p>` : ""}
+        </section>
+      </main>
+    `;
+    applyBoardviewTeknisiHubLaunchTheme(targetWindow, themeMode);
+    bindBoardviewTeknisiHubLaunchThemeToggle(targetWindow);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function openPendingBoardviewTeknisiHubWindow(fileName) {
@@ -5867,22 +6402,190 @@ function openPendingBoardviewTeknisiHubWindow(fileName) {
 
   try {
     pendingWindow.opener = null;
-    pendingWindow.document.title = "Menyiapkan Boardview TeknisiHub";
-    pendingWindow.document.body.innerHTML = `
-      <main style="font-family: 'Segoe UI', sans-serif; background:#09111f; color:#f5f8ff; min-height:100vh; margin:0; display:grid; place-items:center; padding:32px;">
-        <section style="max-width:560px; width:min(100%, 560px); background:rgba(18,29,49,0.94); border:1px solid rgba(130,177,255,0.18); border-radius:20px; padding:28px 24px; box-shadow:0 20px 60px rgba(0,0,0,0.28);">
-          <p style="margin:0 0 10px; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#8fbaff;">Boardview TeknisiHub</p>
-          <h1 style="margin:0 0 12px; font-size:28px; line-height:1.15;">Menyiapkan viewer</h1>
-          <p style="margin:0 0 10px; color:#d4def7; line-height:1.6;">Local service sedang menyiapkan session boardview untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>
-          <p style="margin:0; color:#9fb0d4; line-height:1.6;">Tab ini akan otomatis berpindah ke viewer begitu session siap.</p>
-        </section>
-      </main>
-    `;
+    renderBoardviewTeknisiHubLaunchWindow(pendingWindow, {
+      mode: "pending",
+      documentTitle: "Menyiapkan Boardview TeknisiHub",
+      heading: "Menyiapkan viewer",
+      copyMarkup: `<p>Local service sedang menyiapkan session boardview untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>`,
+      contentMarkup: `<div class="th-progress" aria-hidden="true"><span></span></div>`,
+      footerMarkup: "Tab ini akan otomatis berpindah ke viewer begitu session siap."
+    });
   } catch {
     // Ignore temporary window rendering failure; navigation can still proceed later.
   }
 
   return pendingWindow;
+}
+
+function renderBoardviewCandidateSelectionWindow(targetWindow, payload, context) {
+  if (!targetWindow || targetWindow.closed) {
+    return false;
+  }
+
+  const candidates = Array.isArray(payload?.candidateFiles)
+    ? payload.candidateFiles
+    : [];
+  if (candidates.length <= 0) {
+    disposePendingBoardviewTeknisiHubWindow(
+      targetWindow,
+      context?.fileName || "Boardview",
+      "Local service belum mengirim daftar file boardview yang bisa dipilih."
+    );
+    return false;
+  }
+
+  const listMarkup = candidates.map((candidate) => {
+    const candidateIndex = Number(candidate.index || 0);
+    const label = candidate.fileName || candidate.relativePath || `File ${candidateIndex + 1}`;
+    const relativePath = candidate.relativePath && candidate.relativePath !== label
+      ? `<span class="th-candidate-path">${escapeHtml(candidate.relativePath)}</span>`
+      : "";
+    const recommended = candidate.recommended
+      ? `<span class="th-badge">Rekomendasi</span>`
+      : "";
+    const meta = [candidate.extension, candidate.displaySize]
+      .filter(Boolean)
+      .join(" | ");
+
+    return `
+      <button type="button" class="th-candidate" data-boardview-candidate-index="${candidateIndex}" aria-label="Buka ${escapeHtml(label)}">
+        <span class="th-candidate-number">${candidateIndex + 1}</span>
+        <span style="min-width:0;">
+          <strong class="th-candidate-title">${escapeHtml(label)}</strong>
+          ${relativePath}
+          <span class="th-candidate-meta">${escapeHtml(meta || "Boardview file")}</span>
+        </span>
+        ${recommended}
+      </button>
+    `;
+  }).join("");
+
+  try {
+    const rendered = renderBoardviewTeknisiHubLaunchWindow(targetWindow, {
+      mode: "selection",
+      panelWidth: "680px",
+      documentTitle: "Pilih file Boardview TeknisiHub",
+      heading: "Pilih file boardview",
+      copyMarkup: `<p>Arsip <strong>${escapeHtml(context?.fileName || payload.fileName || "Boardview")}</strong> berisi beberapa file boardview. Pilih satu file untuk dibuatkan session viewer.</p>`,
+      contentMarkup: `<div class="th-candidate-list">${listMarkup}</div>`,
+      footerMarkup: "Rekomendasi diurutkan dari kandidat yang paling mungkin menjadi board utama."
+    });
+    if (!rendered) {
+      targetWindow.close();
+      return false;
+    }
+
+    targetWindow.document.querySelectorAll("[data-boardview-candidate-index]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const candidateIndex = Number(button.getAttribute("data-boardview-candidate-index") || 0);
+        const candidate = candidates.find((entry) => Number(entry.index || 0) === candidateIndex) || candidates[candidateIndex] || candidates[0];
+        void openSelectedBoardviewCandidateFromPendingWindow(targetWindow, context, candidate);
+      });
+    });
+    return true;
+  } catch {
+    targetWindow.close();
+    return false;
+  }
+}
+
+function renderBoardviewCandidateLoadingWindow(targetWindow, fileName) {
+  if (!targetWindow || targetWindow.closed) {
+    return;
+  }
+
+  try {
+    renderBoardviewTeknisiHubLaunchWindow(targetWindow, {
+      mode: "loading",
+      documentTitle: "Menyiapkan Boardview TeknisiHub",
+      heading: "Membuka pilihan file",
+      copyMarkup: `<p>Local service sedang membuat session untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>`,
+      contentMarkup: `<div class="th-progress" aria-hidden="true"><span></span></div>`,
+      footerMarkup: "Tab ini akan otomatis berpindah ke viewer begitu session siap."
+    });
+  } catch {
+    // Navigation can still happen if rendering this transient state fails.
+  }
+}
+
+async function openSelectedBoardviewCandidateFromPendingWindow(targetWindow, context, candidate) {
+  const messageId = Number(context?.messageId || 0);
+  const candidateIndex = Number(candidate?.index || 0);
+  const candidateFileName = candidate?.fileName || context?.fileName || "Boardview";
+  if (messageId <= 0) {
+    disposePendingBoardviewTeknisiHubWindow(targetWindow, candidateFileName, "ID katalog Boardview tidak valid.");
+    return;
+  }
+
+  const operationId = createCatalogUploadOperationId();
+  renderBoardviewCandidateLoadingWindow(targetWindow, candidateFileName);
+  beginCatalogUploadTask({
+    operationId,
+    fileName: candidateFileName,
+    displayName: "Boardview",
+    message: "Membuat session Boardview TeknisiHub dari file pilihan..."
+  });
+
+  try {
+    const result = await runCatalogOperationWithProgress(
+      buildBoardviewOpenPath(messageId, operationId, "teknisihub", candidateIndex),
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+        operationId,
+        onServerProgress: (progress) => {
+          applyCatalogTelegramUploadProgress(progress, {
+            operationId,
+            fileName: candidateFileName,
+            displayName: "Boardview"
+          });
+        }
+      }
+    );
+
+    if (result.requiresFileSelection) {
+      renderBoardviewCandidateSelectionWindow(targetWindow, result, context);
+      return;
+    }
+
+    if (!result.sessionId) {
+      throw new Error("Session Boardview TeknisiHub belum diterima dari local service.");
+    }
+
+    finalizePendingBoardviewTeknisiHubWindow(targetWindow, result.sessionId);
+    upsertCatalogUploadTask({
+      operationId,
+      fileName: result.fileName || candidateFileName,
+      displayName: "Boardview",
+      stage: "completed",
+      active: false,
+      success: true,
+      progressPercent: 100,
+      message: result.message || "Boardview TeknisiHub berhasil dibuka."
+    });
+    setNotice(result.message || "Boardview TeknisiHub berhasil dibuka.");
+    if (markBoardviewItemHasLocalCache(messageId)) {
+      filterCatalogItems();
+    }
+  } catch (error) {
+    upsertCatalogUploadTask({
+      operationId,
+      fileName: candidateFileName,
+      displayName: "Boardview",
+      stage: "failed",
+      active: false,
+      success: false,
+      progressPercent: 100,
+      message: "Membuka Boardview gagal.",
+      lastError: error.message || "Membuka Boardview gagal."
+    });
+    disposePendingBoardviewTeknisiHubWindow(
+      targetWindow,
+      candidateFileName,
+      error.message || "Membuka Boardview gagal."
+    );
+    setNotice(error.message || "Membuka Boardview gagal.", true);
+  }
 }
 
 function finalizePendingBoardviewTeknisiHubWindow(targetWindow, sessionId) {
@@ -5904,17 +6607,13 @@ function disposePendingBoardviewTeknisiHubWindow(targetWindow, fileName, errorMe
   }
 
   try {
-    targetWindow.document.title = "Boardview TeknisiHub gagal dibuka";
-    targetWindow.document.body.innerHTML = `
-      <main style="font-family: 'Segoe UI', sans-serif; background:#09111f; color:#f5f8ff; min-height:100vh; margin:0; display:grid; place-items:center; padding:32px;">
-        <section style="max-width:560px; width:min(100%, 560px); background:rgba(18,29,49,0.94); border:1px solid rgba(255,132,132,0.2); border-radius:20px; padding:28px 24px; box-shadow:0 20px 60px rgba(0,0,0,0.28);">
-          <p style="margin:0 0 10px; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#ff9d9d;">Boardview TeknisiHub</p>
-          <h1 style="margin:0 0 12px; font-size:28px; line-height:1.15;">Viewer belum jadi dibuka</h1>
-          <p style="margin:0 0 10px; color:#d4def7; line-height:1.6;">Session untuk <strong>${escapeHtml(fileName || "Boardview")}</strong> belum berhasil disiapkan.</p>
-          <p style="margin:0; color:#ffcdcd; line-height:1.6;">${escapeHtml(errorMessage || "Silakan kembali ke tab utama lalu coba lagi.")}</p>
-        </section>
-      </main>
-    `;
+    renderBoardviewTeknisiHubLaunchWindow(targetWindow, {
+      mode: "error",
+      documentTitle: "Boardview TeknisiHub gagal dibuka",
+      heading: "Viewer belum jadi dibuka",
+      copyMarkup: `<p>Session untuk <strong>${escapeHtml(fileName || "Boardview")}</strong> belum berhasil disiapkan.</p>`,
+      contentMarkup: `<div class="th-alert">${escapeHtml(errorMessage || "Silakan kembali ke tab utama lalu coba lagi.")}</div>`
+    });
   } catch {
     targetWindow.close();
   }
@@ -6185,15 +6884,7 @@ async function prepareBiosForSpiFlash(messageId, selectedDevice = "CH341A") {
 async function openBoardviewCatalogItem(messageId, options = {}) {
   const operationId = String(options.operationId || "").trim();
   const viewerType = normalizeBoardviewViewerValue(options.viewerType);
-  const queryParams = new URLSearchParams();
-  if (operationId) {
-    queryParams.set("operationId", operationId);
-  }
-  if (viewerType) {
-    queryParams.set("viewerType", viewerType);
-  }
-  const query = queryParams.size > 0 ? `?${queryParams.toString()}` : "";
-  const result = await fetchJson(`/catalog/boardview/${messageId}/open${query}`, {
+  const result = await fetchJson(buildBoardviewOpenPath(messageId, operationId, viewerType, options.candidateIndex), {
     method: "POST",
     body: JSON.stringify({})
   });
@@ -6488,6 +7179,7 @@ dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
 themeToggleButton?.addEventListener("click", toggleThemeMode);
 backToTopButton?.addEventListener("click", scrollPageToTop);
 window.addEventListener("scroll", syncBackToTopButtonVisibility, { passive: true });
+window.addEventListener("storage", handleSharedThemeModeStorageChange);
 window.addEventListener("resize", () => {
   syncBackToTopButtonVisibility();
   syncFloatingUtilityOffset();
@@ -6812,7 +7504,7 @@ if (catalogList) {
           });
 
           const result = await runCatalogOperationWithProgress(
-            `/catalog/boardview/${messageId}/open?operationId=${encodeURIComponent(operationId)}&viewerType=${encodeURIComponent(selectedViewer)}`,
+            buildBoardviewOpenPath(messageId, operationId, selectedViewer),
             {
               method: "POST",
               body: JSON.stringify({}),
@@ -6828,6 +7520,34 @@ if (catalogList) {
           );
 
           if (selectedViewer === "teknisihub") {
+            if (result.requiresFileSelection) {
+              const selectionWindowReady = renderBoardviewCandidateSelectionWindow(
+                pendingBoardviewWindow,
+                result,
+                { messageId, fileName }
+              );
+              pendingBoardviewWindow = null;
+
+              upsertCatalogUploadTask({
+                operationId,
+                fileName: result.fileName || fileName,
+                displayName: "Boardview",
+                stage: "waiting-selection",
+                active: false,
+                success: true,
+                progressPercent: 100,
+                message: result.message || "Pilih file boardview yang ingin dibuka."
+              });
+              setNotice(
+                selectionWindowReady
+                  ? "Arsip berisi beberapa file boardview. Pilih file yang mau dibuka di tab Boardview TeknisiHub."
+                  : "Arsip berisi beberapa file boardview, tetapi tab pilihan tidak bisa ditampilkan.",
+                selectionWindowReady ? "info" : true
+              );
+              shouldRefreshCatalog = markBoardviewItemHasLocalCache(messageId);
+              return;
+            }
+
             if (!result.sessionId) {
               throw new Error("Session Boardview TeknisiHub belum diterima dari local service.");
             }

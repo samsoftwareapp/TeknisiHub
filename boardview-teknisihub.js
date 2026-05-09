@@ -1,4 +1,96 @@
-﻿const state = {
+const SHARED_THEME_MODE_STORAGE_KEY = 'teknisihub_theme_mode';
+const SHARED_THEME_MODE_DATE_STORAGE_KEY = 'teknisihub_theme_mode_wib_date';
+const LEGACY_BOARDVIEW_THEME_STORAGE_KEY = 'boardview-theme';
+const WIB_TIME_ZONE = 'Asia/Jakarta';
+const WIB_NIGHT_THEME_START_HOUR = 18;
+const WIB_NIGHT_THEME_END_HOUR = 6;
+
+function getSharedThemeWibDateTimeParts() {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: WIB_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date());
+    const getPart = (type) => parts.find((part) => part.type === type)?.value || '';
+    const year = getPart('year');
+    const month = getPart('month');
+    const day = getPart('day');
+    const hour = Number.parseInt(getPart('hour'), 10);
+    return {
+      dateKey: `${year}-${month}-${day}`,
+      hour: Number.isFinite(hour) ? hour : 12,
+    };
+  } catch (_) {
+    const fallback = new Date();
+    return {
+      dateKey: fallback.toISOString().slice(0, 10),
+      hour: fallback.getHours(),
+    };
+  }
+}
+
+function getSharedAutomaticThemeMode() {
+  const { hour } = getSharedThemeWibDateTimeParts();
+  return hour >= WIB_NIGHT_THEME_START_HOUR || hour < WIB_NIGHT_THEME_END_HOUR ? 'dark' : 'light';
+}
+
+function clearSharedThemeMode() {
+  try {
+    localStorage.removeItem(SHARED_THEME_MODE_STORAGE_KEY);
+    localStorage.removeItem(SHARED_THEME_MODE_DATE_STORAGE_KEY);
+  } catch (_) {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+function readSharedSavedThemeMode() {
+  try {
+    const storedMode = localStorage.getItem(SHARED_THEME_MODE_STORAGE_KEY);
+    const storedDateKey = localStorage.getItem(SHARED_THEME_MODE_DATE_STORAGE_KEY);
+    const currentWibDateKey = getSharedThemeWibDateTimeParts().dateKey;
+    if ((storedMode === 'dark' || storedMode === 'light') && storedDateKey === currentWibDateKey) {
+      return storedMode;
+    }
+
+    if (storedMode || storedDateKey) {
+      clearSharedThemeMode();
+    }
+
+    return '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function clearLegacyBoardviewThemeMode() {
+  try {
+    localStorage.removeItem(LEGACY_BOARDVIEW_THEME_STORAGE_KEY);
+  } catch (_) {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+function getSharedThemeMode() {
+  clearLegacyBoardviewThemeMode();
+  return readSharedSavedThemeMode() || getSharedAutomaticThemeMode();
+}
+
+function persistSharedThemeMode(themeName) {
+  const next = themeName === 'dark' ? 'dark' : 'light';
+  try {
+    localStorage.setItem(SHARED_THEME_MODE_STORAGE_KEY, next);
+    localStorage.setItem(SHARED_THEME_MODE_DATE_STORAGE_KEY, getSharedThemeWibDateTimeParts().dateKey);
+    clearLegacyBoardviewThemeMode();
+  } catch (_) {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+const state = {
   board: null,
   boardId: null,
   boardToken: null,
@@ -47,7 +139,7 @@
     lastVisibleRoutes: 0,
     dpr: 1.0,
   },
-  theme: localStorage.getItem('boardview-theme') || 'dark',
+  theme: getSharedThemeMode(),
   hoverScheduler: {
     scheduled: false,
     clientX: 0,
@@ -211,27 +303,50 @@ tooltipEl.className = 'canvas-tooltip';
 tooltipEl.hidden = true;
 document.querySelector('.viewer-area').appendChild(tooltipEl);
 
-function applyTheme(themeName) {
+function applyTheme(themeName, options = {}) {
   const next = themeName === 'light' ? 'light' : 'dark';
   state.theme = next;
   Object.assign(COLORS, THEMES[next]);
   document.body.dataset.theme = next;
-  try { localStorage.setItem('boardview-theme', next); } catch (_) {}
+  if (options.persist) {
+    persistSharedThemeMode(next);
+  }
   if (themeToggleBtn) {
-    const toLabel = next === 'light' ? 'dark' : 'light';
-    themeToggleBtn.title = `Switch to ${toLabel} theme`;
-    themeToggleBtn.setAttribute('aria-label', `Switch to ${toLabel} theme`);
+    const toLabel = next === 'light' ? 'mode gelap' : 'mode terang';
+    themeToggleBtn.title = `Gunakan ${toLabel}`;
+    themeToggleBtn.setAttribute('aria-label', `Gunakan ${toLabel}`);
+    themeToggleBtn.setAttribute('aria-pressed', String(next === 'dark'));
     themeToggleBtn.classList.toggle('active', next === 'light');
     const label = themeToggleBtn.querySelector('.tool-label');
     if (label) label.textContent = next === 'light' ? 'Light' : 'Dark';
     const icon = themeToggleBtn.querySelector('.tool-icon');
-    if (icon) icon.textContent = next === 'light' ? 'â˜€' : 'â—';
+    if (icon) icon.textContent = next === 'light' ? 'dark_mode' : 'light_mode';
   }
 }
 
 function toggleTheme() {
-  applyTheme(state.theme === 'light' ? 'dark' : 'light');
+  applyTheme(state.theme === 'light' ? 'dark' : 'light', { persist: true });
   render();
+}
+
+function syncThemeFromSharedMode() {
+  const next = getSharedThemeMode();
+  if (next === state.theme) {
+    return;
+  }
+
+  applyTheme(next);
+  render();
+}
+
+function handleSharedThemeStorageChange(event) {
+  if (event.key &&
+      event.key !== SHARED_THEME_MODE_STORAGE_KEY &&
+      event.key !== SHARED_THEME_MODE_DATE_STORAGE_KEY) {
+    return;
+  }
+
+  syncThemeFromSharedMode();
 }
 
 function drawCanvasBackground(width, height) {
@@ -284,8 +399,8 @@ function getBoardDensityFactor() {
   const board = state.board;
   if (!board) return 1;
   const bounds = board.bounds || {};
-  // bounds are in mils after normalization; convert area to mmÂ² for meaningful density
-  // 1 milÂ² = 0.000645 mmÂ²
+  // bounds are in mils after normalization; convert area to mm2 for meaningful density
+  // 1 mil2 = 0.000645 mm2
   const areaMil2 = Math.max((bounds.width || 0) * (bounds.height || 0), 1e-6);
   const areaMm2 = areaMil2 * 0.000645;
   const parts = Array.isArray(board.parts) ? board.parts.length : 0;
@@ -358,16 +473,16 @@ function escapeMetricText(value) {
 }
 
 function formatTimestamp(ts) {
-  if (!ts) return 'â€”';
+  if (!ts) return '-';
   const d = new Date(Number(ts) * 1000);
-  if (Number.isNaN(d.getTime())) return 'â€”';
+  if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleString();
 }
 
 function trimUserAgent(value) {
   const text = String(value || '').trim();
   if (!text) return 'Unknown client';
-  return text.length > 80 ? `${text.slice(0, 77)}â€¦` : text;
+  return text.length > 80 ? `${text.slice(0, 77)}...` : text;
 }
 
 function openModal(modal) {
@@ -385,7 +500,7 @@ function closeModal(modal) {
 async function openMetricsModal() {
   if (!metricsModalEl) return;
   openModal(metricsModalEl);
-  metricsStatusEl.textContent = 'Loading admin activity logâ€¦';
+  metricsStatusEl.textContent = 'Loading admin activity log...';
   metricsGridEl.innerHTML = '';
   metricsBoardsEl.innerHTML = '';
   if (metricsUsersEl) metricsUsersEl.innerHTML = '';
@@ -421,7 +536,7 @@ async function openMetricsModal() {
     if (formatEntries.length) {
       const card = document.createElement('div');
       card.className = 'metric-card metric-card-wide';
-      card.innerHTML = `<span>Formats</span><strong>${formatEntries.map(([name, count]) => `${escapeMetricText(name)}: ${escapeMetricText(count)}`).join(' Â· ')}</strong>`;
+      card.innerHTML = `<span>Formats</span><strong>${formatEntries.map(([name, count]) => `${escapeMetricText(name)}: ${escapeMetricText(count)}`).join(' | ')}</strong>`;
       metricsGridEl.appendChild(card);
     }
 
@@ -432,7 +547,7 @@ async function openMetricsModal() {
       for (const board of recentBoards) {
         const item = document.createElement('div');
         item.className = 'metrics-item';
-        item.innerHTML = `<strong>${escapeMetricText(board.filename)}</strong><small>${escapeMetricText(board.uploaded_by)} Â· ${escapeMetricText(formatAge(board.age_seconds))}</small>`;
+        item.innerHTML = `<strong>${escapeMetricText(board.filename)}</strong><small>${escapeMetricText(board.uploaded_by)} | ${escapeMetricText(formatAge(board.age_seconds))}</small>`;
         metricsBoardsEl.appendChild(item);
       }
     }
@@ -445,7 +560,7 @@ async function openMetricsModal() {
         for (const entry of recentLogins) {
           const item = document.createElement('div');
           item.className = 'metrics-item';
-          item.innerHTML = `<strong>${escapeMetricText(entry.actor_email || 'Unknown user')}</strong><small>${escapeMetricText(entry.provider || 'provider')} Â· ${escapeMetricText(entry.ip_address || 'unknown IP')} Â· ${escapeMetricText(formatTimestamp(entry.ts))}</small><small>${escapeMetricText(trimUserAgent(entry.user_agent))}</small>`;
+          item.innerHTML = `<strong>${escapeMetricText(entry.actor_email || 'Unknown user')}</strong><small>${escapeMetricText(entry.provider || 'provider')} | ${escapeMetricText(entry.ip_address || 'unknown IP')} | ${escapeMetricText(formatTimestamp(entry.ts))}</small><small>${escapeMetricText(trimUserAgent(entry.user_agent))}</small>`;
           metricsUsersEl.appendChild(item);
         }
       }
@@ -458,7 +573,7 @@ async function openMetricsModal() {
       for (const event of recentEvents) {
         const item = document.createElement('div');
         item.className = 'metrics-item';
-        item.innerHTML = `<strong>${escapeMetricText(event.kind)} Â· ${escapeMetricText(event.actor_email || 'guest')}</strong><small>${escapeMetricText(event.message)}</small><small>${escapeMetricText(event.ip_address || 'unknown IP')} Â· ${escapeMetricText(formatTimestamp(event.ts))} Â· ${escapeMetricText(trimUserAgent(event.user_agent))}</small>`;
+        item.innerHTML = `<strong>${escapeMetricText(event.kind)} | ${escapeMetricText(event.actor_email || 'guest')}</strong><small>${escapeMetricText(event.message)}</small><small>${escapeMetricText(event.ip_address || 'unknown IP')} | ${escapeMetricText(formatTimestamp(event.ts))} | ${escapeMetricText(trimUserAgent(event.user_agent))}</small>`;
         metricsEventsEl.appendChild(item);
       }
     }
@@ -474,8 +589,8 @@ async function clearMetricsLog() {
   if (!confirmed) return;
   metricsClearBtn.disabled = true;
   const previousLabel = metricsClearBtn.textContent;
-  metricsClearBtn.textContent = 'Clearingâ€¦';
-  metricsStatusEl.textContent = 'Clearing admin monitor dataâ€¦';
+  metricsClearBtn.textContent = 'Clearing...';
+  metricsStatusEl.textContent = 'Clearing admin monitor data...';
   try {
     const resp = await fetch('/api/admin/activity/clear', {
       method: 'POST',
@@ -609,7 +724,7 @@ async function fetchConfig() {
         (parts.length ? `<span class="upload-note-limits">${parts.join(' ')}</span>` : '') +
         '<div class="upload-note-formats">' +
           '<span class="upload-note-formats-label">Supported formats:</span> ' +
-          '<span class="upload-note-format-list">.brd Â· .bdv Â· .fz Â· .cad Â· .gencad Â· .bv Â· .bvr Â· .tvw Â· .f2b Â· .gr Â· .zip (ASC)</span>' +
+          '<span class="upload-note-format-list">.brd | .bdv | .fz | .cad | .gencad | .bv | .bvr | .tvw | .f2b | .gr | .zip (ASC)</span>' +
         '</div>' +
         '<div class="upload-note-asc-hint">ASC requires a ZIP archive with format.asc, parts.asc, pins.asc, nails.asc.</div>';
     }
@@ -728,9 +843,9 @@ function resetUiForNewUpload(filename = '') {
   state.boardToken = null;
   setViewerDocumentTitle(filename);
   if (filename) {
-    setStatus(`Uploading: ${filename}â€¦`);
+    setStatus(`Uploading: ${filename}...`);
   } else {
-    setStatus('Preparing uploadâ€¦');
+    setStatus('Preparing upload...');
   }
 }
 
@@ -744,7 +859,7 @@ function clearAllQueries() {
     setStatus(`Loaded: ${state.board.filename}`);
   } else {
     render();
-    setStatus('Waiting for a fileâ€¦');
+    setStatus('Waiting for a file...');
   }
 }
 
@@ -825,7 +940,7 @@ function renderInspectorPartTable(part = state.selectedPart, selectedPin = state
   const rows = part
     ? getPartPins(part).slice().sort((left, right) => compareTeknisiHubNatural(left.name || left.index, right.name || right.index))
     : [];
-  inspectorPartTitleEl.textContent = part ? `${part.name}${getPartInfoLabel(part) ? ` Â· ${getPartInfoLabel(part)}` : ''}` : 'No part selected';
+  inspectorPartTitleEl.textContent = part ? `${part.name}${getPartInfoLabel(part) ? ` | ${getPartInfoLabel(part)}` : ''}` : 'No part selected';
   inspectorPinCountEl.textContent = `${rows.length} pin${rows.length === 1 ? '' : 's'}`;
 
   if (!rows.length) {
@@ -1028,7 +1143,7 @@ function populateSelectedNetMembers(netName) {
       btn.className = `list-item ${part.mounting_side === 'bottom' ? 'part-bottom' : 'part-top'}`;
       const partPins = getPartPins(part).filter((pin) => (pin.net || '').toLowerCase() === netName.toLowerCase());
       const pinPreview = partPins.slice(0, 4).map((pin) => pin.name || `#${pin.index}`).join(', ');
-      btn.innerHTML = `${escapeHtml(part.name)} <small>${escapeHtml(part.mounting_side || 'unknown')} Â· ${partPins.length} pin${partPins.length === 1 ? '' : 's'}${pinPreview ? ` Â· ${escapeHtml(pinPreview)}` : ''}</small>`;
+      btn.innerHTML = `${escapeHtml(part.name)} <small>${escapeHtml(part.mounting_side || 'unknown')} | ${partPins.length} pin${partPins.length === 1 ? '' : 's'}${pinPreview ? ` | ${escapeHtml(pinPreview)}` : ''}</small>`;
       btn.addEventListener('click', () => selectPart(part));
       btn.addEventListener('mouseenter', () => {
         state.hoverPart = part;
@@ -1071,7 +1186,7 @@ function populateSelectedNetPins(netName) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `list-item ${pin.side === 'bottom' ? 'part-bottom' : 'part-top'}`;
-      btn.innerHTML = `${escapeHtml(part?.name || 'Unknown part')} Â· ${escapeHtml(pin.name || `#${pin.index}`)} <small>${escapeHtml(pin.side || 'unknown')} Â· ${Number(pin.x).toFixed(2)}, ${Number(pin.y).toFixed(2)}${pin.probe ? ` Â· ${escapeHtml(pin.probe)}` : ''}</small>`;
+      btn.innerHTML = `${escapeHtml(part?.name || 'Unknown part')} | ${escapeHtml(pin.name || `#${pin.index}`)} <small>${escapeHtml(pin.side || 'unknown')} | ${Number(pin.x).toFixed(2)}, ${Number(pin.y).toFixed(2)}${pin.probe ? ` | ${escapeHtml(pin.probe)}` : ''}</small>`;
       btn.addEventListener('click', () => selectPin(pin));
       return btn;
     }, LIST_LIMITS.netPinsInitial, LIST_LIMITS.netPinsStep);
@@ -1118,10 +1233,10 @@ function updateStats(board) {
   const sideCounts = board.meta.side_counts || {};
   const partSides = sideCounts.parts || {};
   const parserVariant = getParserVariantInfo(board.meta);
-  document.getElementById('stat-file').textContent = board.filename || 'â€”';
-  document.getElementById('stat-format').textContent = board.meta.format_name || 'â€”';
-  document.getElementById('stat-parser').textContent = parserVariant.label || parserVariant.code || 'â€”';
-  document.getElementById('stat-units').textContent = board.meta.units || 'â€”';
+  document.getElementById('stat-file').textContent = board.filename || '-';
+  document.getElementById('stat-format').textContent = board.meta.format_name || '-';
+  document.getElementById('stat-parser').textContent = parserVariant.label || parserVariant.code || '-';
+  document.getElementById('stat-units').textContent = board.meta.units || '-';
   document.getElementById('stat-parts').textContent = String(board.meta.parts ?? board.parts.length);
   document.getElementById('stat-pins').textContent = String(board.meta.pins ?? board.pins.length);
   document.getElementById('stat-nails').textContent = String(board.meta.nails ?? board.nails.length);
@@ -1561,7 +1676,7 @@ function updatePerfBadge() {
   if (!perfEl) return;
   const detailZoom = getDetailZoom();
   const mode = detailZoom < 1.2 ? 'Perf: aggressive' : detailZoom < 2.5 ? 'Perf: balanced' : 'Perf: detail';
-  perfEl.textContent = `${mode} Â· ${state.renderLoop.lastDurationMs.toFixed(1)} ms Â· Zoom Ã—${detailZoom.toFixed(2)}`;
+  perfEl.textContent = `${mode} | ${state.renderLoop.lastDurationMs.toFixed(1)} ms | Zoom x${detailZoom.toFixed(2)}`;
 }
 
 function showTooltip(html, clientX, clientY) {
@@ -1584,7 +1699,7 @@ function updateHoverTooltip(clientX, clientY) {
       `<strong>${escapeHtml(pin.name || `#${pin.index}`)}</strong>`,
       `Net: ${escapeHtml(pin.net || 'No net')}`,
       `Component: ${escapeHtml(part?.name || 'Unknown')}`,
-      `Pin: ${escapeHtml(pin.name || 'â€”')}`,
+      `Pin: ${escapeHtml(pin.name || '-')}`,
       `Side: ${escapeHtml(pin.mounting_side || part?.mounting_side || 'unknown')}`,
     ];
     showTooltip(lines.join('<br>'), clientX, clientY);
@@ -1595,14 +1710,14 @@ function updateHoverTooltip(clientX, clientY) {
     const pinCount = (state.board?.pins || []).filter((pin) => pin.part === part.index).length;
     const note = notesGet(partNoteKey(part.name));
     const mark = markGet(part.name);
-    const markLabel = mark ? { ok: 'âœ“ OK', suspect: 'âš  Suspect', bad: 'âœ• Bad' }[mark] : null;
+    const markLabel = mark ? { ok: 'OK', suspect: 'Suspect', bad: 'Bad' }[mark] : null;
     const lines = [
       `<strong>${escapeHtml(part.name)}</strong>`,
       `Device: ${escapeHtml(part.device || part.shape || 'Unknown')}`,
-      `Pins: ${pinCount} Â· Side: ${escapeHtml(part.mounting_side || 'unknown')}`,
+      `Pins: ${pinCount} | Side: ${escapeHtml(part.mounting_side || 'unknown')}`,
     ];
     if (markLabel) lines.push(`<span style="opacity:0.85">${escapeHtml(markLabel)}</span>`);
-    if (note) lines.push(`<span style="opacity:0.75;font-style:italic">${escapeHtml(note.slice(0, 80))}${note.length > 80 ? 'â€¦' : ''}</span>`);
+    if (note) lines.push(`<span style="opacity:0.75;font-style:italic">${escapeHtml(note.slice(0, 80))}${note.length > 80 ? '...' : ''}</span>`);
     showTooltip(lines.join('<br>'), clientX, clientY);
     return;
   }
@@ -1688,7 +1803,7 @@ function drawMinimap() {
   minimapCtx.fillRect(Math.min(vp1.x, vp2.x), Math.min(vp1.y, vp2.y), Math.abs(vp2.x - vp1.x), Math.abs(vp2.y - vp1.y));
   minimapCtx.strokeRect(Math.min(vp1.x, vp2.x), Math.min(vp1.y, vp2.y), Math.abs(vp2.x - vp1.x), Math.abs(vp2.y - vp1.y));
 
-  if (minimapZoomEl) minimapZoomEl.textContent = `${state.visibleSide} Â· Ã—${getDetailZoom().toFixed(2)}`;
+  if (minimapZoomEl) minimapZoomEl.textContent = `${state.visibleSide} | x${getDetailZoom().toFixed(2)}`;
 }
 
 function recenterFromMinimapEvent(ev) {
@@ -1843,7 +1958,7 @@ function getNetGlowColor(netName) {
   const n = (netName || '').toUpperCase();
   if (/^(GND|AGND|DGND|SGND|PGND|VSS|GNDA|GNDD)/.test(n)) return '#94a3b8'; // slate
   if (/^(VCC|VDD|VIN|PP|PPBUS|PPVDD|PWR|POWER|3V|5V|1V|12V|VBAT|VSYS|VCC|VBUS)/.test(n)) return '#fb923c'; // orange
-  return '#5eead4'; // teal â€” default signal
+  return '#5eead4'; // teal - default signal
 }
 
 const DENSE_NET_THRESHOLD = 50;
@@ -2316,7 +2431,7 @@ function drawPins() {
 
   const dz = getDetailZoom();
   // Pin rendering mode: scales with zoom so pins don't dominate at overview
-  // overview (<1.5x): micro dot, no ring  â†’  mid (1.5-3x): thin stroke ring
+  // overview (<1.5x): micro dot, no ring   ->   mid (1.5-3x): thin stroke ring
   // close (>3x): full filled ring with inner hole
   const pinMode = dz < 1.5 ? 'dot' : dz < 3.2 ? 'ring' : 'full';
 
@@ -2337,19 +2452,19 @@ function drawPins() {
 
     // Base size: starts tiny at overview, grows with zoom
     let outer = dz < 1.5
-      ? Math.max(1.0, dz * 1.2)                      // 1.0â€“1.8px at overview
+      ? Math.max(1.0, dz * 1.2)                      // 1.0-1.8px at overview
       : dz < 3.2
-        ? Math.max(1.8, 0.6 + dz * 1.4)               // 1.8â€“5.1px at mid
-        : Math.max(3.0, Math.min(6.0, 1.4 + dz * 1.6)); // 3â€“6px at close
+        ? Math.max(1.8, 0.6 + dz * 1.4)               // 1.8-5.1px at mid
+        : Math.max(3.0, Math.min(6.0, 1.4 + dz * 1.6)); // 3-6px at close
 
-    // Base color â€” side-dependent, opacity scales with zoom
+    // Base color - side-dependent, opacity scales with zoom
     const baseAlpha = dz < 1.5 ? 0.55 : dz < 3 ? 0.75 : 0.92;
     let ring = pin.side === 'bottom'
       ? `rgba(244,114,182,${baseAlpha})`
       : `rgba(96,165,250,${baseAlpha})`;
     let inner = 'rgba(11,18,32,0.92)';
 
-    // Active states â€” override size and color
+    // Active states - override size and color
     if (isSelectedPin) {
       ring = '#fde68a'; outer = Math.max(outer, 5.2); inner = 'rgba(120,53,15,0.92)';
     } else if (isHoverPin) {
@@ -2383,14 +2498,14 @@ function drawPins() {
     const effectiveMode = isActive ? 'full' : pinMode;
 
     if (effectiveMode === 'dot') {
-      // Tiny filled dot â€” minimal visual weight
+      // Tiny filled dot - minimal visual weight
       ctx.fillStyle = ring;
       ctx.beginPath();
       ctx.arc(s.x, s.y, outer, 0, Math.PI * 2);
       ctx.fill();
 
     } else if (effectiveMode === 'ring') {
-      // Stroke-only ring â€” shows pad location without heavy fill
+      // Stroke-only ring - shows pad location without heavy fill
       ctx.strokeStyle = ring;
       ctx.lineWidth = Math.max(0.8, outer * 0.38);
       ctx.beginPath();
@@ -2764,7 +2879,7 @@ function drawSelectionHalo() {
     ctx.restore();
   }
 
-  // halo removed â€” redundant with outline highlight on the part body
+  // halo removed - redundant with outline highlight on the part body
 }
 
 
@@ -2819,7 +2934,7 @@ function drawMeasure() {
     ctx.fillStyle = textColor; ctx.fillText(label, lx + pad, ly + bh / 2);
   }
   if (m.active) {
-    const statusText = m.pointA ? 'Measure: click point B  Â·  Esc = cancel' : 'Measure: click point A  Â·  Esc = cancel';
+    const statusText = m.pointA ? 'Measure: click point B  |  Esc = cancel' : 'Measure: click point A  |  Esc = cancel';
     ctx.font = '12px Inter, Arial, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     const sw = ctx.measureText(statusText).width, px = 10, py = 8, sh = 24;
     const sx = canvas.clientWidth - sw - px * 2 - 8;
@@ -2909,7 +3024,7 @@ function populateNetList() {
     item.type = 'button';
     item.className = 'list-item';
     item.dataset.net = net.name;
-    item.innerHTML = `${escapeHtml(net.name)} <small>${net.pin_count} pins${net.route_count ? ` Â· ${net.route_count} routes` : ''}</small>`;
+    item.innerHTML = `${escapeHtml(net.name)} <small>${net.pin_count} pins${net.route_count ? ` | ${net.route_count} routes` : ''}</small>`;
     item.addEventListener('mouseenter', () => {
       state.hoverNet = net.name;
       render();
@@ -2946,7 +3061,7 @@ function populatePartList() {
     btn.type = 'button';
     btn.className = `list-item ${part.mounting_side === 'bottom' ? 'part-bottom' : 'part-top'}`;
     const netPreview = (part.nets || []).slice(0, 2).join(', ');
-    btn.innerHTML = `${escapeHtml(part.name)} <small>${escapeHtml(part.mounting_side)}${part.device ? ` Â· ${escapeHtml(part.device)}` : ''}${netPreview ? ` Â· ${escapeHtml(netPreview)}` : ''}</small>`;
+    btn.innerHTML = `${escapeHtml(part.name)} <small>${escapeHtml(part.mounting_side)}${part.device ? ` | ${escapeHtml(part.device)}` : ''}${netPreview ? ` | ${escapeHtml(netPreview)}` : ''}</small>`;
     if (parts.length <= LIST_LIMITS.componentsInitial) {
       btn.addEventListener('mouseenter', () => {
         state.hoverPart = part;
@@ -2972,7 +3087,7 @@ function populateMatches(items) {
     btn.type = 'button';
     btn.className = 'list-item';
     if (item.kind === 'part') {
-      btn.innerHTML = `${escapeHtml(item.part.name)} <small>${item.part.mounting_side} Â· ${(item.part.nets || []).slice(0, 3).join(', ') || 'no nets'}</small>`;
+      btn.innerHTML = `${escapeHtml(item.part.name)} <small>${item.part.mounting_side} | ${(item.part.nets || []).slice(0, 3).join(', ') || 'no nets'}</small>`;
       btn.addEventListener('click', () => {
         setSearchMode('part');
         selectPart(item.part);
@@ -2981,7 +3096,7 @@ function populateMatches(items) {
         onViewChanged();
       });
     } else {
-      btn.innerHTML = `${escapeHtml(item.net.name)} <small>${item.net.pin_count} pins${item.net.route_count ? ` Â· ${item.net.route_count} routes` : ''}</small>`;
+      btn.innerHTML = `${escapeHtml(item.net.name)} <small>${item.net.pin_count} pins${item.net.route_count ? ` | ${item.net.route_count} routes` : ''}</small>`;
       btn.addEventListener('click', () => {
         setSearchMode('net');
         selectNet(item.net.name);
@@ -3005,9 +3120,9 @@ function showPartResult(part, pin = null) {
     ${part.device ? `<div class="row"><strong>Device:</strong> ${escapeHtml(part.device)}</div>` : ''}
     ${Number.isFinite(part.rotation) ? `<div class="row"><strong>Rotation:</strong> ${part.rotation}&deg;</div>` : ''}
     <div class="row"><strong>Pins:</strong> ${partPins.length}</div>
-    ${pin ? `<div class="row"><strong>Selected pin:</strong> ${escapeHtml(pin.name || `#${pin.index}`)}${pin.net ? ` Â· ${escapeHtml(pin.net)}` : ''}</div>` : ''}
+    ${pin ? `<div class="row"><strong>Selected pin:</strong> ${escapeHtml(pin.name || `#${pin.index}`)}${pin.net ? ` | ${escapeHtml(pin.net)}` : ''}</div>` : ''}
     <div class="row"><strong>Nets:</strong></div>
-    <div class="chips">${nets.map((net) => `<button type="button" class="chip chip-button" data-net="${escapeAttr(net)}">${escapeHtml(net)}</button>`).join('') || '<span class="muted">â€”</span>'}</div>
+    <div class="chips">${nets.map((net) => `<button type="button" class="chip chip-button" data-net="${escapeAttr(net)}">${escapeHtml(net)}</button>`).join('') || '<span class="muted">-</span>'}</div>
   `;
   notesRenderMarkBadge(part.name);
   notesRenderBlock({
@@ -3025,9 +3140,9 @@ function showNetResult(name, pins) {
   resultsEl.innerHTML = `
     <div class="row"><strong>Net:</strong> ${escapeHtml(name)}</div>
     <div class="row"><strong>Pins:</strong> ${pins.length}</div>
-    ${netMeta ? `<div class="row"><strong>Routes:</strong> ${netMeta.route_count || 0} Â· <strong>Vias:</strong> ${netMeta.via_count || 0}</div>` : ''}
+    ${netMeta ? `<div class="row"><strong>Routes:</strong> ${netMeta.route_count || 0} | <strong>Vias:</strong> ${netMeta.via_count || 0}</div>` : ''}
     <div class="row"><strong>Parts:</strong></div>
-    <div class="chips">${uniqueParts.map((partName) => `<button type="button" class="chip chip-button" data-part="${escapeAttr(partName)}">${escapeHtml(partName)}</button>`).join('') || '<span class="muted">â€”</span>'}</div>
+    <div class="chips">${uniqueParts.map((partName) => `<button type="button" class="chip chip-button" data-part="${escapeAttr(partName)}">${escapeHtml(partName)}</button>`).join('') || '<span class="muted">-</span>'}</div>
   `;
   renderInspectorLinkedTables();
 }
@@ -3038,9 +3153,9 @@ function showPinResult(pin) {
     <div class="row"><strong>Pin:</strong> ${escapeHtml(pin.name || `#${pin.index}`)}</div>
     <div class="row"><strong>Pin index:</strong> ${pin.index}</div>
     <div class="row"><strong>Probe:</strong> ${escapeHtml(pin.probe)}</div>
-    <div class="row"><strong>Part:</strong> ${part ? escapeHtml(part.name) : 'â€”'}</div>
+    <div class="row"><strong>Part:</strong> ${part ? escapeHtml(part.name) : '-'}</div>
     <div class="row"><strong>Side:</strong> ${escapeHtml(pin.side || 'unknown')}</div>
-    <div class="row"><strong>Net:</strong> ${pin.net ? `<button type="button" class="chip chip-button" data-net="${escapeAttr(pin.net)}">${escapeHtml(pin.net)}</button>` : 'â€”'}</div>
+    <div class="row"><strong>Net:</strong> ${pin.net ? `<button type="button" class="chip chip-button" data-net="${escapeAttr(pin.net)}">${escapeHtml(pin.net)}</button>` : '-'}</div>
     <div class="row"><strong>Position:</strong> ${Number(pin.x).toFixed(2)}, ${Number(pin.y).toFixed(2)}</div>
   `;
   if (part) {
@@ -3094,7 +3209,7 @@ function selectPin(pin, options = {}) {
   scheduleSessionAnnotationSync();
   if (state.selectedNet) populateSelectedNetMembers(state.selectedNet); else clearSelectedNetMembers();
   showPinResult(pin);
-  setStatus(`Pin selected: ${pin.name || `#${pin.index}`}${pin.net ? ` Â· ${pin.net}` : ''}`);
+  setStatus(`Pin selected: ${pin.name || `#${pin.index}`}${pin.net ? ` | ${pin.net}` : ''}`);
   render();
   onViewChanged();
 }
@@ -3134,12 +3249,12 @@ function clearSelection() {
   renderInspectorLinkedTables();
   matchListEl.innerHTML = '';
   matchCountEl.textContent = '0';
-  setStatus(state.board ? `Loaded: ${state.board.filename}` : 'Waiting for a fileâ€¦');
+  setStatus(state.board ? `Loaded: ${state.board.filename}` : 'Waiting for a file...');
   render();
 }
 
 
-// â”€â”€ Part notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Part notes ----------------------------------------------------------------
 const sessionAnnotationFallback = {};
 const sessionAnnotationCache = {};
 
@@ -3203,11 +3318,11 @@ function stopNoteEditorEventPropagation(element) {
   }
 }
 
-// â”€â”€ Component marking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Component marking ---------------------------------------------------------
 const MARK_COLORS = {
-  ok:      { stroke: '#4ade80', fill: 'rgba(74,222,128,0.10)',  label: 'âœ“ OK' },
-  suspect: { stroke: '#fbbf24', fill: 'rgba(251,191,36,0.10)',  label: 'âš  Suspect' },
-  bad:     { stroke: '#f87171', fill: 'rgba(248,113,113,0.12)', label: 'âœ• Bad' },
+  ok:      { stroke: '#4ade80', fill: 'rgba(74,222,128,0.10)',  label: 'OK' },
+  suspect: { stroke: '#fbbf24', fill: 'rgba(251,191,36,0.10)',  label: 'Suspect' },
+  bad:     { stroke: '#f87171', fill: 'rgba(248,113,113,0.12)', label: 'Bad' },
 };
 function marksLoad() { return sessionAnnotationLoad('marks'); }
 function marksSave(m) {
@@ -3239,10 +3354,10 @@ function showContextMenu(part, screenX, screenY, pin = null) {
   markSectionLabel.textContent = 'Status';
   menu.appendChild(markSectionLabel);
   for (const item of [
-    { status: 'ok',      icon: 'âœ“', label: 'OK',           cls: 'ctx-ok' },
-    { status: 'suspect', icon: 'âš ', label: 'Suspect',      cls: 'ctx-suspect' },
-    { status: 'bad',     icon: 'âœ•', label: 'Bad / faulty', cls: 'ctx-bad' },
-    { status: null,      icon: 'â—‹', label: 'Clear mark',   cls: 'ctx-clear' },
+    { status: 'ok',      icon: 'OK', label: 'OK',           cls: 'ctx-ok' },
+    { status: 'suspect', icon: '!', label: 'Suspect',      cls: 'ctx-suspect' },
+    { status: 'bad',     icon: 'X', label: 'Bad / faulty', cls: 'ctx-bad' },
+    { status: null,      icon: '-', label: 'Clear mark',   cls: 'ctx-clear' },
   ]) {
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'ctx-item ' + item.cls;
@@ -3337,7 +3452,7 @@ function initContextMenu() {
   });
 }
 
-// â”€â”€ Permalink â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Permalink -----------------------------------------------------------------
 function permalinkEncode() {
   if (!state.board) return;
   const p = new URLSearchParams();
@@ -3391,7 +3506,7 @@ function notesRenderMarkBadge(partName) {
   const row = document.createElement('div');
   row.className = 'mark-badge-row';
   if (mark) { const ms = MARK_COLORS[mark]; row.innerHTML = `<span class="mark-status-badge mark-${mark}">${ms.label}</span>`; }
-  else { row.innerHTML = '<span class="mark-status-badge mark-none">â—‹ No status</span>'; }
+  else { row.innerHTML = '<span class="mark-status-badge mark-none">- No status</span>'; }
   resultsEl.appendChild(row);
 }
 
@@ -3638,7 +3753,7 @@ async function handleUpload() {
     return;
   }
   const selectedFile = input.files[0];
-  // Check file size before upload â€” state.config.maxUploadMb comes from server config
+  // Check file size before upload - state.config.maxUploadMb comes from server config
   const maxMb = state.config.maxUploadMb || 25;
   if (selectedFile.size > maxMb * 1024 * 1024) {
     setStatus(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)} MB). Maximum is ${maxMb} MB. Try a smaller file or contact support.`, true);
@@ -3648,7 +3763,7 @@ async function handleUpload() {
   const form = new FormData();
   form.append('file', selectedFile);
   resetUiForNewUpload(selectedFile.name || '');
-  setStatus('Parsing fileâ€¦');
+  setStatus('Parsing file...');
 
   try {
     const resp = await fetch('/api/upload', {
@@ -4311,11 +4426,11 @@ function refreshToolbarButtons() {
   setToolButtonState('side-both-btn', { active: state.visibleSide === 'both', title: 'Show both sides (1)' });
   setToolButtonState('side-top-btn', { active: state.visibleSide === 'top', title: 'Show top side (2)' });
   setToolButtonState('side-bottom-btn', { active: state.visibleSide === 'bottom', title: 'Show bottom side (3)' });
-  const _mirrorLabels = { 'off': 'Off', 'x': 'â†” X', 'y': 'â†• Y', 'xy': 'â†”â†• XY' };
+  const _mirrorLabels = { 'off': 'Off', 'x': '<-> X', 'y': '<-> Y', 'xy': '<-><-> XY' };
   setToolButtonState('mirror-bottom-btn', {
     active: state.mirrorMode !== 'off',
     status: _mirrorLabels[state.mirrorMode] || 'Off',
-    title: `Mirror: ${state.mirrorMode.toUpperCase()} â€” click to cycle Offâ†’Xâ†’Yâ†’XY`,
+    title: `Mirror: ${state.mirrorMode.toUpperCase()} - click to cycle Off -> X -> Y -> XY`,
     pressed: state.mirrorMode !== 'off',
   });
   setToolButtonState('toggle-parts-btn', {
@@ -4541,10 +4656,10 @@ async function shareSnapshot(target = 'generic') {
     const blob = await exportCanvasJpegBlob();
     const file = new File([blob], snapshotFilename('jpg'), { type: 'image/jpeg' });
     const title = `${state.config.appTitle || 'Boardview TeknisiHub'} snapshot`;
-    const text = `${state.board.filename} Â· ${state.visibleSide} view`;
+    const text = `${state.board.filename} | ${state.visibleSide} view`;
     if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
       await navigator.share({
-        title: `${title}${target === 'telegram' ? ' Â· Telegram' : target === 'whatsapp' ? ' Â· WhatsApp' : ''}`,
+        title: `${title}${target === 'telegram' ? ' | Telegram' : target === 'whatsapp' ? ' | WhatsApp' : ''}`,
         text,
         files: [file],
       });
@@ -4769,12 +4884,19 @@ canvas.addEventListener('wheel', (ev) => {
 
 
 window.addEventListener('keydown', handleHotkeys);
+window.addEventListener('storage', handleSharedThemeStorageChange);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    syncThemeFromSharedMode();
+  }
+});
+window.setInterval(syncThemeFromSharedMode, 60000);
 
 
 themeToggleBtn?.addEventListener('click', toggleTheme);
 document.getElementById('measure-btn')?.addEventListener('click', toggleMeasure);
 
-// â”€â”€ Sidebar tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Sidebar tabs --------------------------------------------------------------
 const SB_TABS = ['inspector', 'components', 'nets', 'info'];
 
 function switchSidebarTab(name) {
@@ -4793,13 +4915,13 @@ function initSidebarTabs() {
     document.getElementById('tab-' + id)?.addEventListener('click', () => switchSidebarTab(id));
   }
 }
-// â”€â”€ End sidebar tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- End sidebar tabs ----------------------------------------------------------
 
 initContextMenu();
 initSidebarTabs();
 updateSidebarVariantBadge(null);
 
-// â”€â”€ Toolbar share dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Toolbar share dropdown ----------------------------------------------------
 (function() {
   const wrap = document.getElementById('share-dropdown-wrap');
   const btn  = document.getElementById('tb-share-btn');
@@ -4827,7 +4949,7 @@ updateSidebarVariantBadge(null);
     closeMenu(); shareSnapshot('whatsapp');
   });
 })();
-// â”€â”€ End toolbar share dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- End toolbar share dropdown ------------------------------------------------
 
 actionCardCloseBtn?.addEventListener('click', (ev) => {
   ev.preventDefault();
@@ -4926,10 +5048,10 @@ refreshToolbarButtons();
 applySupportLinks();
 resizeCanvas();
 fetchConfig();
-setStatus('Waiting for a fileâ€¦');
+setStatus('Waiting for a file...');
 loadTeknisiHubNativeSessionFromQuery();
 
-// â”€â”€ Contact form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Contact form ----------------------------------------------------------
 (function () {
   const sendBtn = document.getElementById('contact-send-btn');
   const statusEl = document.getElementById('contact-status');
@@ -4949,7 +5071,7 @@ loadTeknisiHubNativeSessionFromQuery();
       return;
     }
     sendBtn.disabled = true;
-    sendBtn.textContent = 'Sendingâ€¦';
+    sendBtn.textContent = 'Sending...';
     setContactStatus('');
     try {
       const resp = await fetch('/api/contact', {
@@ -4970,9 +5092,9 @@ loadTeknisiHubNativeSessionFromQuery();
     }
   });
 })();
-// â”€â”€ End contact form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- End contact form ------------------------------------------------------
 
-// â”€â”€ Demo mode (?demo=1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Demo mode (?demo=1) ---------------------------------------------------
 (async function () {
   if (!new URLSearchParams(window.location.search).has('demo')) return;
 
@@ -5018,6 +5140,6 @@ loadTeknisiHubNativeSessionFromQuery();
     console.warn('Demo board load failed:', e);
   }
 })();
-// â”€â”€ End demo mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- End demo mode ---------------------------------------------------------
 
 
