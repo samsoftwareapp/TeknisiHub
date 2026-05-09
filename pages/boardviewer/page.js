@@ -14,10 +14,8 @@
     ".fz",
     ".tvw"
   ];
-  const supportedParserVariants = [
-    "CAD: GenCAD, Neutral",
-    "FZ: Zlib, RC6",
-    "TVW: Lenovo LE, FAB BE"
+  const supportedParsers = [
+    "Desktop BoardViewer"
   ];
 
   function escapeHtml(value) {
@@ -137,7 +135,7 @@
               <div class="boardviewer-supported-format-list">
                 ${supportedBoardviewFormats.map((format) => `<span class="boardviewer-preview-chip">${escapeHtml(format)}</span>`).join("")}
               </div>
-              <p class="boardviewer-supported-variants">Variant parser: ${escapeHtml(supportedParserVariants.join(" | "))}</p>
+              <p class="boardviewer-supported-variants">Parser: ${escapeHtml(supportedParsers.join(" | "))}</p>
             </div>
             <p class="spi-note">${escapeHtml(state.nativeErrorMessage || state.nativeMessage)}</p>
           </section>

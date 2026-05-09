@@ -1077,54 +1077,21 @@ function getParserVariantInfo(meta = {}) {
   let label = String(meta?.parser_variant_label || '').trim();
 
   if (!code) {
-    if (normalizedFormat === 'gencad') code = 'cad-v1-gencad';
-    else if (normalizedFormat === 'neutral-cad') code = 'cad-v2-neutral';
-    else if (normalizedFormat === 'em-test-asc-bundle') code = 'asc-v1-bundle';
-    else if (normalizedFormat === 'great-river-boardview') code = 'gr-v1-text';
-    else if (normalizedFormat === 'fabmaster-faz') code = 'faz-v1-far-zip';
-    else if (normalizedFormat === 'fz-zlib-boardview') code = 'fz-v1-zlib';
-    else if (normalizedFormat === 'fz-rc6-boardview') code = 'fz-v2-rc6';
-    else if (normalizedFormat === 'cst-cdev-components') code = 'cst-v1-cdev';
-    else if (normalizedFormat === 'binary-refdes-preview') code = 'fallback-v1-refdes';
-    else if (normalizedFormat === 'binary-boardview') code = 'fallback-v0-binary';
-    else if (normalizedFormat.startsWith('tvw')) code = 'tvw-vx-generic';
+    if (normalizedFormat === 'desktop-boardviewer' || normalizedFormat.endsWith('-desktop-native')) {
+      code = 'desktop-boardviewer';
+    }
   }
 
   if (!label) {
-    if (code === 'cad-v1-gencad') label = 'CAD v1 GenCAD';
-    else if (code === 'cad-v2-neutral') label = 'CAD v2 Neutral';
-    else if (code === 'asc-v1-bundle') label = 'ASC v1 Bundle';
-    else if (code === 'gr-v1-text') label = 'GreatRiver v1';
-    else if (code === 'faz-v1-far-zip') label = 'FAZ v1 FAR/ZIP';
-    else if (code === 'fz-v1-zlib') label = 'FZ v1 Zlib';
-    else if (code === 'fz-v2-rc6') label = 'FZ v2 RC6';
-    else if (code === 'cst-v1-cdev') label = 'CST v1 CDev';
-    else if (code === 'fallback-v1-refdes') label = 'Fallback RefDes';
-    else if (code === 'fallback-v0-binary') label = 'Fallback Binary';
-    else if (code === 'tvw-v1-lenovo-le') label = 'TVW v1 Lenovo/LE';
-    else if (code === 'tvw-v2-fab-be') label = 'TVW v2 FAB/BE';
-    else if (code === 'tvw-v0-segments') label = 'TVW v0 Segments';
-    else if (code === 'tvw-v0-components') label = 'TVW v0 Components';
-    else if (code === 'tvw-vx-native') label = 'TVW native';
-    else if (code === 'tvw-vx-components') label = 'TVW components';
-    else if (code === 'tvw-vx-generic') label = 'TVW generic';
+    if (code === 'desktop-boardviewer') {
+      label = 'Desktop BoardViewer';
+    }
   }
 
   let badge = '';
-  if (code.startsWith('tvw-v1')) badge = 'TVW1';
-  else if (code.startsWith('tvw-v2')) badge = 'TVW2';
-  else if (code.startsWith('tvw-v0')) badge = 'TVW0';
-  else if (code.startsWith('tvw-vx')) badge = 'TVW?';
-  else if (code.startsWith('cad-v1')) badge = 'CAD1';
-  else if (code.startsWith('cad-v2')) badge = 'CAD2';
-  else if (code.startsWith('fz-v1')) badge = 'FZ1';
-  else if (code.startsWith('fz-v2')) badge = 'FZ2';
-  else if (code.startsWith('asc-v1')) badge = 'ASC1';
-  else if (code.startsWith('faz-v1')) badge = 'FAZ1';
-  else if (code.startsWith('gr-v1')) badge = 'GR1';
-  else if (code.startsWith('cst-v1')) badge = 'CST1';
-  else if (code.startsWith('fallback-v1')) badge = 'REF';
-  else if (code.startsWith('fallback-v0')) badge = 'BIN';
+  if (code === 'desktop-boardviewer') {
+    badge = 'BV';
+  }
 
   return { code, label, badge };
 }
@@ -1261,8 +1228,7 @@ function getTvwSegmentType(segment) {
 }
 
 function isTvwV2FabBoard(board = state.board) {
-  const variant = getParserVariantInfo(board?.meta || {});
-  return String(variant.code || '').toLowerCase().startsWith('tvw-v2');
+  return false;
 }
 
 function isTvwNearOriginPoint(x, y, limit = 5000) {
