@@ -4013,27 +4013,13 @@ async function copyTextToClipboard(text) {
   return copied;
 }
 
-let copySessionFeedbackTimer = 0;
+const COPY_SESSION_DEFAULT_LABEL = 'Copy Session';
 
-function setCopySessionButtonFeedback(kind = '', label = 'Copy Session') {
+function setCopySessionButtonFeedback() {
   if (!copySessionButtonEl) return;
   copySessionButtonEl.classList.remove('is-success', 'is-error');
-  if (kind === 'success') copySessionButtonEl.classList.add('is-success');
-  if (kind === 'error') copySessionButtonEl.classList.add('is-error');
-  const labelEl = copySessionButtonEl.querySelector('span');
-  if (labelEl) labelEl.textContent = label;
-  if (copySessionFeedbackTimer) {
-    window.clearTimeout(copySessionFeedbackTimer);
-    copySessionFeedbackTimer = 0;
-  }
-  if (kind) {
-    copySessionFeedbackTimer = window.setTimeout(() => {
-      copySessionButtonEl.classList.remove('is-success', 'is-error');
-      const resetLabelEl = copySessionButtonEl.querySelector('span');
-      if (resetLabelEl) resetLabelEl.textContent = 'Copy Session';
-      copySessionFeedbackTimer = 0;
-    }, 1800);
-  }
+  const labelEl = copySessionButtonEl.querySelector('.mini-fab-label');
+  if (labelEl) labelEl.textContent = COPY_SESSION_DEFAULT_LABEL;
 }
 
 async function handleCopySessionLink() {

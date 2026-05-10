@@ -5,6 +5,9 @@
   --sidebar: rgba(18, 58, 96, 0.9);
   --text: #123a60;
   --muted: #537490;
+  --text-main: var(--text);
+  --text-soft: var(--muted);
+  --brand: var(--accent-strong);
   --line: rgba(31, 97, 139, 0.16);
   --accent: #27c7d5;
   --accent-strong: #1695bb;
@@ -40,6 +43,9 @@ body.is-dark-mode {
   --sidebar: rgba(8, 15, 28, 0.94);
   --text: #e4f0fb;
   --muted: #8fa9c2;
+  --text-main: var(--text);
+  --text-soft: var(--muted);
+  --brand: var(--accent);
   --line: rgba(132, 177, 216, 0.18);
   --accent: #49d6de;
   --accent-strong: #1e9cc6;
@@ -3212,6 +3218,95 @@ body.is-dark-mode .spi-card.is-failed span {
   margin-bottom: 0;
 }
 
+.spi-stats-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.spi-stat-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 73, 30, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
+}
+
+.spi-stat-card .material-symbols-outlined {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(196, 95, 32, 0.1);
+  color: var(--deep);
+}
+
+.spi-stat-card > div {
+  min-width: 0;
+}
+
+.spi-stat-card .label,
+.spi-stat-card p {
+  margin: 0;
+}
+
+.spi-stat-card strong {
+  display: block;
+  margin: 2px 0;
+  color: var(--deep);
+  overflow-wrap: anywhere;
+}
+
+.spi-stat-card p:last-child {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.spi-stat-card.is-connected .material-symbols-outlined {
+  background: rgba(27, 156, 102, 0.12);
+  color: #15803d;
+}
+
+.spi-stat-card.is-disconnected .material-symbols-outlined {
+  background: rgba(214, 147, 37, 0.14);
+  color: #b26d13;
+}
+
+body.is-dark-mode .spi-stat-card {
+  border-color: rgba(126, 166, 199, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body.is-dark-mode .spi-stat-card .material-symbols-outlined {
+  background: rgba(255, 255, 255, 0.06);
+  color: #b8e8ff;
+}
+
+body.is-dark-mode .spi-stat-card strong {
+  color: #eaf4ff;
+}
+
+body.is-dark-mode .spi-stat-card p:last-child {
+  color: #9fb7cc;
+}
+
+body.is-dark-mode .spi-stat-card.is-connected .material-symbols-outlined {
+  background: rgba(74, 212, 134, 0.13);
+  color: #71e3a3;
+}
+
+body.is-dark-mode .spi-stat-card.is-disconnected .material-symbols-outlined {
+  background: rgba(230, 169, 69, 0.13);
+  color: #ffd38a;
+}
+
 .dashboard-home-status-grid,
 .dashboard-home-main-grid,
 .dashboard-home-action-grid,
@@ -4232,8 +4327,16 @@ body.is-dark-mode .component-equivalent-ai-badge {
   color: #156f61;
 }
 
+body.is-dark-mode .spi-verify-subtitle.is-success {
+  color: #71e3a3;
+}
+
 .spi-verify-subtitle.is-failed {
   color: #8d2f2f;
+}
+
+body.is-dark-mode .spi-verify-subtitle.is-failed {
+  color: #ffaaaa;
 }
 
 .spi-hex-preview-shell {
@@ -4454,8 +4557,16 @@ body.is-dark-mode .component-equivalent-ai-badge {
   color: #156f61;
 }
 
+body.is-dark-mode .spi-status-title.is-success {
+  color: #71e3a3;
+}
+
 .spi-status-title.is-failed {
   color: #8d2f2f;
+}
+
+body.is-dark-mode .spi-status-title.is-failed {
+  color: #ffaaaa;
 }
 
 .spi-log-list {
@@ -4492,6 +4603,12 @@ body.is-dark-mode .component-equivalent-ai-badge {
   color: var(--text);
 }
 
+body.is-dark-mode .lenovo-bios-patch-notes p {
+  border: 1px solid rgba(240, 180, 93, 0.14);
+  background: rgba(240, 180, 93, 0.08);
+  color: #dcefff;
+}
+
 .lenovo-bios-patch-download {
   display: flex;
   flex-wrap: wrap;
@@ -4518,6 +4635,13 @@ body.is-dark-mode .component-equivalent-ai-badge {
     radial-gradient(circle at top right, rgba(77, 181, 255, 0.14), transparent 32%),
     radial-gradient(circle at bottom left, rgba(28, 154, 113, 0.12), transparent 34%),
     linear-gradient(180deg, rgba(250, 252, 255, 0.96), rgba(242, 248, 253, 0.98));
+}
+
+body.is-dark-mode .boardviewer-preview-card {
+  background:
+    radial-gradient(circle at top right, rgba(77, 181, 255, 0.12), transparent 32%),
+    radial-gradient(circle at bottom left, rgba(74, 212, 134, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(9, 22, 34, 0.96), rgba(11, 26, 39, 0.98));
 }
 
 .boardviewer-preview-card-head {
@@ -4876,6 +5000,16 @@ body.is-dark-mode .boardviewer-preview-search {
     linear-gradient(145deg, rgba(110, 54, 12, 0.08), rgba(22, 78, 125, 0.08));
 }
 
+body.is-dark-mode .resistor-calculator-hero {
+  background:
+    radial-gradient(circle at top right, rgba(240, 180, 93, 0.14), transparent 34%),
+    linear-gradient(145deg, rgba(72, 39, 12, 0.72), rgba(12, 29, 44, 0.86));
+}
+
+body.is-dark-mode .resistor-calculator-copy {
+  color: #dcefff;
+}
+
 .resistor-calculator-copy {
   margin: 0;
   color: var(--text);
@@ -5030,6 +5164,11 @@ body.is-dark-mode .resistor-result-card {
   vertical-align: top;
 }
 
+body.is-dark-mode .alien-server-frame-shell,
+body.is-dark-mode .alien-server-frame {
+  background: #07121d;
+}
+
 .alien-server-frame-shell-tall {
   height: 620px;
 }
@@ -5154,6 +5293,12 @@ body.is-dark-mode .settings-inline-meta code {
   color: var(--muted);
 }
 
+body.is-dark-mode .me-analyzer-empty {
+  border: 1px solid rgba(126, 166, 199, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #9fb7cc;
+}
+
 .bios-vendor-detect-stats-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -5175,6 +5320,12 @@ body.is-dark-mode .settings-inline-meta code {
   color: var(--muted);
 }
 
+body.is-dark-mode .bios-vendor-detect-notes p {
+  border: 1px solid rgba(126, 166, 199, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #9fb7cc;
+}
+
 .bios-vendor-detect-candidate-grid {
   display: grid;
   gap: 12px;
@@ -5187,6 +5338,11 @@ body.is-dark-mode .settings-inline-meta code {
   border-radius: 20px;
   border: 1px solid rgba(125, 73, 30, 0.12);
   background: rgba(255, 255, 255, 0.76);
+}
+
+body.is-dark-mode .bios-vendor-detect-candidate-card {
+  border-color: rgba(126, 166, 199, 0.14);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .bios-vendor-detect-candidate-card-empty {
@@ -5222,6 +5378,10 @@ body.is-dark-mode .settings-inline-meta code {
   font-size: 1.02rem;
 }
 
+body.is-dark-mode .bios-vendor-detect-candidate-head strong {
+  color: #eaf4ff;
+}
+
 .bios-vendor-detect-pattern {
   margin: 6px 0 0;
   color: var(--muted);
@@ -5252,10 +5412,22 @@ body.is-dark-mode .settings-inline-meta code {
   border-color: rgba(20, 92, 64, 0.16);
 }
 
+body.is-dark-mode .bios-vendor-detect-confidence.is-high {
+  color: #a9f0c6;
+  background: rgba(74, 212, 134, 0.13);
+  border-color: rgba(74, 212, 134, 0.2);
+}
+
 .bios-vendor-detect-confidence.is-medium {
   color: #8a5a0d;
   background: rgba(235, 187, 91, 0.18);
   border-color: rgba(196, 95, 32, 0.16);
+}
+
+body.is-dark-mode .bios-vendor-detect-confidence.is-medium {
+  color: #ffd38a;
+  background: rgba(230, 169, 69, 0.13);
+  border-color: rgba(230, 169, 69, 0.2);
 }
 
 .bios-vendor-detect-confidence.is-low,
@@ -5263,6 +5435,13 @@ body.is-dark-mode .settings-inline-meta code {
   color: var(--muted);
   background: rgba(22, 78, 125, 0.08);
   border-color: rgba(22, 78, 125, 0.12);
+}
+
+body.is-dark-mode .bios-vendor-detect-confidence.is-low,
+body.is-dark-mode .bios-vendor-detect-confidence.is-unknown {
+  color: #9fb7cc;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(126, 166, 199, 0.14);
 }
 
 .bios-vendor-detect-evidence-row {
@@ -5280,14 +5459,29 @@ body.is-dark-mode .settings-inline-meta code {
   border: 1px solid rgba(22, 78, 125, 0.08);
 }
 
+body.is-dark-mode .bios-vendor-detect-evidence-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(126, 166, 199, 0.12);
+}
+
 .bios-vendor-detect-evidence-chip strong {
   color: var(--deep);
   font-size: 0.88rem;
 }
 
+body.is-dark-mode .bios-vendor-detect-evidence-chip strong {
+  color: #dcefff;
+}
+
 .bios-vendor-detect-evidence-chip small {
   color: var(--muted);
   font-size: 0.74rem;
+}
+
+body.is-dark-mode .bios-vendor-detect-evidence-chip small,
+body.is-dark-mode .bios-vendor-detect-pattern,
+body.is-dark-mode .bios-vendor-detect-empty-inline {
+  color: #9fb7cc;
 }
 
 .bios-vendor-detect-empty-inline {
@@ -5321,6 +5515,12 @@ body.is-dark-mode .settings-inline-meta code {
 .uefi-tool-warnings {
   background: rgba(198, 107, 34, 0.08);
   color: var(--text);
+}
+
+body.is-dark-mode .uefi-tool-warnings {
+  border: 1px solid rgba(240, 180, 93, 0.16);
+  background: rgba(240, 180, 93, 0.08);
+  color: #f2dfc2;
 }
 
 .uefi-tool-console mark {
@@ -5596,11 +5796,20 @@ body.is-dark-mode .settings-inline-meta code {
   overflow: hidden;
 }
 
+body.is-dark-mode .microscope-debug-panel {
+  border-color: rgba(126, 166, 199, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .microscope-debug-panel summary {
   cursor: pointer;
   padding: 12px 14px;
   font-weight: 700;
   color: var(--deep);
+}
+
+body.is-dark-mode .microscope-debug-panel summary {
+  color: #dcefff;
 }
 
 .microscope-debug-log {
@@ -5612,6 +5821,10 @@ body.is-dark-mode .settings-inline-meta code {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+body.is-dark-mode .microscope-debug-log {
+  color: #9fb7cc;
 }
 
 :fullscreen#microscopePreviewPanel,
@@ -5690,6 +5903,12 @@ body.is-dark-mode .settings-inline-meta code {
   background: rgba(196, 95, 32, 0.07);
 }
 
+body.is-dark-mode .bios-password-checklist p {
+  border: 1px solid rgba(240, 180, 93, 0.14);
+  background: rgba(240, 180, 93, 0.08);
+  color: #dcefff;
+}
+
 .bios-password-pattern-grid {
   display: grid;
   gap: 14px;
@@ -5708,6 +5927,11 @@ body.is-dark-mode .settings-inline-meta code {
   background: rgba(255, 252, 248, 0.94);
 }
 
+body.is-dark-mode .bios-password-result-card {
+  border-color: rgba(126, 166, 199, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .bios-password-empty-state {
   display: flex;
   align-items: center;
@@ -5720,6 +5944,14 @@ body.is-dark-mode .settings-inline-meta code {
   color: rgba(138, 92, 23, 0.8);
 }
 
+body.is-dark-mode .bios-password-empty-state {
+  color: #9fb7cc;
+}
+
+body.is-dark-mode .bios-password-empty-state span {
+  color: #ffd38a;
+}
+
 .bios-password-pattern-card {
   padding: 16px;
   border-radius: 20px;
@@ -5727,9 +5959,19 @@ body.is-dark-mode .settings-inline-meta code {
   background: rgba(255, 252, 248, 0.9);
 }
 
+body.is-dark-mode .bios-password-pattern-card {
+  border-color: rgba(126, 166, 199, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .bios-password-pattern-card.is-active {
   border-color: rgba(37, 120, 63, 0.24);
   background: linear-gradient(180deg, rgba(230, 248, 236, 0.98), rgba(205, 238, 217, 0.98));
+}
+
+body.is-dark-mode .bios-password-pattern-card.is-active {
+  border-color: rgba(74, 212, 134, 0.26);
+  background: linear-gradient(180deg, rgba(16, 45, 30, 0.96), rgba(11, 32, 24, 0.9));
 }
 
 .bios-password-pattern-head {
@@ -5743,6 +5985,10 @@ body.is-dark-mode .settings-inline-meta code {
 .bios-password-pattern-card p {
   margin: 0;
   color: var(--muted);
+}
+
+body.is-dark-mode .bios-password-pattern-card p {
+  color: #9fb7cc;
 }
 
 .bios-password-example-row {
@@ -5763,6 +6009,13 @@ body.is-dark-mode .settings-inline-meta code {
   font-size: 0.88rem;
 }
 
+body.is-dark-mode .bios-password-example-row code,
+body.is-dark-mode .bios-password-password-row code {
+  border: 1px solid rgba(126, 166, 199, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #eaf4ff;
+}
+
 .bios-password-example-button {
   padding: 8px 12px;
   border-radius: 12px;
@@ -5778,6 +6031,12 @@ body.is-dark-mode .settings-inline-meta code {
 .bios-password-password-row code {
   background: linear-gradient(180deg, rgba(230, 248, 236, 0.98), rgba(205, 238, 217, 0.98));
   border: 1px solid rgba(37, 120, 63, 0.16);
+}
+
+body.is-dark-mode .bios-password-password-row code {
+  border-color: rgba(74, 212, 134, 0.22);
+  background: linear-gradient(180deg, rgba(16, 45, 30, 0.96), rgba(11, 32, 24, 0.9));
+  color: #b8f5d0;
 }
 
 label {
@@ -5939,6 +6198,11 @@ button.ghost {
   background: linear-gradient(180deg, rgba(230, 248, 236, 0.98), rgba(205, 238, 217, 0.98));
 }
 
+body.is-dark-mode .file-hash-compare-result-card.is-identical {
+  border-color: rgba(74, 212, 134, 0.24);
+  background: linear-gradient(180deg, rgba(20, 58, 44, 0.96), rgba(17, 45, 35, 0.96));
+}
+
 .file-hash-compare-result-card.is-identical .material-symbols-outlined,
 .file-hash-compare-result-card.is-identical strong,
 .file-hash-compare-result-card.is-identical .label,
@@ -5948,9 +6212,23 @@ button.ghost {
   color: #145c40;
 }
 
+body.is-dark-mode .file-hash-compare-result-card.is-identical .material-symbols-outlined,
+body.is-dark-mode .file-hash-compare-result-card.is-identical strong,
+body.is-dark-mode .file-hash-compare-result-card.is-identical .label,
+body.is-dark-mode .file-hash-compare-result-card.is-identical p,
+body.is-dark-mode .file-hash-compare-result-card.is-identical span,
+body.is-dark-mode .file-hash-compare-result-card.is-identical h4 {
+  color: #b8f5d0;
+}
+
 .file-hash-compare-result-card.is-different {
   border-color: rgba(175, 54, 54, 0.18);
   background: linear-gradient(180deg, rgba(255, 238, 238, 0.98), rgba(248, 215, 215, 0.98));
+}
+
+body.is-dark-mode .file-hash-compare-result-card.is-different {
+  border-color: rgba(227, 107, 107, 0.24);
+  background: linear-gradient(180deg, rgba(74, 28, 28, 0.96), rgba(53, 20, 20, 0.96));
 }
 
 .file-hash-compare-result-card.is-different .material-symbols-outlined,
@@ -5960,6 +6238,15 @@ button.ghost {
 .file-hash-compare-result-card.is-different span,
 .file-hash-compare-result-card.is-different h4 {
   color: #8d2f2f;
+}
+
+body.is-dark-mode .file-hash-compare-result-card.is-different .material-symbols-outlined,
+body.is-dark-mode .file-hash-compare-result-card.is-different strong,
+body.is-dark-mode .file-hash-compare-result-card.is-different .label,
+body.is-dark-mode .file-hash-compare-result-card.is-different p,
+body.is-dark-mode .file-hash-compare-result-card.is-different span,
+body.is-dark-mode .file-hash-compare-result-card.is-different h4 {
+  color: #ffd0d0;
 }
 
 .checkline {
@@ -6014,6 +6301,7 @@ a {
   .catalog-list,
   .spi-layout,
   .spi-bottom-grid,
+  .spi-stats-grid,
   .spi-form-grid,
   .spi-action-grid,
   .dashboard-home-status-grid,

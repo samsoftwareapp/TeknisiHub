@@ -80,7 +80,7 @@
 
   function buildNativeViewerUrl(payload) {
     const targetUrl = new URL("boardview-teknisihub.html", globalScope.location.href);
-    targetUrl.searchParams.set("v", "20260509i");
+    targetUrl.searchParams.set("v", "20260509l");
     if (payload.sessionId) {
       targetUrl.searchParams.set("sessionId", payload.sessionId);
     }
