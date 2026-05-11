@@ -32,7 +32,7 @@
       label: "EZP2019+",
       transport: "Bulk USB vendor protocol",
       status: "Native backend",
-      speed: "12 MHz fixed",
+      speed: "3/6/12 MHz",
       note: "Backend USB EZP2019+ dijalankan langsung dari local service."
     }
   };
@@ -810,14 +810,14 @@
     return action;
   }
 
-  function resolveActionTaskLabel(action, autoProcessEnabled) {
+  function resolveActionTaskLabel(action, autoProcessEnabled, selectedDevice = state.selectedDevice) {
     const normalizedAction = String(action || "").trim().toLowerCase();
     if (normalizedAction === "detect") {
       return "SmartID";
     }
 
     if (normalizedAction === "read") {
-      return autoProcessEnabled ? "Read+Verify" : "Read";
+      return selectedDevice === "EZP2019" || !autoProcessEnabled ? "Read" : "Read+Verify";
     }
 
     if (normalizedAction === "write" || normalizedAction === "auto") {
@@ -926,18 +926,20 @@
     const pageLabel = state.pageSize > 0 ? `${state.pageSize} byte` : "Belum ada data";
     const fileNameLabel = state.fileName || "Belum ada file";
     const showStm32SpeedField = state.selectedDevice === "STM32";
-    const showFixedSpeedField =
-      state.selectedDevice === "EZP2019" ||
-      state.selectedDevice === "CH341A";
-    const fixedSpeedLabel = state.selectedDevice === "CH341A"
-      ? "0.75 MHz"
-      : "12 MHz";
+    const showEzpSpeedField = state.selectedDevice === "EZP2019";
+    const showFixedSpeedField = state.selectedDevice === "CH341A";
+    const fixedSpeedLabel = "0.75 MHz";
     const speedInputValue = formatSpeedInputValue(state.speedHz || 12000000);
     const hexPreviewStatusState = getHexPreviewStatusState(state, busy);
-    const readActionSummary = autoProcessEnabled ? "Read + Verify" : "Read";
+    const ezpReadUsesSinglePass = state.selectedDevice === "EZP2019";
+    const readActionSummary = ezpReadUsesSinglePass
+      ? "Read"
+      : autoProcessEnabled ? "Read + Verify" : "Read";
     const writeActionSummary = autoProcessEnabled ? "Erase + Write + Verify" : "Write";
     const autoProcessSummary = autoProcessEnabled
-      ? "Aktif: Read=Read+Verify, Write=Erase+Write+Verify"
+      ? ezpReadUsesSinglePass
+        ? "Aktif: Read=Read, Write=Erase+Write+Verify"
+        : "Aktif: Read=Read+Verify, Write=Erase+Write+Verify"
       : "Nonaktif: Read=Read, Write=Write";
     const selectedDriver = normalizeDriverInfo(state.selectedDeviceDriver, state.selectedDevice);
     const driverInstallLabel = selectedDriver.installLabel || "Install driver";
@@ -1084,6 +1086,15 @@
               <label>
                 Speed (MHz)
                 <input data-field="speedHz" data-field-format="mhz" type="text" value="${escapeHtml(speedInputValue)}" placeholder="12"${disableAttr}>
+              </label>
+            ` : showEzpSpeedField ? `
+              <label>
+                Speed
+                <select data-field="speedHz"${disableAttr}>
+                  <option value="12000000"${Number(state.speedHz || 12000000) === 12000000 ? " selected" : ""}>12 MHz</option>
+                  <option value="6000000"${Number(state.speedHz || 12000000) === 6000000 ? " selected" : ""}>6 MHz</option>
+                  <option value="3000000"${Number(state.speedHz || 12000000) === 3000000 ? " selected" : ""}>3 MHz</option>
+                </select>
               </label>
             ` : showFixedSpeedField ? `
               <label>
@@ -1705,7 +1716,7 @@
               }
             }
           }, {
-            activeOperation: resolveActionTaskLabel(action, state.autoProcess !== false)
+            activeOperation: resolveActionTaskLabel(action, state.autoProcess !== false, state.selectedDevice)
           });
         });
       });
