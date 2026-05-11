@@ -15,8 +15,8 @@
     <section class="db-editor-hero">
       <div>
         <p class="label">SPI Flash Database</p>
-        <h1>Editor TeknisiHub.dat</h1>
-        <p class="db-editor-subtitle">Edit, tambah, hapus, lalu simpan record chip langsung ke database SPI Flash local service.</p>
+        <h1>Editor Database Programmer</h1>
+        <p class="db-editor-subtitle">Edit database SPI Flash JEDEC dan profile KBC/EC ENE/ITE langsung dari local service.</p>
       </div>
       <div class="db-editor-actions">
         <button id="databaseEditorReloadButton" type="button" class="ghost">
@@ -54,6 +54,10 @@
     </section>
 
     <section class="db-editor-toolbar">
+      <div class="db-editor-tabs" role="tablist" aria-label="Database yang diedit">
+        <button id="databaseEditorSpiTab" type="button" class="is-active" data-database-tab="spi">SPI Flash JEDEC</button>
+        <button id="databaseEditorKbcTab" type="button" data-database-tab="kbc">KBC/EC ENE/ITE</button>
+      </div>
       <label class="db-editor-search">
         <span class="material-symbols-outlined">search</span>
         <input id="databaseEditorSearchInput" type="search" placeholder="Cari type, manufacturer, nama chip, JEDEC, atau ukuran...">
@@ -65,7 +69,7 @@
       <div class="db-editor-table-wrap">
         <table class="db-editor-table">
           <thead>
-            <tr>
+            <tr id="databaseEditorHeaderRow">
               <th>No</th>
               <th>Type</th>
               <th>Manufacture</th>
@@ -104,6 +108,7 @@
     </section>
   </main>
 
-  <script src="database-editor.js"></script>
+  <script src="../../service-config.js?v=202605110643"></script>
+  <script src="database-editor.js?v=202605110643"></script>
 </body>
 </html>

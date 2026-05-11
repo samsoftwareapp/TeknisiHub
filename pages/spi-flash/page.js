@@ -4,6 +4,7 @@
   const hexPreviewOverscanLines = 10;
   const hexPreviewMinimumRequestLines = 64;
   const hexPreviewMaxVirtualHeight = 12000000;
+  const maxSpiFlashTaskPanelEntries = 4;
 
   const deviceProfiles = {
     CH341A: {
@@ -21,11 +22,11 @@
       note: "Backend CH347 dijalankan langsung dari local service."
     },
     STM32: {
-      label: "STM32",
-      transport: "USB CDC backend",
-      status: "Native backend",
-      speed: "12 MHz max",
-      note: "Backend STM32 CDC dijalankan langsung dari local service."
+      label: "STM32 KBC/EC",
+      transport: "USB WinUSB vendor bulk",
+      status: "SPI + ENE/ITE KBC/EC",
+      speed: "20 MHz request",
+      note: "Backend STM32 memakai firmware MYGPROG stabil dari repo rp2040-with-ene-main."
     },
     EZP2019: {
       label: "EZP2019+",
@@ -84,9 +85,11 @@
         chipVoltage: String(entry?.chipVoltage || "").trim(),
         chipCapacity: String(entry?.chipCapacity || "").trim(),
         actionLabel: String(entry?.actionLabel || "").trim(),
-        durationMilliseconds: Math.max(0, Number(entry?.durationMilliseconds || 0))
+        durationMilliseconds: Math.max(0, Number(entry?.durationMilliseconds || 0)),
+        completedAtUnixMilliseconds: Math.max(0, Number(entry?.completedAtUnixMilliseconds || entry?.completedAt || 0))
       }))
-      .filter((entry) => entry.sequence > 0 && entry.deviceLabel && entry.actionLabel);
+      .filter((entry) => entry.sequence > 0 && entry.deviceLabel && entry.actionLabel)
+      .sort((left, right) => (right.sequence || 0) - (left.sequence || 0));
   }
 
   function formatDurationLabel(durationMilliseconds) {
@@ -189,28 +192,35 @@
     return parts.join(" - ");
   }
 
+  function getSpiFlashTaskTimestamp(entry, fallbackOffset = 0) {
+    const completedAt = Number(entry?.completedAtUnixMilliseconds || 0);
+    if (completedAt > 0) {
+      return completedAt;
+    }
+
+    return Date.now() - Math.max(0, fallbackOffset);
+  }
+
   function reportActionProgressTasks(state, busy, deviceBusy, progressWidth, reportTask) {
     if (typeof reportTask !== "function") {
       return;
     }
 
-    const completedEntries = Array.isArray(state.fullProgressHistory)
+    const completedEntries = (Array.isArray(state.fullProgressHistory)
       ? state.fullProgressHistory
-      : [];
+      : [])
+      .slice()
+      .sort((left, right) => (right.sequence || 0) - (left.sequence || 0));
     const activeOperation = String(state.activeOperation || "").trim();
     const hasActiveOperation = (busy || deviceBusy) && !isIdleOperationLabel(activeOperation);
     const lowerActiveOperation = activeOperation.toLowerCase();
     const shouldShowCurrentResult =
       !hasActiveOperation &&
       Number(state.progress || 0) >= 100 &&
-      (lowerActiveOperation.includes("jedec") || lowerActiveOperation.includes("koneksi device"));
+      lowerActiveOperation.includes("jedec");
     const failedMessage = !busy && !deviceBusy && state.errorMessage
       ? String(state.errorMessage || "").trim()
       : "";
-    const completedCount = completedEntries.length + (shouldShowCurrentResult ? 1 : 0);
-    const countLabel = hasActiveOperation && completedEntries.length === 0
-      ? "1 proses berjalan"
-      : `${completedCount} proses selesai`;
     const activeMeta = [
       state.selectedDevice ? resolveSelectedDeviceLabel(state.selectedDevice) : "",
       state.jedec ? `JEDEC ${state.jedec}` : "",
@@ -218,8 +228,10 @@
     ].filter(Boolean).join(" - ") || "Menunggu update dari local service";
 
     if (hasActiveOperation) {
+      const timestamp = Date.now();
       reportTask({
         operationId: "spi-flash-active",
+        source: "spi-flash",
         fileName: activeOperation,
         displayName: "SPI Flash",
         icon: "progress_activity",
@@ -227,54 +239,23 @@
         stage: "running",
         active: true,
         success: false,
-        progressPercent: progressWidth
+        progressPercent: progressWidth,
+        updatedAt: timestamp,
+        sortKey: timestamp
       });
-    } else if (completedEntries.length > 0) {
-      const latestEntry = completedEntries[0];
+    } else {
       reportTask({
         operationId: "spi-flash-active",
-        fileName: latestEntry.actionLabel || "SPI Flash action",
-        displayName: "SPI Flash",
-        icon: getActionProgressIcon(latestEntry.actionLabel),
-        message: `${createActionProgressMeta(latestEntry)} - ${formatDurationLabel(latestEntry.durationMilliseconds)}`,
-        stage: "completed",
-        active: false,
-        success: true,
-        progressPercent: 100,
-        updatedAt: Date.now()
-      });
-    } else if (shouldShowCurrentResult) {
-      reportTask({
-        operationId: "spi-flash-active",
-        fileName: activeOperation,
-        displayName: "SPI Flash",
-        icon: getActionProgressIcon(activeOperation),
-        message: activeMeta,
-        stage: "completed",
-        active: false,
-        success: true,
-        progressPercent: 100
+        source: "spi-flash",
+        remove: true
       });
     }
 
-    if (failedMessage) {
-      reportTask({
-        operationId: `spi-flash-failed-${failedMessage.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80)}`,
-        fileName: "Proses gagal",
-        displayName: "SPI Flash",
-        icon: "error",
-        message: failedMessage,
-        lastError: failedMessage,
-        stage: "failed",
-        active: false,
-        success: false,
-        progressPercent: Math.max(0, progressWidth)
-      });
-    }
-
-    completedEntries.slice(1).forEach((entry) => {
+    completedEntries.slice(0, maxSpiFlashTaskPanelEntries).forEach((entry, index) => {
+      const timestamp = getSpiFlashTaskTimestamp(entry, index);
       reportTask({
         operationId: `spi-flash-history-${entry.sequence}`,
+        source: "spi-flash",
         fileName: entry.actionLabel || "SPI Flash action",
         displayName: "SPI Flash",
         icon: getActionProgressIcon(entry.actionLabel),
@@ -283,12 +264,51 @@
         active: false,
         success: true,
         progressPercent: 100,
-        updatedAt: Date.now() - Math.max(0, Number(entry.sequence || 0))
+        updatedAt: timestamp,
+        sortKey: timestamp
       });
     });
 
-    if (!hasActiveOperation && !failedMessage && completedCount === 0) {
-      return;
+    if (shouldShowCurrentResult && completedEntries.length === 0) {
+      const timestamp = Date.now();
+      const resultKey = `${activeOperation}-${state.jedec || ""}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80) || "completed";
+      reportTask({
+        operationId: `spi-flash-result-${resultKey}`,
+        source: "spi-flash",
+        fileName: activeOperation,
+        displayName: "SPI Flash",
+        icon: getActionProgressIcon(activeOperation),
+        message: activeMeta,
+        stage: "completed",
+        active: false,
+        success: true,
+        progressPercent: 100,
+        updatedAt: timestamp,
+        sortKey: timestamp
+      });
+    }
+
+    if (failedMessage) {
+      const timestamp = Date.now();
+      reportTask({
+        operationId: `spi-flash-failed-${failedMessage.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80)}`,
+        source: "spi-flash",
+        fileName: "Proses gagal",
+        displayName: "SPI Flash",
+        icon: "error",
+        message: failedMessage,
+        lastError: failedMessage,
+        stage: "failed",
+        active: false,
+        success: false,
+        progressPercent: Math.max(0, progressWidth),
+        updatedAt: timestamp,
+        sortKey: timestamp
+      });
     }
   }
 
@@ -717,6 +737,174 @@
     `;
   }
 
+  function createActionButton(action, icon, label, detail, disableAttr, extraClass = "") {
+    return `
+      <button type="button" class="${escapeHtml(extraClass)}" data-spi-action="${escapeHtml(action)}"${disableAttr}>
+        <span class="material-symbols-outlined">${escapeHtml(icon)}</span>
+        <span class="spi-action-copy">
+          <strong>${escapeHtml(label)}</strong>
+          <small>${escapeHtml(detail)}</small>
+        </span>
+      </button>
+    `;
+  }
+
+  function createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr) {
+    return `
+      <label class="spi-auto-toggle">
+        <input id="spiFlashAutoProcess" data-field="autoProcess" type="checkbox"${autoProcessEnabled ? " checked" : ""}${disableAttr}>
+        <span class="spi-auto-toggle-copy">
+          <strong>Auto proses</strong>
+          <small>${escapeHtml(autoProcessSummary)}</small>
+        </span>
+      </label>
+    `;
+  }
+
+  function createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
+    return `
+      ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
+      <div class="spi-action-grid spi-action-grid-primary">
+        ${createActionButton("read", "download", "Read", readActionSummary, actionDisableAttr)}
+        ${createActionButton("erase", "ink_eraser", "Erase", "Erase", actionDisableAttr)}
+        ${createActionButton("write", "upload", "Write", writeActionSummary, actionDisableAttr)}
+        ${createActionButton("verify", "rule", "Verify", "Verify", actionDisableAttr)}
+      </div>
+      <div class="spi-action-grid spi-action-grid-secondary">
+        <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
+          <span class="material-symbols-outlined">restart_alt</span>
+          <span>Reset Session</span>
+        </button>
+        <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
+          <span class="material-symbols-outlined">edit_note</span>
+          <span>Edit Database</span>
+        </button>
+      </div>
+    `;
+  }
+
+  function getStm32TargetKind(state) {
+    const vendor = String(state?.chipVendor || "").trim().toUpperCase();
+    const model = String(state?.chipModel || "").trim().toUpperCase();
+    if (vendor === "ENE" || model.includes("ENE ")) {
+      return "ene";
+    }
+
+    if (vendor === "ITE" || model.includes("ITE ")) {
+      return "ite";
+    }
+
+    return "spi";
+  }
+
+  function resolveStm32CommonAction(state, action) {
+    const targetKind = getStm32TargetKind(state);
+    if (targetKind === "ene") {
+      return `ene-${action}`;
+    }
+
+    if (targetKind === "ite") {
+      return `ite-${action}`;
+    }
+
+    return action;
+  }
+
+  function resolveActionTaskLabel(action, autoProcessEnabled) {
+    const normalizedAction = String(action || "").trim().toLowerCase();
+    if (normalizedAction === "detect") {
+      return "SmartID";
+    }
+
+    if (normalizedAction === "read") {
+      return autoProcessEnabled ? "Read+Verify" : "Read";
+    }
+
+    if (normalizedAction === "write" || normalizedAction === "auto") {
+      return autoProcessEnabled ? "Erase+Write+Verify" : "Write";
+    }
+
+    if (normalizedAction === "erase") {
+      return "Erase";
+    }
+
+    if (normalizedAction === "verify") {
+      return "Verify";
+    }
+
+    if (normalizedAction.startsWith("ene-")) {
+      const suffix = normalizedAction.slice(4);
+      if (suffix === "detect") {
+        return "Detect ENE";
+      }
+      if (suffix === "read") {
+        return autoProcessEnabled ? "ENE Read+Verify" : "ENE Read";
+      }
+      if (suffix === "write") {
+        return autoProcessEnabled ? "ENE Erase+Write+Verify" : "ENE Write";
+      }
+      if (suffix === "erase") {
+        return "ENE Erase";
+      }
+      if (suffix === "verify") {
+        return "ENE Verify";
+      }
+    }
+
+    if (normalizedAction.startsWith("ite-")) {
+      const suffix = normalizedAction.slice(4);
+      if (suffix === "detect") {
+        return "Detect ITE";
+      }
+      if (suffix === "read") {
+        return autoProcessEnabled ? "ITE Read+Verify" : "ITE Read";
+      }
+      if (suffix === "write") {
+        return autoProcessEnabled ? "ITE Erase+Write+Verify" : "ITE Write";
+      }
+      if (suffix === "erase") {
+        return "ITE Erase";
+      }
+      if (suffix === "verify") {
+        return "ITE Verify";
+      }
+    }
+
+    return normalizedAction ? normalizedAction : "SPI Flash";
+  }
+
+  function createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
+    const targetKind = getStm32TargetKind(state);
+    const targetLabel = targetKind === "ene"
+      ? "ENE"
+      : targetKind === "ite"
+        ? "ITE"
+        : "SPI";
+
+    return `
+      ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
+      <div class="spi-action-grid spi-action-grid-primary">
+        ${createActionButton("detect", "radar", "SmartID", "SPI JEDEC", actionDisableAttr)}
+        ${createActionButton("ene-detect", "memory", "Detect ENE", "KBC/EC", actionDisableAttr)}
+        ${createActionButton("ite-detect", "memory", "Detect ITE", "KBC/EC", actionDisableAttr)}
+        ${createActionButton(resolveStm32CommonAction(state, "read"), "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr)}
+        ${createActionButton(resolveStm32CommonAction(state, "write"), "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr)}
+        ${createActionButton(resolveStm32CommonAction(state, "verify"), "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
+        ${createActionButton(resolveStm32CommonAction(state, "erase"), "ink_eraser", "Erase", `${targetLabel} erase`, actionDisableAttr)}
+      </div>
+      <div class="spi-action-grid spi-action-grid-secondary">
+        <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
+          <span class="material-symbols-outlined">restart_alt</span>
+          <span>Reset Session</span>
+        </button>
+        <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
+          <span class="material-symbols-outlined">edit_note</span>
+          <span>Edit Database</span>
+        </button>
+      </div>
+    `;
+  }
+
   function createWorkbenchMarkup(state, busy, deviceBusy, deviceMenuOpen, hexView) {
     const autoProcessEnabled = state.autoProcess !== false;
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
@@ -757,6 +945,9 @@
     const availableDevices = getEnabledDeviceEntries();
     const selectedDeviceLabel = resolveSelectedDeviceLabel(state.selectedDevice);
     const selectedDeviceSubtext = resolveSelectedDeviceSubtext(state.selectedDevice, deviceBusy);
+    const actionPadMarkup = state.selectedDevice === "STM32"
+      ? createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr)
+      : createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr);
 
     return `
       <div class="spi-workbench-shell${busy ? " is-busy" : ""}">
@@ -842,7 +1033,7 @@
             </div>
             <button type="button" class="ghost" data-spi-action="detect"${actionDisableAttr}>
               <span class="material-symbols-outlined">radar</span>
-              <span>Detect JEDEC</span>
+              <span>${state.selectedDevice === "STM32" ? "SmartID" : "Detect JEDEC"}</span>
             </button>
           </div>
           <div class="spi-form-grid">
@@ -907,56 +1098,10 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Action Pad</p>
-              <h4>Flow operasi</h4>
+              <h4>${state.selectedDevice === "STM32" ? "Flow SPI + KBC/EC" : "Flow operasi"}</h4>
             </div>
           </div>
-          <label class="spi-auto-toggle">
-            <input id="spiFlashAutoProcess" data-field="autoProcess" type="checkbox"${autoProcessEnabled ? " checked" : ""}${disableAttr}>
-            <span class="spi-auto-toggle-copy">
-              <strong>Auto proses</strong>
-              <small>${escapeHtml(autoProcessSummary)}</small>
-            </span>
-          </label>
-          <div class="spi-action-grid spi-action-grid-primary">
-            <button type="button" data-spi-action="read"${actionDisableAttr}>
-              <span class="material-symbols-outlined">download</span>
-              <span class="spi-action-copy">
-                <strong>Read</strong>
-                <small>${escapeHtml(readActionSummary)}</small>
-              </span>
-            </button>
-            <button type="button" data-spi-action="erase"${actionDisableAttr}>
-              <span class="material-symbols-outlined">ink_eraser</span>
-              <span class="spi-action-copy">
-                <strong>Erase</strong>
-                <small>Erase</small>
-              </span>
-            </button>
-            <button type="button" data-spi-action="write"${actionDisableAttr}>
-              <span class="material-symbols-outlined">upload</span>
-              <span class="spi-action-copy">
-                <strong>Write</strong>
-                <small>${escapeHtml(writeActionSummary)}</small>
-              </span>
-            </button>
-            <button type="button" data-spi-action="verify"${actionDisableAttr}>
-              <span class="material-symbols-outlined">rule</span>
-              <span class="spi-action-copy">
-                <strong>Verify</strong>
-                <small>Verify</small>
-              </span>
-            </button>
-          </div>
-          <div class="spi-action-grid spi-action-grid-secondary">
-            <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
-              <span class="material-symbols-outlined">restart_alt</span>
-              <span>Reset Session</span>
-            </button>
-            <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
-              <span class="material-symbols-outlined">edit_note</span>
-              <span>Edit Database</span>
-            </button>
-          </div>
+          ${actionPadMarkup}
         </section>
       </div>
 
@@ -1303,7 +1448,7 @@
       render();
     }
 
-    async function selectDeviceAndConnect(nextDevice) {
+    async function selectDevice(nextDevice) {
       const session = await fetchJson("/spi-flash/device", {
         method: "POST",
         body: JSON.stringify({ deviceType: nextDevice })
@@ -1312,13 +1457,20 @@
       applySessionState(session, { resetScroll: true });
       state.selectedDeviceDriver = normalizeDriverInfo(null, nextDevice);
       state.driverInfoLoaded = false;
+    }
+
+    async function refreshStm32ConnectionStatus(deviceType) {
+      if (!state.serviceAvailable || deviceType !== "STM32") {
+        return;
+      }
 
       try {
-        const connectedSession = await runAction("connect");
-        applySessionState(connectedSession);
-      } catch (error) {
-        await fetchDriverInfo(nextDevice);
-        throw error;
+        const session = await runAction("connect");
+        applySessionState(session);
+      } catch {
+        if (state.selectedDevice === "STM32") {
+          state.connectionState = `${resolveSelectedDeviceLabel("STM32")} belum terhubung`;
+        }
       }
     }
 
@@ -1354,28 +1506,23 @@
       state.errorMessage = "";
       state.selectedDevice = normalizedDevice;
       state.profile = deviceProfiles[normalizedDevice] || deviceProfiles.CH347;
-      state.connectionState = `Mencoba konek ${normalizedDevice}...`;
+      state.connectionState = `Device ${normalizedDevice} dipilih`;
       state.selectedDeviceDriver = normalizeDriverInfo(null, normalizedDevice);
       state.driverInfoLoaded = false;
       render();
-      startSessionPolling();
 
       try {
-        await selectDeviceAndConnect(normalizedDevice);
-      } catch (error) {
-        if (state.selectedDevice && !state.driverInfoLoaded) {
-          try {
-            await fetchDriverInfo(state.selectedDevice);
-          } catch {
-            // Keep the original device-selection error as the main feedback.
-          }
+        await selectDevice(normalizedDevice);
+        await refreshStm32ConnectionStatus(normalizedDevice);
+        try {
+          await fetchDriverInfo(normalizedDevice);
+        } catch {
+          // Driver info is helpful, but selecting the device must stay usable without it.
         }
-
-        state.errorMessage = error?.message || "Koneksi device SPI Flash gagal.";
+      } catch (error) {
+        state.errorMessage = error?.message || "Gagal memilih device SPI Flash.";
         notifyUser(state.errorMessage, "warning");
       } finally {
-        stopSessionPolling();
-        await refreshSessionSilently();
         deviceBusy = false;
         render();
       }
@@ -1523,7 +1670,7 @@
       }
 
       mountedContainer.querySelectorAll("[data-spi-action]").forEach((button) => {
-        button.addEventListener("click", () => withBusy(async () => {
+        button.addEventListener("click", () => {
           const action = button.getAttribute("data-spi-action");
           if (!action || !state.serviceAvailable) {
             return;
@@ -1534,28 +1681,33 @@
             return;
           }
 
-          const session = await runAction(action);
-          applySessionState(session, { resetScroll: true });
-          render();
+          void withBusy(async () => {
+            const session = await runAction(action);
+            applySessionState(session, { resetScroll: true });
+            render();
 
-          if (action === "read" && state.readBufferIsAllFf) {
-            notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
-          }
+            const isReadAction = action === "read" || action === "ene-read" || action === "ite-read";
+            if (isReadAction && state.readBufferIsAllFf) {
+              notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
+            }
 
-          if (action === "read" && state.autoProcess !== false && state.hasReadBuffer) {
-            try {
-              await saveReadBufferToBin({
-                showSuccessToast: false,
-                suppressEmptyWarning: true,
-                preferBrowserDownload: true
-              });
-            } catch (error) {
-              if (error?.name !== "AbortError") {
-                notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
+            if (isReadAction && state.autoProcess !== false && state.hasReadBuffer) {
+              try {
+                await saveReadBufferToBin({
+                  showSuccessToast: false,
+                  suppressEmptyWarning: true,
+                  preferBrowserDownload: true
+                });
+              } catch (error) {
+                if (error?.name !== "AbortError") {
+                  notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
+                }
               }
             }
-          }
-        }));
+          }, {
+            activeOperation: resolveActionTaskLabel(action, state.autoProcess !== false)
+          });
+        });
       });
 
       const editDatabaseButton = mountedContainer.querySelector("#spiFlashEditDatabaseButton");
@@ -1622,13 +1774,18 @@
       }
     }
 
-    async function withBusy(work) {
+    async function withBusy(work, options = {}) {
       if (busy) {
         return;
       }
 
       busy = true;
       deviceMenuOpen = false;
+      if (options.activeOperation) {
+        state.activeOperation = options.activeOperation;
+        state.progress = 0;
+        state.errorMessage = "";
+      }
       render();
       startSessionPolling();
 

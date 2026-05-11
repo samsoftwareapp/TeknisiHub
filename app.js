@@ -490,7 +490,9 @@ spiFlashPage.mount?.({
   container: spiFlashWorkbench,
   notify: (message, tone) => setNotice(message, tone),
   reportTask: (task) => {
-    catalogUploadTaskDismissed = false;
+    if (!task?.remove && !task?.deleted) {
+      catalogUploadTaskDismissed = false;
+    }
     upsertCatalogUploadTask(task);
   }
 });
@@ -4071,13 +4073,65 @@ function parseCatalogUploadTaskTimestamp(value, fallback = 0) {
   return fallback;
 }
 
+function resolveCatalogUploadTaskSource(taskUpdate = {}, existingTask = {}, operationId = "") {
+  const explicitSource = String(taskUpdate.source || taskUpdate.taskSource || existingTask.source || "").trim().toLowerCase();
+  if (explicitSource) {
+    return explicitSource;
+  }
+
+  return String(operationId || "").startsWith("spi-flash-") ? "spi-flash" : "catalog";
+}
+
+function isCatalogUploadTaskFinalStage(stage) {
+  return ["completed", "failed", "cancelled"].includes(String(stage || "").toLowerCase());
+}
+
+function isCatalogUploadTaskWaitingStage(stage) {
+  return ["idle", "preparing", "waiting", "waiting-selection"].includes(String(stage || "").toLowerCase());
+}
+
+function isCatalogUploadTaskAttentionStage(stage) {
+  return ["failed", "cancelled", "waiting-selection"].includes(String(stage || "").toLowerCase());
+}
+
+function getCatalogUploadTaskSortGroup(task) {
+  const stage = String(task?.stage || "").toLowerCase();
+  if (task?.active) {
+    return 40;
+  }
+
+  if (stage === "waiting-selection") {
+    return 35;
+  }
+
+  if (stage === "failed" || stage === "cancelled") {
+    return 30;
+  }
+
+  if (stage === "completed") {
+    return 20;
+  }
+
+  return 10;
+}
+
+function getCatalogUploadTaskSortValue(task) {
+  return Number(task?.sortKey ?? task?.updatedAt ?? task?.createdAt ?? 0) || 0;
+}
+
 function getCatalogUploadTaskEntries() {
   return Array.from(catalogUploadTasks.values()).sort((left, right) => {
-    if (left.active !== right.active) {
-      return left.active ? -1 : 1;
+    const groupDelta = getCatalogUploadTaskSortGroup(right) - getCatalogUploadTaskSortGroup(left);
+    if (groupDelta !== 0) {
+      return groupDelta;
     }
 
-    return (right.updatedAt || 0) - (left.updatedAt || 0);
+    const sortDelta = getCatalogUploadTaskSortValue(right) - getCatalogUploadTaskSortValue(left);
+    if (sortDelta !== 0) {
+      return sortDelta;
+    }
+
+    return (right.createdAt || 0) - (left.createdAt || 0);
   });
 }
 
@@ -4086,9 +4140,15 @@ function trimCatalogUploadTasks() {
     return;
   }
 
-  const removableTasks = Array.from(catalogUploadTasks.values())
-    .filter((task) => !task.active)
-    .sort((left, right) => (left.updatedAt || 0) - (right.updatedAt || 0));
+  let removableTasks = Array.from(catalogUploadTasks.values())
+    .filter((task) => !task.active && !isCatalogUploadTaskAttentionStage(task.stage))
+    .sort((left, right) => getCatalogUploadTaskSortValue(left) - getCatalogUploadTaskSortValue(right));
+
+  if (removableTasks.length === 0) {
+    removableTasks = Array.from(catalogUploadTasks.values())
+      .filter((task) => !task.active)
+      .sort((left, right) => getCatalogUploadTaskSortValue(left) - getCatalogUploadTaskSortValue(right));
+  }
 
   while (catalogUploadTasks.size > maxCatalogUploadTasks && removableTasks.length > 0) {
     const removableTask = removableTasks.shift();
@@ -4105,12 +4165,16 @@ function stopCatalogUploadTaskSync() {
   }
 }
 
-function hasActiveCatalogUploadTasks() {
-  return Array.from(catalogUploadTasks.values()).some((task) => task.active);
+function hasActiveCatalogUploadTasks(source = "") {
+  const normalizedSource = String(source || "").trim().toLowerCase();
+  return Array.from(catalogUploadTasks.values()).some((task) =>
+    task.active && (!normalizedSource || task.source === normalizedSource)
+  );
 }
 
 function formatCatalogUploadTaskSummary(tasks) {
   const activeCount = tasks.filter((task) => task.active).length;
+  const waitingCount = tasks.filter((task) => String(task.stage || "").toLowerCase() === "waiting-selection").length;
   const failedCount = tasks.filter((task) => ["failed", "cancelled"].includes(task.stage)).length;
   const completedCount = tasks.filter((task) => task.stage === "completed").length;
 
@@ -4118,11 +4182,19 @@ function formatCatalogUploadTaskSummary(tasks) {
     return `${activeCount} proses berjalan`;
   }
 
+  if (waitingCount > 0) {
+    return `${waitingCount} proses menunggu`;
+  }
+
   if (failedCount > 0) {
     return `${failedCount} proses perlu dicek`;
   }
 
-  return `${Math.max(1, completedCount)} proses selesai`;
+  if (completedCount > 0) {
+    return `${completedCount} proses selesai`;
+  }
+
+  return `${tasks.length} proses`;
 }
 
 function getCatalogUploadTaskStatusIcon(task) {
@@ -4130,7 +4202,11 @@ function getCatalogUploadTaskStatusIcon(task) {
     return "progress_activity";
   }
 
-  if (task.stage === "idle" || task.stage === "preparing") {
+  if (task.stage === "waiting-selection") {
+    return "pending_actions";
+  }
+
+  if (isCatalogUploadTaskWaitingStage(task.stage)) {
     return "schedule";
   }
 
@@ -4150,7 +4226,11 @@ function getCatalogUploadTaskStatusText(task) {
     return `${Math.max(0, Math.min(100, Math.round(Number(task.progressPercent) || 0)))}%`;
   }
 
-  if (task.stage === "idle" || task.stage === "preparing") {
+  if (task.stage === "waiting-selection") {
+    return "Pilih";
+  }
+
+  if (isCatalogUploadTaskWaitingStage(task.stage)) {
     return "Menunggu";
   }
 
@@ -4191,7 +4271,7 @@ function renderCatalogUploadTasks() {
     const normalizedStage = String(task.stage || "").toLowerCase();
     const stageClass = task.active
       ? "is-active"
-      : normalizedStage === "idle" || normalizedStage === "preparing"
+      : isCatalogUploadTaskWaitingStage(normalizedStage)
       ? "is-active"
       : normalizedStage === "completed"
       ? "is-completed"
@@ -4200,7 +4280,7 @@ function renderCatalogUploadTasks() {
       : "is-failed";
     const progressPercent = Math.max(0, Math.min(100, Math.round(Number(task.progressPercent) || 0)));
     const icon = task.icon || "description";
-    const subtitle = `${task.displayName} â€¢ ${task.lastError || task.message || "Menyiapkan upload..."}`;
+    const subtitle = `${task.displayName} - ${task.lastError || task.message || "Menyiapkan proses..."}`;
 
     return `
       <article class="catalog-upload-task-item ${stageClass}">
@@ -4230,34 +4310,64 @@ function upsertCatalogUploadTask(taskUpdate = {}) {
     return;
   }
 
+  if (taskUpdate.remove || taskUpdate.deleted) {
+    catalogUploadTasks.delete(operationId);
+    renderCatalogUploadTasks();
+    return;
+  }
+
   const existingTask = catalogUploadTasks.get(operationId) || {};
   const stage = String(taskUpdate.stage || existingTask.stage || "preparing").toLowerCase();
-  const isFinalStage = ["completed", "failed", "cancelled"].includes(stage);
+  const isFinalStage = isCatalogUploadTaskFinalStage(stage);
   const rawPercent = taskUpdate.progressPercent ?? taskUpdate.percent ?? existingTask.progressPercent ?? 0;
   const progressPercent = Math.max(0, Math.min(100, Math.round(Number(rawPercent) || 0)));
   const fallbackCreatedAt = existingTask.createdAt || Date.now();
   const fallbackUpdatedAt = existingTask.updatedAt || fallbackCreatedAt;
+  const source = resolveCatalogUploadTaskSource(taskUpdate, existingTask, operationId);
   const createdAt = parseCatalogUploadTaskTimestamp(
     taskUpdate.createdAt ?? taskUpdate.startedAt ?? taskUpdate.startedAtUtc,
     fallbackCreatedAt
   );
-  const updatedAt = parseCatalogUploadTaskTimestamp(
-    taskUpdate.updatedAt ?? taskUpdate.updatedAtUtc,
+  const parsedUpdatedAt = parseCatalogUploadTaskTimestamp(
+    taskUpdate.updatedAt ?? taskUpdate.updatedAtUtc ?? taskUpdate.completedAt ?? taskUpdate.completedAtUtc,
     Date.now()
   );
+  const parsedSortKey = parseCatalogUploadTaskTimestamp(
+    taskUpdate.sortKey ?? taskUpdate.orderKey,
+    Number.NaN
+  );
+  const hasExplicitSortKey = Number.isFinite(parsedSortKey);
+  const updatedAt = hasExplicitSortKey || taskUpdate.allowEarlierUpdatedAt === true
+    ? parsedUpdatedAt
+    : Math.max(parsedUpdatedAt, fallbackUpdatedAt);
+  const sortKey = hasExplicitSortKey
+    ? parsedSortKey
+    : Math.max(updatedAt, Number(existingTask.sortKey || 0));
+  const active = typeof taskUpdate.active === "boolean"
+    ? taskUpdate.active
+    : !isFinalStage && stage !== "idle" && stage !== "waiting-selection";
+  const success = typeof taskUpdate.success === "boolean" ? taskUpdate.success : stage === "completed";
+  const hasLastErrorUpdate = Object.prototype.hasOwnProperty.call(taskUpdate, "lastError");
+  const lastError = hasLastErrorUpdate
+    ? String(taskUpdate.lastError || "").trim()
+    : success || stage === "completed"
+      ? ""
+      : String(existingTask.lastError || "").trim();
   const nextTask = {
     operationId,
-    fileName: String(taskUpdate.fileName || existingTask.fileName || "upload.bin").trim(),
-    displayName: String(taskUpdate.displayName || existingTask.displayName || currentCatalogView || "Katalog").trim(),
+    source,
+    fileName: String(taskUpdate.fileName || existingTask.fileName || "Proses").trim(),
+    displayName: String(taskUpdate.displayName || existingTask.displayName || currentCatalogView || "Task").trim(),
     icon: String(taskUpdate.icon || existingTask.icon || "description").trim(),
-    message: String(taskUpdate.message || existingTask.message || "Menyiapkan upload...").trim(),
-    lastError: String(taskUpdate.lastError || existingTask.lastError || "").trim(),
+    message: String(taskUpdate.message || existingTask.message || "Menyiapkan proses...").trim(),
+    lastError,
     stage,
-    active: typeof taskUpdate.active === "boolean" ? taskUpdate.active : !isFinalStage,
-    success: typeof taskUpdate.success === "boolean" ? taskUpdate.success : stage === "completed",
+    active,
+    success,
     progressPercent: stage === "completed" ? Math.max(100, progressPercent) : progressPercent,
     createdAt,
-    updatedAt: Math.max(updatedAt, fallbackUpdatedAt)
+    updatedAt,
+    sortKey
   };
 
   catalogUploadTasks.set(operationId, nextTask);
@@ -4300,6 +4410,7 @@ function syncCatalogUploadTasksFromEntries(entries = [], options = {}) {
           operationId: String(entry.operationId || "").trim(),
           fileName: String(entry.fileName || "upload.bin").trim(),
           displayName: String(entry.category || "Katalog").trim(),
+          source: "catalog",
           stage: String(entry.stage || "idle").toLowerCase(),
           active: Boolean(entry.active),
           success: Boolean(entry.success),
@@ -4307,7 +4418,8 @@ function syncCatalogUploadTasksFromEntries(entries = [], options = {}) {
           message: String(entry.message || "Menyiapkan upload...").trim(),
           lastError: String(entry.lastError || "").trim(),
           createdAt: entry.startedAtUtc || 0,
-          updatedAt: entry.updatedAtUtc || entry.completedAtUtc || entry.startedAtUtc || 0
+          updatedAt: entry.updatedAtUtc || entry.completedAtUtc || entry.startedAtUtc || 0,
+          sortKey: entry.updatedAtUtc || entry.completedAtUtc || entry.startedAtUtc || 0
         }))
         .filter((entry) => entry.operationId)
     : [];
@@ -4315,7 +4427,8 @@ function syncCatalogUploadTasksFromEntries(entries = [], options = {}) {
   if (options.replaceMissing) {
     const activeOperationIds = new Set(normalizedEntries.map((entry) => entry.operationId));
     for (const operationId of Array.from(catalogUploadTasks.keys())) {
-      if (!activeOperationIds.has(operationId)) {
+      const task = catalogUploadTasks.get(operationId);
+      if (task?.source === "catalog" && task.active && !activeOperationIds.has(operationId)) {
         catalogUploadTasks.delete(operationId);
       }
     }
@@ -4332,7 +4445,7 @@ async function hydrateCatalogUploadTasksFromService() {
   try {
     const entries = await fetchJson("/catalog/upload-progress");
     syncCatalogUploadTasksFromEntries(entries, { replaceMissing: true });
-    if (hasActiveCatalogUploadTasks()) {
+    if (hasActiveCatalogUploadTasks("catalog")) {
       scheduleCatalogUploadTaskSync();
     } else {
       stopCatalogUploadTaskSync();
@@ -4345,7 +4458,7 @@ async function hydrateCatalogUploadTasksFromService() {
 
 function scheduleCatalogUploadTaskSync() {
   stopCatalogUploadTaskSync();
-  if (!hasActiveCatalogUploadTasks()) {
+  if (!hasActiveCatalogUploadTasks("catalog")) {
     return;
   }
 
@@ -4437,7 +4550,7 @@ async function reconcileCatalogUploadTaskFromService(operationId, taskContext = 
     try {
       const progress = await fetchJson(`/catalog/upload-progress/${encodeURIComponent(normalizedOperationId)}`);
       const stage = String(progress?.stage || "").toLowerCase();
-      const isKnownStage = ["preparing", "uploading", "sending", "downloading", "extracting", "loading", "completed", "failed", "cancelled"].includes(stage);
+      const isKnownStage = ["preparing", "running", "uploading", "sending", "downloading", "extracting", "loading", "waiting-selection", "completed", "failed", "cancelled"].includes(stage);
 
       if (isKnownStage) {
         lastMeaningfulProgress = progress;
@@ -4483,12 +4596,16 @@ function applyCatalogTelegramUploadProgress(progress = {}, taskContext = {}) {
     operationId: progress.operationId || taskContext.operationId,
     fileName: progress.fileName || taskContext.fileName,
     displayName: taskContext.displayName,
+    source: "catalog",
     stage,
     active: Boolean(progress.active),
     success: Boolean(progress.success),
     progressPercent: percent,
     message,
-    lastError: progress.lastError || ""
+    lastError: progress.lastError || "",
+    createdAt: progress.startedAtUtc,
+    updatedAt: progress.updatedAtUtc || progress.completedAtUtc,
+    sortKey: progress.updatedAtUtc || progress.completedAtUtc || progress.startedAtUtc
   });
   if (Boolean(progress.active)) {
     scheduleCatalogUploadTaskSync();
@@ -4879,7 +4996,7 @@ function buildUpdateProgressMeta(operation) {
   const versionText = operation?.targetVersion ? `Target v.${operation.targetVersion}` : "";
 
   if (downloadedText && totalText) {
-    return `${versionText}${versionText ? " â€¢ " : ""}${downloadedText} / ${totalText}`;
+    return `${versionText}${versionText ? " - " : ""}${downloadedText} / ${totalText}`;
   }
 
   return versionText;
