@@ -432,6 +432,8 @@ const activeOtpPhoneStorageKey = "teknisihub_active_otp_phone";
 const introQuoteDismissStorageKey = "teknisihub_hide_intro_quote";
 const themeModeStorageKey = "teknisihub_theme_mode";
 const themeModeDateStorageKey = "teknisihub_theme_mode_wib_date";
+const telegramCatalogFirstPageStoragePrefix = "teknisihub_catalog_first_page_v1_";
+const telegramCatalogFirstPageMaxAgeMs = 24 * 60 * 60 * 1000;
 const catalogRefreshCooldownMs = 15000;
 const wibTimeZone = "Asia/Jakarta";
 const wibNightThemeStartHour = 18;
@@ -1191,6 +1193,86 @@ function buildTelegramCategoryStatsCacheKey(stats) {
   return String(stats.cacheVersion || "").trim();
 }
 
+function getTelegramCatalogFirstPageStorageKey(viewKey) {
+  return `${telegramCatalogFirstPageStoragePrefix}${viewKey}`;
+}
+
+function readTelegramCatalogFirstPageFromStorage(viewKey) {
+  if (!isTelegramCatalogView(viewKey)) {
+    return null;
+  }
+
+  try {
+    const rawPayload = localStorage.getItem(getTelegramCatalogFirstPageStorageKey(viewKey));
+    if (!rawPayload) {
+      return null;
+    }
+
+    const payload = JSON.parse(rawPayload);
+    const savedAt = Number(payload?.savedAt || 0);
+    if (!Array.isArray(payload?.items) || !savedAt || Date.now() - savedAt > telegramCatalogFirstPageMaxAgeMs) {
+      localStorage.removeItem(getTelegramCatalogFirstPageStorageKey(viewKey));
+      return null;
+    }
+
+    return {
+      items: payload.items,
+      hasMore: Boolean(payload.hasMore),
+      nextOffset: Number(payload.nextOffset || payload.items.length || 0),
+      cacheVersion: String(payload.cacheVersion || "")
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeTelegramCatalogFirstPageToStorage(viewKey, state) {
+  if (!isTelegramCatalogView(viewKey) || !Array.isArray(state.cachedFirstPageItems)) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      getTelegramCatalogFirstPageStorageKey(viewKey),
+      JSON.stringify({
+        items: state.cachedFirstPageItems.slice(0, 5),
+        hasMore: Boolean(state.cachedFirstPageHasMore),
+        nextOffset: Number(state.cachedFirstPageNextOffset || state.cachedFirstPageItems.length || 0),
+        cacheVersion: state.lastStatsCacheKey || "",
+        savedAt: Date.now()
+      })
+    );
+  } catch {
+  }
+}
+
+function clearTelegramCatalogFirstPageStorage(viewKey) {
+  if (!isTelegramCatalogView(viewKey)) {
+    return;
+  }
+
+  try {
+    localStorage.removeItem(getTelegramCatalogFirstPageStorageKey(viewKey));
+  } catch {
+  }
+}
+
+function hydrateTelegramCatalogFirstPageFromStorage(viewKey, state) {
+  const cached = readTelegramCatalogFirstPageFromStorage(viewKey);
+  if (!cached) {
+    return false;
+  }
+
+  catalogItems = [...cached.items];
+  state.hasMore = cached.hasMore;
+  state.nextOffset = cached.nextOffset;
+  state.cachedFirstPageItems = [...cached.items];
+  state.cachedFirstPageHasMore = cached.hasMore;
+  state.cachedFirstPageNextOffset = cached.nextOffset;
+  state.lastStatsCacheKey = cached.cacheVersion;
+  return true;
+}
+
 function isAbortError(error) {
   return error?.name === "AbortError" || error?.isAbortError === true;
 }
@@ -1218,6 +1300,7 @@ function applyTelegramCatalogPage(viewKey, state, catalog) {
   if (catalog?.cacheVersion) {
     state.lastStatsCacheKey = String(catalog.cacheVersion);
   }
+  writeTelegramCatalogFirstPageToStorage(viewKey, state);
 }
 
 function resetTelegramCatalogFirstPageCache(viewKey = currentCatalogView) {
@@ -1233,13 +1316,19 @@ function resetTelegramCatalogFirstPageCache(viewKey = currentCatalogView) {
   state.hasMore = false;
   state.nextOffset = 0;
   state.loadingMore = false;
+  clearTelegramCatalogFirstPageStorage(viewKey);
 }
 
 async function loadTelegramCatalogCachePreview(viewKey, state, requestToken) {
-  if (Array.isArray(state.cachedFirstPageItems) && state.cachedFirstPageItems.length > 0) {
+  const canUseClientCache = hasCurrentCatalogAccess(viewKey);
+  if (canUseClientCache && Array.isArray(state.cachedFirstPageItems) && (state.cachedFirstPageItems.length > 0 || state.lastStatsCacheKey)) {
     catalogItems = [...state.cachedFirstPageItems];
     state.hasMore = Boolean(state.cachedFirstPageHasMore);
     state.nextOffset = Number(state.cachedFirstPageNextOffset || catalogItems.length || 0);
+    return { cacheAvailable: true, cacheVersion: state.lastStatsCacheKey || "" };
+  }
+
+  if (canUseClientCache && hydrateTelegramCatalogFirstPageFromStorage(viewKey, state)) {
     return { cacheAvailable: true, cacheVersion: state.lastStatsCacheKey || "" };
   }
 
@@ -1349,6 +1438,30 @@ function isJoinManagedCatalogView(viewKey = currentCatalogView) {
 
 function requiresChannelJoin(viewKey = currentCatalogView) {
   return Boolean(catalogJoinRequiredState[viewKey]);
+}
+
+function hasCurrentCatalogAccess(viewKey = currentCatalogView) {
+  if (viewKey === "BIOS") {
+    return Boolean(currentBiosChannelRole || currentChannelRole);
+  }
+
+  if (viewKey === "Boardview") {
+    return Boolean(currentBoardviewChannelRole);
+  }
+
+  if (viewKey === "Schematics") {
+    return isSchematicsMember || Boolean(currentSchematicsChannelRole);
+  }
+
+  if (viewKey === "ProblemSolving") {
+    return isProblemSolvingMember || Boolean(currentProblemSolvingChannelRole);
+  }
+
+  if (viewKey === "Datasheets") {
+    return isDatasheetsMember || Boolean(currentDatasheetsChannelRole);
+  }
+
+  return true;
 }
 
 function setChannelJoinRequired(viewKey, required) {
@@ -3672,16 +3785,12 @@ async function loadTelegramCatalog(viewKey = currentCatalogView) {
       return;
     }
 
-    catalogItems = catalog.items || [];
-    state.hasMore = Boolean(catalog.hasMore);
-    state.nextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
     if (!query && !hasSharedMessageFilter) {
-      state.cachedFirstPageItems = [...catalogItems];
-      state.cachedFirstPageHasMore = state.hasMore;
-      state.cachedFirstPageNextOffset = state.nextOffset;
-      if (catalog?.cacheVersion) {
-        state.lastStatsCacheKey = String(catalog.cacheVersion);
-      }
+      applyTelegramCatalogPage(viewKey, state, catalog);
+    } else {
+      catalogItems = catalog.items || [];
+      state.hasMore = Boolean(catalog.hasMore);
+      state.nextOffset = Number(catalog.nextOffset || catalogItems.length || 0);
     }
   } finally {
     if (requestToken === state.requestToken) {
@@ -7969,6 +8078,7 @@ async function refreshCurrentTelegramCatalog() {
     });
     setChannelJoinRequired(currentCatalogView, false);
     setNotice(`${result.message} Tombol refresh akan aktif lagi dalam 15 detik.`, "info");
+    resetTelegramCatalogFirstPageCache(currentCatalogView);
     await loadCatalog();
   } catch (error) {
     if (isJoinManagedCatalogView(currentCatalogView) && isChannelJoinRequiredError(error)) {
