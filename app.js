@@ -418,6 +418,7 @@ let catalogRefreshLoading = false;
 let catalogRefreshCooldownUntil = 0;
 let catalogRefreshCooldownTimerId = 0;
 let catalogSearchLoading = false;
+const catalogSearchCacheMissNoticeByQuery = new Map();
 let catalogEventSource = null;
 let catalogEventReconnectTimerId = 0;
 const catalogUploadTasks = new Map();
@@ -434,6 +435,7 @@ const themeModeStorageKey = "teknisihub_theme_mode";
 const themeModeDateStorageKey = "teknisihub_theme_mode_wib_date";
 const telegramCatalogFirstPageStoragePrefix = "teknisihub_catalog_first_page_v1_";
 const telegramCatalogFirstPageMaxAgeMs = 24 * 60 * 60 * 1000;
+const catalogSearchCacheMissNoticeCooldownMs = 5 * 60 * 1000;
 const catalogRefreshCooldownMs = 15000;
 const wibTimeZone = "Asia/Jakarta";
 const wibNightThemeStartHour = 18;
@@ -1394,6 +1396,24 @@ async function syncTelegramCategoryInBackground(viewKey, state, requestToken, cu
       activeTelegramCategorySync = null;
     }
   }
+}
+
+function notifyCatalogSearchCacheMissValidation(viewKey, query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery || !hasCurrentCatalogAccess(viewKey)) {
+    return;
+  }
+
+  const noticeKey = `${viewKey}:${normalizedQuery}`;
+  const retryAfter = Number(catalogSearchCacheMissNoticeByQuery.get(noticeKey) || 0);
+  const now = Date.now();
+  if (retryAfter > now) {
+    return;
+  }
+
+  catalogSearchCacheMissNoticeByQuery.set(noticeKey, now + catalogSearchCacheMissNoticeCooldownMs);
+  const config = getTelegramCatalogConfig(viewKey);
+  setNotice(`Tidak ada hasil di cache ${config.displayName}. Backend sedang cek Google Drive di belakang.`, "info");
 }
 
 function getDisplayRoleForView(viewKey = currentCatalogView) {
@@ -3774,15 +3794,26 @@ async function loadTelegramCatalog(viewKey = currentCatalogView) {
       }
     }
 
-    const path = buildTelegramCatalogRequestPath(viewKey, {
+    const requestOptions = {
       limit: hasSharedMessageFilter ? 1 : 5,
       query,
+      cacheOnly: Boolean(query),
       messageId: sharedMessageId
-    });
-    const catalog = await fetchJson(path);
+    };
+    const path = buildTelegramCatalogRequestPath(viewKey, requestOptions);
+    let catalog = await fetchJson(path);
 
     if (requestToken !== state.requestToken) {
       return;
+    }
+
+    if (
+      query &&
+      !hasSharedMessageFilter &&
+      Array.isArray(catalog?.items) &&
+      catalog.items.length === 0
+    ) {
+      notifyCatalogSearchCacheMissValidation(viewKey, query);
     }
 
     if (!query && !hasSharedMessageFilter) {
@@ -3818,6 +3849,7 @@ async function loadMoreTelegramCatalog(viewKey = currentCatalogView) {
       limit: sharedMessageId > 0 ? 1 : 5,
       offset: state.nextOffset,
       query,
+      cacheOnly: true,
       messageId: sharedMessageId
     });
     const catalog = await fetchJson(path);
