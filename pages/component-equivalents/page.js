@@ -85,6 +85,61 @@
     }).format(date);
   }
 
+  function formatConfidence(value) {
+    const confidence = Number(value || 0);
+    return confidence > 0 ? `${confidence}%` : "-";
+  }
+
+  function createInlineList(items, className) {
+    const values = Array.isArray(items)
+      ? items.filter((item) => String(item || "").trim())
+      : [];
+
+    if (!values.length) {
+      return "";
+    }
+
+    return `
+      <ul class="${className}">
+        ${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    `;
+  }
+
+  function createDatasheetLink(url, label = "Cari datasheet") {
+    if (!url) {
+      return "";
+    }
+
+    return `
+      <a class="component-equivalent-datasheet-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener">
+        <span class="material-symbols-outlined">open_in_new</span>
+        <span>${escapeHtml(label)}</span>
+      </a>
+    `;
+  }
+
+  function createDatabasePanel(state) {
+    const statusLabel = state.databaseExists ? "Database siap" : "Database belum ada";
+    const versionLabel = state.databaseCurrentVersion ? `v${state.databaseCurrentVersion}` : "-";
+    const updatedLabel = formatDateTime(state.databaseLastModifiedUtc);
+    const sizeLabel = formatBytes(state.databaseFileSizeBytes);
+
+    return `
+      <div class="component-equivalent-database-panel">
+        <div class="component-equivalent-database-status">
+          <strong>${escapeHtml(statusLabel)}</strong>
+          <span>${escapeHtml(versionLabel)}</span>
+          <span>${escapeHtml(sizeLabel)}</span>
+          <span>Diperbarui ${escapeHtml(updatedLabel)}</span>
+        </div>
+        <div class="component-equivalent-database-meta">
+          <span>Gunakan hasil sebagai referensi awal. Keputusan pasang tetap wajib pakai datasheet dan pembacaan board donor.</span>
+        </div>
+      </div>
+    `;
+  }
+
   function createSearchChips(suggestions) {
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
       return "";
@@ -112,6 +167,8 @@
 
     return state.results.map((family) => {
       const isActive = family.familyKey === state.selectedFamilyKey;
+      const confidence = formatConfidence(family.confidencePercent);
+      const incompleteCount = Array.isArray(family.incompleteEquivalentPartNumbers) ? family.incompleteEquivalentPartNumbers.length : 0;
       return `
         <article class="component-equivalent-card${isActive ? " is-active" : ""}" data-family-key="${escapeHtml(family.familyKey)}">
           <div class="component-equivalent-card-top">
@@ -119,10 +176,15 @@
             <span class="component-equivalent-card-score">${escapeHtml(String(family.memberCount || 0))} part</span>
           </div>
           <h4>${escapeHtml(family.canonicalPartNumber || family.canonicalDisplayName || "-")}</h4>
-          <p class="component-equivalent-card-subtitle">${escapeHtml(family.type || "-")} • ${escapeHtml(family.package || "-")}</p>
+          <div class="component-equivalent-decision-strip">
+            <span>${escapeHtml(family.compatibilityLevel || "Referensi awal")}</span>
+            <strong>${escapeHtml(confidence)}</strong>
+          </div>
+          <p class="component-equivalent-card-subtitle">${escapeHtml(family.type || "-")} | ${escapeHtml(family.package || "-")}</p>
           <p class="component-equivalent-card-summary">${escapeHtml(family.summary || "-")}</p>
           <div class="component-equivalent-meta-list">
             ${(family.searchHighlights || []).map((value) => `<span class="component-equivalent-meta-pill">${escapeHtml(value)}</span>`).join("")}
+            ${incompleteCount ? `<span class="component-equivalent-meta-pill is-warning">${escapeHtml(String(incompleteCount))} data belum lengkap</span>` : ""}
           </div>
         </article>
       `;
@@ -139,6 +201,10 @@
       `;
     }
 
+    const riskNotes = createInlineList(family.riskNotes, "component-equivalent-risk-list");
+    const checklist = createInlineList(family.verificationChecklist, "component-equivalent-check-list");
+    const datasheetLink = createDatasheetLink(family.datasheetSearchUrl);
+
     return `
       <div class="detail-block">
         <div class="component-equivalent-detail-head">
@@ -154,16 +220,28 @@
           <strong>Package</strong><span>${escapeHtml(family.package || "-")}</span>
           <strong>Total anggota</strong><span>${escapeHtml(String(family.memberCount || 0))}</span>
           <strong>Alternatif</strong><span>${escapeHtml(String(family.equivalentCount || 0))}</span>
+          <strong>Level</strong><span>${escapeHtml(family.compatibilityLevel || "Referensi awal")} (${escapeHtml(formatConfidence(family.confidencePercent))})</span>
           <strong>Ringkasan</strong><span>${escapeHtml(family.summary || "-")}</span>
         </div>
         <div class="note">${escapeHtml(family.consistencyNote || family.pinoutNote || "Tetap cek pinout dan rating sebelum substitusi.")}</div>
+        <div class="component-equivalent-decision-panel">
+          <div>
+            <p class="label">Checklist Wajib</p>
+            ${checklist || '<p class="spi-note">Cek datasheet dan board donor sebelum substitusi.</p>'}
+          </div>
+          <div>
+            <p class="label">Risiko</p>
+            ${riskNotes || '<p class="spi-note">Belum ada catatan risiko tambahan.</p>'}
+          </div>
+        </div>
+        ${datasheetLink}
       </div>
 
       <div class="detail-block">
         <h3>Anggota Keluarga</h3>
         <div class="component-equivalent-member-list">
           ${(family.members || []).map((member) => `
-            <article class="component-equivalent-member-card${member.isDirectMatch ? " is-direct-match" : ""}">
+            <article class="component-equivalent-member-card${member.isDirectMatch ? " is-direct-match" : ""}${member.isIncompleteCandidate ? " is-incomplete-candidate" : ""}">
               <div class="component-equivalent-member-head">
                 <div>
                   <strong>${escapeHtml(member.partNumber || "-")}</strong>
@@ -174,12 +252,16 @@
               <div class="component-equivalent-member-grid">
                 <span>${escapeHtml(member.type || "-")}</span>
                 <span>${escapeHtml(member.package || "-")}</span>
+                <span>${escapeHtml(member.compatibilityLevel || "Referensi awal")}</span>
+                <span>${escapeHtml(formatConfidence(member.confidencePercent))}</span>
               </div>
               <p class="component-equivalent-card-summary">${escapeHtml(member.summary || "-")}</p>
               <p class="component-equivalent-member-note">${escapeHtml(member.pinoutNote || "Tetap cek pinout.")}</p>
               <div class="component-equivalent-meta-list">
                 ${(member.searchTerms || []).slice(0, 5).map((value) => `<span class="component-equivalent-meta-pill">${escapeHtml(value)}</span>`).join("")}
+                ${member.isIncompleteCandidate ? '<span class="component-equivalent-meta-pill is-warning">cek datasheet manual</span>' : ""}
               </div>
+              ${createDatasheetLink(member.datasheetSearchUrl, "Datasheet")}
             </article>
           `).join("")}
         </div>
@@ -293,6 +375,7 @@
           </div>
           ${createSearchChips(state.suggestions)}
           <p class="spi-note">${escapeHtml(state.message || "Database siap dipakai.")}</p>
+          ${createDatabasePanel(state)}
         </section>
 
         <div class="component-equivalent-layout">

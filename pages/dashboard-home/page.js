@@ -482,14 +482,6 @@
         meta: "MD5 / SHA",
         badge: "Tool",
         active: true
-      },
-      {
-        target: "ComponentEquivalents",
-        icon: "conversion_path",
-        label: "Persamaan",
-        meta: "Cari part",
-        badge: "DB",
-        active: true
       }
     ];
 

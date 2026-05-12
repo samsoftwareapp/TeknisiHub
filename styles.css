@@ -4132,9 +4132,75 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
   font-weight: 700;
 }
 
+.component-equivalent-meta-pill.is-warning {
+  background: rgba(180, 83, 9, 0.12);
+  color: #92400e;
+}
+
+.component-equivalent-decision-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(20, 83, 45, 0.14);
+  background: rgba(20, 83, 45, 0.06);
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.component-equivalent-decision-strip strong {
+  font-size: 14px;
+  color: #14532d;
+}
+
+.component-equivalent-decision-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.component-equivalent-check-list,
+.component-equivalent-risk-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text-soft);
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.component-equivalent-check-list li + li,
+.component-equivalent-risk-list li + li {
+  margin-top: 6px;
+}
+
+.component-equivalent-datasheet-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.component-equivalent-datasheet-link .material-symbols-outlined {
+  font-size: 17px;
+}
+
 .component-equivalent-member-card.is-direct-match {
   border-color: rgba(20, 83, 45, 0.28);
   background: linear-gradient(180deg, rgba(238, 252, 243, 0.98), rgba(250, 255, 251, 0.98));
+}
+
+.component-equivalent-member-card.is-incomplete-candidate {
+  border-style: dashed;
+  border-color: rgba(180, 83, 9, 0.34);
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.96), rgba(255, 255, 250, 0.96));
 }
 
 .component-equivalent-member-grid {
@@ -4294,9 +4360,35 @@ body.is-dark-mode .component-equivalent-meta-pill {
   color: #a9f0c6;
 }
 
+body.is-dark-mode .component-equivalent-meta-pill.is-warning {
+  background: rgba(240, 180, 93, 0.16);
+  color: #f8d49a;
+}
+
+body.is-dark-mode .component-equivalent-decision-strip {
+  border-color: rgba(74, 212, 134, 0.16);
+  background: rgba(74, 212, 134, 0.08);
+  color: var(--deep);
+}
+
+body.is-dark-mode .component-equivalent-decision-strip strong,
+body.is-dark-mode .component-equivalent-datasheet-link {
+  color: #a9f0c6;
+}
+
+body.is-dark-mode .component-equivalent-check-list,
+body.is-dark-mode .component-equivalent-risk-list {
+  color: #9fb7cc;
+}
+
 body.is-dark-mode .component-equivalent-member-card.is-direct-match {
   border-color: rgba(74, 212, 134, 0.26);
   background: linear-gradient(180deg, rgba(16, 45, 30, 0.96), rgba(11, 32, 24, 0.9));
+}
+
+body.is-dark-mode .component-equivalent-member-card.is-incomplete-candidate {
+  border-color: rgba(240, 180, 93, 0.34);
+  background: linear-gradient(180deg, rgba(55, 38, 12, 0.78), rgba(36, 28, 16, 0.86));
 }
 
 body.is-dark-mode .component-equivalent-ai-badge {
@@ -6413,7 +6505,8 @@ a {
 
 @media (max-width: 720px) {
   .component-equivalent-hero,
-  .component-equivalent-search-panel {
+  .component-equivalent-search-panel,
+  .component-equivalent-decision-panel {
     display: grid;
     grid-template-columns: 1fr;
   }

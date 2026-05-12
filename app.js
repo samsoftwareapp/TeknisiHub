@@ -63,7 +63,6 @@ const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const biosVendorDetectWorkbench = document.getElementById("biosVendorDetectWorkbench");
 const fileHashCompareWorkbench = document.getElementById("fileHashCompareWorkbench");
 const resistorCalculatorWorkbench = document.getElementById("resistorCalculatorWorkbench");
-const componentEquivalentsWorkbench = document.getElementById("componentEquivalentsWorkbench");
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
 const dell8Fc8Workbench = document.getElementById("dell8Fc8Workbench");
 const amiDecryptorWorkbench = document.getElementById("amiDecryptorWorkbench");
@@ -153,7 +152,6 @@ const navBoardview = document.getElementById("navBoardview");
 const navSchematics = document.getElementById("navSchematics");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
-const navComponentEquivalents = document.getElementById("navComponentEquivalents");
 const navDashboard = document.getElementById("navDashboard");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
@@ -246,17 +244,6 @@ const resistorCalculatorPage = window.teknisiHubPages?.resistorCalculator || {
   eyebrow: "Elektronika",
   title: "Resistor Kalkulator",
   subtitle: "Decoder resistor warna, kode SMD, dan hitung total seri atau paralel.",
-  items: [],
-  mount() {},
-  setVisible() {},
-  refresh() {}
-};
-
-const componentEquivalentsPage = window.teknisiHubPages?.componentEquivalents || {
-  viewKey: "ComponentEquivalents",
-  eyebrow: "Persamaan Part",
-  title: "Persamaan Komponen",
-  subtitle: "Cari keluarga part dan donor pengganti dari database backend local service.",
   items: [],
   mount() {},
   setVisible() {},
@@ -526,11 +513,6 @@ resistorCalculatorPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
-componentEquivalentsPage.mount?.({
-  container: componentEquivalentsWorkbench,
-  notify: (message) => setNotice(message)
-});
-
 lenovoBiosPatchPage.mount?.({
   container: lenovoBiosPatchWorkbench,
   notify: (message) => setNotice(message)
@@ -675,12 +657,6 @@ const toolViewMap = {
     subtitle: resistorCalculatorPage.subtitle,
     channelLink: null
   },
-  [componentEquivalentsPage.viewKey]: {
-    eyebrow: componentEquivalentsPage.eyebrow,
-    title: componentEquivalentsPage.title,
-    subtitle: componentEquivalentsPage.subtitle,
-    channelLink: null
-  },
   [lenovoBiosPatchPage.viewKey]: {
     eyebrow: lenovoBiosPatchPage.eyebrow,
     title: lenovoBiosPatchPage.title,
@@ -739,7 +715,6 @@ const localWorkbenchViewKeys = new Set([
   biosVendorDetectPage.viewKey,
   fileHashComparePage.viewKey,
   resistorCalculatorPage.viewKey,
-  componentEquivalentsPage.viewKey,
   lenovoBiosPatchPage.viewKey,
   dell8Fc8Page.viewKey,
   amiDecryptorPage.viewKey,
@@ -757,7 +732,6 @@ const viewHashMap = {
   Schematics: "Schematics",
   ProblemSolving: "ProblemSolving",
   Datasheets: "Datasheets",
-  [componentEquivalentsPage.viewKey]: "ComponentEquivalents",
   [spiFlashPage.viewKey]: "SpiFlash",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
@@ -782,8 +756,6 @@ const hashRouteMap = {
   schematics: "Schematics",
   problemsolving: "ProblemSolving",
   datasheets: "Datasheets",
-  componentequivalents: componentEquivalentsPage.viewKey,
-  persamaankomponen: componentEquivalentsPage.viewKey,
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
   meanalyzer: meAnalyzerPage.viewKey,
@@ -831,7 +803,6 @@ function getViewButton(viewKey) {
     Schematics: navSchematics,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
-    [componentEquivalentsPage.viewKey]: navComponentEquivalents,
     [spiFlashPage.viewKey]: toolSpiFlash,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
@@ -1587,7 +1558,6 @@ function showWorkbenchOnly(viewKey) {
   biosVendorDetectPage.setVisible?.(viewKey === biosVendorDetectPage.viewKey);
   fileHashComparePage.setVisible?.(viewKey === fileHashComparePage.viewKey);
   resistorCalculatorPage.setVisible?.(viewKey === resistorCalculatorPage.viewKey);
-  componentEquivalentsPage.setVisible?.(viewKey === componentEquivalentsPage.viewKey);
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
   dell8Fc8Page.setVisible?.(viewKey === dell8Fc8Page.viewKey);
   amiDecryptorPage.setVisible?.(viewKey === amiDecryptorPage.viewKey);
@@ -1623,10 +1593,6 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === resistorCalculatorPage.viewKey) {
     resistorCalculatorPage.refresh?.();
-  }
-
-  if (viewKey === componentEquivalentsPage.viewKey) {
-    componentEquivalentsPage.refresh?.();
   }
 
   if (viewKey === lenovoBiosPatchPage.viewKey) {
@@ -1670,7 +1636,6 @@ function hideWorkbench() {
   biosVendorDetectPage.setVisible?.(false);
   fileHashComparePage.setVisible?.(false);
   resistorCalculatorPage.setVisible?.(false);
-  componentEquivalentsPage.setVisible?.(false);
   lenovoBiosPatchPage.setVisible?.(false);
   dell8Fc8Page.setVisible?.(false);
   amiDecryptorPage.setVisible?.(false);
@@ -1694,7 +1659,6 @@ function setActiveNav(targetKey) {
     Schematics: navSchematics,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
-    [componentEquivalentsPage.viewKey]: navComponentEquivalents,
     tool_spi_flash: toolSpiFlash,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
@@ -1990,8 +1954,6 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "UEFI UI"
         : viewKey === biosVendorDetectPage.viewKey
         ? "BVD UI"
-        : viewKey === componentEquivalentsPage.viewKey
-        ? "CMP UI"
         : viewKey === biosPasswordPage.viewKey
         ? "PWD UI"
         : viewKey === alienServerPage.viewKey
@@ -3670,16 +3632,55 @@ function viewPdfCatalogItem(category, messageId) {
   }
 }
 
-function openPreparedSchematicsViewTab(messageId) {
+function resolveLocalServiceUrl(pathOrUrl) {
+  const rawValue = String(pathOrUrl || "").trim();
+  if (!rawValue) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(rawValue)) {
+    return rawValue;
+  }
+
+  return `${serviceBaseUrl}${rawValue.startsWith("/") ? rawValue : `/${rawValue}`}`;
+}
+
+function getPreparedSchematicsViewUrls(messageId, result = {}) {
+  const responseUrls = Array.isArray(result?.nextActionUrls)
+    ? result.nextActionUrls
+    : [];
+  const actionUrls = responseUrls.length > 0
+    ? responseUrls
+    : result?.nextActionUrl
+    ? [result.nextActionUrl]
+    : [`/catalog/schematics/${messageId}/view`];
+
+  return [...new Set(actionUrls.map(resolveLocalServiceUrl).filter(Boolean))];
+}
+
+function openPreparedSchematicsViewTabs(messageId, result = {}) {
   if (!messageId) {
     throw new Error("Message Schematics tidak valid.");
   }
 
-  const targetUrl = `${serviceBaseUrl}/catalog/schematics/${messageId}/view`;
-  const newTab = window.open(targetUrl, "_blank");
-  if (!newTab) {
-    throw new Error("Schematics sudah siap, tetapi browser memblokir tab baru. Izinkan pop-up lalu klik Lihat lagi.");
+  const targetUrls = getPreparedSchematicsViewUrls(messageId, result);
+  let blockedCount = 0;
+
+  targetUrls.forEach((targetUrl) => {
+    const newTab = window.open(targetUrl, "_blank");
+    if (!newTab) {
+      blockedCount += 1;
+    }
+  });
+
+  if (blockedCount > 0) {
+    const blockedMessage = targetUrls.length > 1
+      ? `Schematics sudah siap, tetapi browser memblokir ${blockedCount} dari ${targetUrls.length} tab baru. Izinkan pop-up lalu klik Lihat lagi.`
+      : "Schematics sudah siap, tetapi browser memblokir tab baru. Izinkan pop-up lalu klik Lihat lagi.";
+    throw new Error(blockedMessage);
   }
+
+  return targetUrls.length;
 }
 
 function openPreparedDatasheetsViewTab(messageId) {
@@ -7536,8 +7537,18 @@ if (catalogList) {
           progressPercent: 100,
           message: result.message || "Schematics siap dibuka."
         });
-        openPreparedSchematicsViewTab(messageId);
-        setNotice(result.message || "Schematics siap dibuka.");
+        let openedTabCount = 0;
+        try {
+          openedTabCount = openPreparedSchematicsViewTabs(messageId, result);
+        } catch (launchError) {
+          shouldRefreshCatalog = markSchematicsItemHasLocalCache(messageId);
+          setNotice(launchError.message, true);
+          return;
+        }
+
+        setNotice(result.message || (openedTabCount > 1
+          ? `${openedTabCount} file Schematics dibuka di tab baru.`
+          : "Schematics siap dibuka."));
         shouldRefreshCatalog = markSchematicsItemHasLocalCache(messageId);
       } catch (error) {
         const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
@@ -7549,7 +7560,7 @@ if (catalogList) {
 
         if (reconciledStage === "completed" || reconciledProgress?.success) {
           try {
-            openPreparedSchematicsViewTab(messageId);
+            openPreparedSchematicsViewTabs(messageId);
           } catch (launchError) {
             setNotice(launchError.message, true);
             return;
@@ -8293,13 +8304,6 @@ navProblemSolving?.addEventListener("click", () => {
 navDatasheets?.addEventListener("click", () => {
   updateViewHash("Datasheets");
   navigateTelegramCatalog("Datasheets", navDatasheets);
-});
-
-navComponentEquivalents?.addEventListener("click", () => {
-  updateViewHash(componentEquivalentsPage.viewKey);
-  currentCatalogView = componentEquivalentsPage.viewKey;
-  catalogItems = catalogCache;
-  filterCatalogItems();
 });
 
 navDashboard?.addEventListener("click", () => {
