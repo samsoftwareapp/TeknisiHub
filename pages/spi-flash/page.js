@@ -153,6 +153,26 @@
       label === "file siap dipakai";
   }
 
+  function resolveServiceFailureMessage(session) {
+    const activeOperation = String(session?.activeOperation || "").trim();
+    const lastResult = String(session?.lastResult || "").trim();
+    const normalizedOperation = activeOperation.toLowerCase();
+    const normalizedResult = lastResult.toLowerCase();
+    const hasMismatch =
+      normalizedResult.includes("mismatch") &&
+      !normalizedResult.includes("tanpa mismatch");
+    const hasFailure =
+      normalizedOperation.includes("gagal") ||
+      normalizedResult.includes("gagal") ||
+      hasMismatch;
+
+    if (!hasFailure) {
+      return "";
+    }
+
+    return lastResult || activeOperation || "Operasi SPI Flash gagal.";
+  }
+
   function getActionProgressIcon(label) {
     const normalized = String(label || "").toLowerCase();
     if (normalized.includes("jedec") || normalized.includes("detect")) {
@@ -294,12 +314,15 @@
 
     if (failedMessage) {
       const timestamp = Date.now();
+      const failedTitle = activeOperation && !isIdleOperationLabel(activeOperation)
+        ? activeOperation
+        : "Proses gagal";
       reportTask({
         operationId: `spi-flash-failed-${failedMessage.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80)}`,
         source: "spi-flash",
-        fileName: "Proses gagal",
+        fileName: failedTitle,
         displayName: "SPI Flash",
-        icon: "error",
+        icon: getActionProgressIcon(failedTitle),
         message: failedMessage,
         lastError: failedMessage,
         stage: "failed",
@@ -464,10 +487,11 @@
     const driverInfoLoaded = selectedDevice
       ? (driverPayloadPresent || Boolean(previousState && previousState.selectedDevice === selectedDevice && previousState.driverInfoLoaded))
       : false;
+    const serviceFailureMessage = resolveServiceFailureMessage(session);
 
     return {
       serviceAvailable: true,
-      errorMessage: "",
+      errorMessage: serviceFailureMessage,
       autoProcess: session.autoProcess !== false,
       previewMode: Boolean(session.previewMode),
       backendMode: session.backendMode || "local-service",

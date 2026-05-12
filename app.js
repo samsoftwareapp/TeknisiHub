@@ -6119,7 +6119,7 @@ function updateBoardviewOpenActionAvailability(target) {
 
 function buildBoardviewTeknisiHubUrl(sessionId) {
   const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
-  targetUrl.searchParams.set("v", "20260509l");
+  targetUrl.searchParams.set("v", "20260512b");
   if (sessionId) {
     targetUrl.searchParams.set("sessionId", sessionId);
   }

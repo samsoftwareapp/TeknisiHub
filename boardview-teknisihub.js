@@ -935,6 +935,15 @@ function updateInspectorNetTabLabel() {
   }
 }
 
+function selectInspectorPinRow(pin, options = {}) {
+  if (!pin) return;
+  ensurePinSearchSideVisible([pin]);
+  selectPin(pin, options);
+  focusPinSelection(pin);
+  render();
+  onViewChanged();
+}
+
 function renderInspectorPartTable(part = state.selectedPart, selectedPin = state.selectedPin) {
   if (!inspectorPartPinBodyEl || !inspectorPartTitleEl || !inspectorPinCountEl) return;
   const rows = part
@@ -960,7 +969,7 @@ function renderInspectorPartTable(part = state.selectedPart, selectedPin = state
       <td class="inspector-grid-cell-meta">${escapeHtml(pin.side || part.mounting_side || '-')}</td>
       <td class="inspector-grid-cell-meta">${escapeHtml(getPinInfoLabel(pin, part) || '-')}</td>
     `;
-    tr.addEventListener('click', () => selectPin(pin, { preserveInspectorPane: true, focusInspectorNet: true, preferredMode: 'tables' }));
+    tr.addEventListener('click', () => selectInspectorPinRow(pin, { preserveInspectorPane: true, focusInspectorNet: true, preferredMode: 'tables' }));
     fragment.appendChild(tr);
   }
   inspectorPartPinBodyEl.appendChild(fragment);
@@ -991,7 +1000,7 @@ function renderInspectorNetTable(netName = state.inspectorNet, selectedPin = sta
       <td class="inspector-grid-cell-main">${escapeHtml(pin.name || `#${pin.index}`)}</td>
       <td class="inspector-grid-cell-meta">${escapeHtml(getPartInfoLabel(part) || pin.probe || '-')}</td>
     `;
-    tr.addEventListener('click', () => selectPin(pin, { preserveInspectorPane: true, focusInspectorNet: true, preferredPane: 'net', preferredMode: 'tables' }));
+    tr.addEventListener('click', () => selectInspectorPinRow(pin, { preserveInspectorPane: true, focusInspectorNet: true, preferredPane: 'net', preferredMode: 'tables' }));
     fragment.appendChild(tr);
   }
   inspectorNetMemberBodyEl.appendChild(fragment);
@@ -1917,6 +1926,42 @@ function focusNetSelection(netName) {
     bounds.y_max = Math.max(bounds.y_max, pin.y);
   }
   zoomToBounds(bounds, { minScaleMultiplier: 1.3, maxScaleMultiplier: 8 });
+}
+
+function applyVisibleSide(side) {
+  state.visibleSide = side;
+  state.indexes.connectionCache.clear();
+  refreshToolbarButtons();
+  scheduleSessionAnnotationSync();
+}
+
+function getSinglePhysicalSide(side) {
+  const normalized = normalizeSide(side);
+  return normalized === 'top' || normalized === 'bottom' ? normalized : null;
+}
+
+function ensurePartSearchSideVisible(part) {
+  const side = getSinglePhysicalSide(part?.mounting_side);
+  if (!side || isSideVisible(side)) return false;
+  applyVisibleSide(side);
+  return true;
+}
+
+function ensurePinSearchSideVisible(pins) {
+  const counts = { top: 0, bottom: 0 };
+  for (const pin of pins || []) {
+    const side = getSinglePhysicalSide(pin?.side);
+    if (side) counts[side] += 1;
+  }
+
+  let targetSide = null;
+  if (counts.top && !counts.bottom) targetSide = 'top';
+  else if (counts.bottom && !counts.top) targetSide = 'bottom';
+  else if (counts.top || counts.bottom) targetSide = counts.bottom > counts.top ? 'bottom' : 'top';
+
+  if (!targetSide || isSideVisible(targetSide)) return false;
+  applyVisibleSide(targetSide);
+  return true;
 }
 
 function setSearchMode(mode) {
@@ -3118,6 +3163,7 @@ function populateMatches(items) {
       btn.innerHTML = `${escapeHtml(item.part.name)} <small>${item.part.mounting_side} | ${(item.part.nets || []).slice(0, 3).join(', ') || 'no nets'}</small>`;
       btn.addEventListener('click', () => {
         setSearchMode('part');
+        ensurePartSearchSideVisible(item.part);
         selectPart(item.part);
         focusPartSelection(item.part);
         render();
@@ -3127,6 +3173,7 @@ function populateMatches(items) {
       btn.innerHTML = `${escapeHtml(item.net.name)} <small>${item.net.pin_count} pins${item.net.route_count ? ` | ${item.net.route_count} routes` : ''}</small>`;
       btn.addEventListener('click', () => {
         setSearchMode('net');
+        ensurePinSearchSideVisible(state.indexes.pinsByNet.get(item.net.name.toLowerCase()) || []);
         selectNet(item.net.name);
         focusNetSelection(item.net.name);
         render();
@@ -3603,6 +3650,7 @@ function searchPart() {
   }
   populateMatches(parts.map((part) => ({ kind: 'part', part })));
   setStatus(`Found ${parts.length} part match(es).`);
+  ensurePartSearchSideVisible(parts[0]);
   selectPart(parts[0]);
   focusPartSelection(parts[0]);
   render();
@@ -3622,6 +3670,7 @@ function searchNet() {
   }
   populateMatches(nets.map((net) => ({ kind: 'net', net })));
   setStatus(`Found ${nets.length} net match(es).`);
+  ensurePinSearchSideVisible(state.indexes.pinsByNet.get(nets[0].name.toLowerCase()) || []);
   selectNet(nets[0].name);
   focusNetSelection(nets[0].name);
   render();
@@ -3650,9 +3699,11 @@ function searchAll() {
   const first = matches[0];
   setStatus(`Found ${matches.length} match(es).`);
   if (first.kind === 'part') {
+    ensurePartSearchSideVisible(first.part);
     selectPart(first.part);
     focusPartSelection(first.part);
   } else {
+    ensurePinSearchSideVisible(state.indexes.pinsByNet.get(first.net.name.toLowerCase()) || []);
     selectNet(first.net.name);
     focusNetSelection(first.net.name);
   }
@@ -4378,14 +4429,8 @@ async function loadTeknisiHubNativeSessionFromQuery() {
 }
 
 function setSide(side) {
-  state.visibleSide = side;
-  state.indexes.connectionCache.clear();
-  document.getElementById('side-both-btn').classList.toggle('active', side === 'both');
-  document.getElementById('side-top-btn').classList.toggle('active', side === 'top');
-  document.getElementById('side-bottom-btn').classList.toggle('active', side === 'bottom');
+  applyVisibleSide(side);
   setStatus(`View side: ${side}`);
-  scheduleSessionAnnotationSync();
-  refreshToolbarButtons();
   render();
   onViewChanged();
 }
