@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202605130930">
+  <link rel="stylesheet" href="styles.css?v=202605160335">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -303,6 +303,9 @@
                     <button id="toolSpiFlash" type="button" class="sidebar-nav-button is-active">
                       <span>SPI Flash</span>
                     </button>
+                    <button id="toolOscilloscope" type="button" class="sidebar-nav-button">
+                      <span>Oscilloscope</span>
+                    </button>
                     <button id="toolMeAnalyzer" type="button" class="sidebar-nav-button">
                       <span>ME Analyzer</span>
                     </button>
@@ -384,6 +387,7 @@
           <div class="dashboard-main">
             <section id="dashboardHomeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="spiFlashWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="oscilloscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="biosVendorDetectWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -731,7 +735,8 @@
   </div>
 
   <script src="service-config.js?v=202605110643"></script>
-  <script src="pages/spi-flash/page.js?v=202605111832"></script>
+  <script src="pages/spi-flash/page.js?v=202605152323"></script>
+    <script src="pages/oscilloscope/page.js?v=202605160430"></script>
   <script src="pages/me-analyzer/page.js?v=202605110643"></script>
   <script src="pages/uefi-tool/page.js?v=202605110643"></script>
   <script src="pages/bios-vendor-detect/page.js?v=202605110643"></script>
@@ -746,6 +751,6 @@
   <script src="pages/boardviewer/page.js?v=202605110643"></script>
   <script src="pages/dashboard-home/page.js?v=202605131000"></script>
   <script src="pages/settings/page.js?v=202605110643"></script>
-    <script src="app.js?v=202605131000"></script>
+    <script src="app.js?v=202605160010"></script>
 </body>
 </html>

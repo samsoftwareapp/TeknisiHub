@@ -58,6 +58,7 @@ const dashboardJoinSchematicsCheckbox = document.getElementById("dashboardJoinSc
 const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const dashboardHomeWorkbench = document.getElementById("dashboardHomeWorkbench");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
+const oscilloscopeWorkbench = document.getElementById("oscilloscopeWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const biosVendorDetectWorkbench = document.getElementById("biosVendorDetectWorkbench");
@@ -156,6 +157,7 @@ const navDashboard = document.getElementById("navDashboard");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
+const toolOscilloscope = document.getElementById("toolOscilloscope");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
 const toolBiosVendorDetect = document.getElementById("toolBiosVendorDetect");
@@ -189,6 +191,17 @@ const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   eyebrow: "Tools Local",
   title: "SPI Flash",
   subtitle: "Utility lokal untuk kebutuhan SPI Flash.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const oscilloscopePage = window.teknisiHubPages?.oscilloscope || {
+  viewKey: "tool_oscilloscope",
+  eyebrow: "Oscilloscope",
+  title: "STM32 Oscilloscope",
+  subtitle: "Capture analog single-channel dari local service.",
   items: [],
   mount() {},
   setVisible() {},
@@ -488,6 +501,11 @@ spiFlashPage.mount?.({
   }
 });
 
+oscilloscopePage.mount?.({
+  container: oscilloscopeWorkbench,
+  notify: (message, tone) => setNotice(message, tone)
+});
+
 meAnalyzerPage.mount?.({
   container: meAnalyzerWorkbench,
   notify: (message) => setNotice(message)
@@ -627,6 +645,12 @@ const toolViewMap = {
     subtitle: spiFlashPage.subtitle,
     channelLink: null
   },
+  [oscilloscopePage.viewKey]: {
+    eyebrow: oscilloscopePage.eyebrow,
+    title: oscilloscopePage.title,
+    subtitle: oscilloscopePage.subtitle,
+    channelLink: null
+  },
   tool_me_analyzer: {
     eyebrow: meAnalyzerPage.eyebrow,
     title: meAnalyzerPage.title,
@@ -710,6 +734,7 @@ const toolViewMap = {
 const localWorkbenchViewKeys = new Set([
   dashboardHomePage.viewKey,
   spiFlashPage.viewKey,
+  oscilloscopePage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
   biosVendorDetectPage.viewKey,
@@ -733,6 +758,7 @@ const viewHashMap = {
   ProblemSolving: "ProblemSolving",
   Datasheets: "Datasheets",
   [spiFlashPage.viewKey]: "SpiFlash",
+  [oscilloscopePage.viewKey]: "Oscilloscope",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
   [biosVendorDetectPage.viewKey]: "BiosVendorDetect",
@@ -758,6 +784,8 @@ const hashRouteMap = {
   datasheets: "Datasheets",
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
+  oscilloscope: oscilloscopePage.viewKey,
+  tooloscilloscope: oscilloscopePage.viewKey,
   meanalyzer: meAnalyzerPage.viewKey,
   toolmeanalyzer: meAnalyzerPage.viewKey,
   uefitools: uefiToolPage.viewKey,
@@ -804,6 +832,7 @@ function getViewButton(viewKey) {
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
     [spiFlashPage.viewKey]: toolSpiFlash,
+    [oscilloscopePage.viewKey]: toolOscilloscope,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
     [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
@@ -1553,6 +1582,7 @@ function showWorkbenchOnly(viewKey) {
   toggleElement(catalogPagination, false);
   dashboardHomePage.setVisible?.(viewKey === dashboardHomePage.viewKey);
   spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
+  oscilloscopePage.setVisible?.(viewKey === oscilloscopePage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
   biosVendorDetectPage.setVisible?.(viewKey === biosVendorDetectPage.viewKey);
@@ -1573,6 +1603,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === spiFlashPage.viewKey) {
     spiFlashPage.refresh?.();
+  }
+
+  if (viewKey === oscilloscopePage.viewKey) {
+    oscilloscopePage.refresh?.();
   }
 
   if (viewKey === meAnalyzerPage.viewKey) {
@@ -1631,6 +1665,7 @@ function showWorkbenchOnly(viewKey) {
 function hideWorkbench() {
   dashboardHomePage.setVisible?.(false);
   spiFlashPage.setVisible?.(false);
+  oscilloscopePage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
   biosVendorDetectPage.setVisible?.(false);
@@ -1660,6 +1695,7 @@ function setActiveNav(targetKey) {
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
     tool_spi_flash: toolSpiFlash,
+    [oscilloscopePage.viewKey]: toolOscilloscope,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
     [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
@@ -1800,6 +1836,7 @@ function renderFlashChipDeviceSelector(messageId) {
         <option value="">---Pilih Device---</option>
         <option value="CH341A">CH341A</option>
         <option value="STM32">STM32</option>
+        <option value="RB2040">RB2040</option>
         <option value="EZP2019">EZP2019+</option>
       </select>
       <span class="catalog-flash-chip-device-indicator" data-flash-chip-device-indicator aria-hidden="true"></span>
@@ -6878,7 +6915,7 @@ function disposePendingBoardviewTeknisiHubWindow(targetWindow, fileName, errorMe
   }
 }
 
-const supportedFlashChipDevices = new Set(["CH341A", "STM32", "EZP2019"]);
+const supportedFlashChipDevices = new Set(["CH341A", "STM32", "RB2040", "EZP2019"]);
 
 function normalizeFlashChipDeviceValue(value) {
   const normalizedValue = String(value || "").trim().toUpperCase();
@@ -8316,6 +8353,13 @@ navDashboard?.addEventListener("click", () => {
 toolSpiFlash?.addEventListener("click", () => {
   updateViewHash(spiFlashPage.viewKey);
   currentCatalogView = spiFlashPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolOscilloscope?.addEventListener("click", () => {
+  updateViewHash(oscilloscopePage.viewKey);
+  currentCatalogView = oscilloscopePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });

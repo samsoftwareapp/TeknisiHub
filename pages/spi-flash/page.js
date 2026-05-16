@@ -28,6 +28,13 @@
       speed: "20 MHz request",
       note: "Backend STM32 memakai firmware MYGPROG stabil dari repo rp2040-with-ene-main."
     },
+    RB2040: {
+      label: "RB2040 KBC/EC",
+      transport: "USB WinUSB vendor bulk",
+      status: "SPI + ENE/ITE KBC/EC",
+      speed: "20 MHz request",
+      note: "Backend RB2040 memakai firmware TEKNISIHUB_RB2040."
+    },
     EZP2019: {
       label: "EZP2019+",
       transport: "Bulk USB vendor protocol",
@@ -38,6 +45,11 @@
   };
 
   const disabledDeviceSelections = new Set(["CH347"]);
+
+  function isMygprogDevice(deviceType) {
+    const normalizedDevice = String(deviceType || "").trim().toUpperCase();
+    return normalizedDevice === "STM32" || normalizedDevice === "RB2040";
+  }
 
   let pageNotifier = (message, tone = "success") => {
     if (typeof globalScope.setNotice === "function") {
@@ -949,7 +961,7 @@
     const actionDisableAttr = controlsDisabled || !state.selectedDevice ? " disabled" : "";
     const pageLabel = state.pageSize > 0 ? `${state.pageSize} byte` : "Belum ada data";
     const fileNameLabel = state.fileName || "Belum ada file";
-    const showStm32SpeedField = state.selectedDevice === "STM32";
+    const showStm32SpeedField = isMygprogDevice(state.selectedDevice);
     const showEzpSpeedField = state.selectedDevice === "EZP2019";
     const showFixedSpeedField = state.selectedDevice === "CH341A";
     const fixedSpeedLabel = "0.75 MHz";
@@ -971,7 +983,7 @@
     const availableDevices = getEnabledDeviceEntries();
     const selectedDeviceLabel = resolveSelectedDeviceLabel(state.selectedDevice);
     const selectedDeviceSubtext = resolveSelectedDeviceSubtext(state.selectedDevice, deviceBusy);
-    const actionPadMarkup = state.selectedDevice === "STM32"
+    const actionPadMarkup = isMygprogDevice(state.selectedDevice)
       ? createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr)
       : createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr);
 
@@ -1059,7 +1071,7 @@
             </div>
             <button type="button" class="ghost" data-spi-action="detect"${actionDisableAttr}>
               <span class="material-symbols-outlined">radar</span>
-              <span>${state.selectedDevice === "STM32" ? "SmartID" : "Detect JEDEC"}</span>
+              <span>${isMygprogDevice(state.selectedDevice) ? "SmartID" : "Detect JEDEC"}</span>
             </button>
           </div>
           <div class="spi-form-grid">
@@ -1133,7 +1145,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Action Pad</p>
-              <h4>${state.selectedDevice === "STM32" ? "Flow SPI + KBC/EC" : "Flow operasi"}</h4>
+              <h4>${isMygprogDevice(state.selectedDevice) ? "Flow SPI + KBC/EC" : "Flow operasi"}</h4>
             </div>
           </div>
           ${actionPadMarkup}
@@ -1494,8 +1506,8 @@
       state.driverInfoLoaded = false;
     }
 
-    async function refreshStm32ConnectionStatus(deviceType) {
-      if (!state.serviceAvailable || deviceType !== "STM32") {
+    async function refreshMygprogConnectionStatus(deviceType) {
+      if (!state.serviceAvailable || !isMygprogDevice(deviceType)) {
         return;
       }
 
@@ -1503,8 +1515,8 @@
         const session = await runAction("connect");
         applySessionState(session);
       } catch {
-        if (state.selectedDevice === "STM32") {
-          state.connectionState = `${resolveSelectedDeviceLabel("STM32")} belum terhubung`;
+        if (isMygprogDevice(state.selectedDevice)) {
+          state.connectionState = `${resolveSelectedDeviceLabel(state.selectedDevice)} belum terhubung`;
         }
       }
     }
@@ -1548,7 +1560,7 @@
 
       try {
         await selectDevice(normalizedDevice);
-        await refreshStm32ConnectionStatus(normalizedDevice);
+        await refreshMygprogConnectionStatus(normalizedDevice);
         try {
           await fetchDriverInfo(normalizedDevice);
         } catch {
