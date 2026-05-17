@@ -1,6 +1,10 @@
 (function initializeOscilloscopePage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
   const continuousDelayMs = 35;
+  const calibrationFrameCount = 5;
+  const calibrationReferenceDefaultVoltage = 3.3;
+  const calibrationSampleRateHz = 500000;
+  const calibrationSampleCount = 2048;
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -90,6 +94,10 @@
   function adjustedVoltage(value, zeroOffsetVoltage = 0, calibrationGain = 1) {
     const gain = finiteNumber(calibrationGain, 1) || 1;
     return (finiteNumber(value) - finiteNumber(zeroOffsetVoltage)) * gain;
+  }
+
+  function normalizeCalibrationReference(value) {
+    return clamp(finiteNumber(value, calibrationReferenceDefaultVoltage), 0.05, 30);
   }
 
   function clamp(value, min, max) {
@@ -202,18 +210,19 @@
 
   function createInitialState() {
     return {
-      sampleRateHz: 100000,
-      sampleCount: 4096,
+      sampleRateHz: 500000,
+      sampleCount: 2048,
       probeAttenuation: 10,
       zeroOffsetVoltage: 0,
       isZeroed: false,
       calibrationGain: 1,
+      calibrationReferenceVoltage: calibrationReferenceDefaultVoltage,
       device: {
         success: false,
         isPresent: false,
         message: "TEKNISIHUB_STM32_OSC belum dicek.",
         identity: "",
-        maxSampleRateHz: 1000000,
+        maxSampleRateHz: 500000,
         maxSampleCount: 16384,
         bits: 12,
         vrefMv: 3300
@@ -243,6 +252,7 @@
     const adjustedMinVoltage = hasCapture ? adjustedVoltage(capture.minVoltage, zeroOffsetVoltage, calibrationGain) : 0;
     const adjustedMaxVoltage = hasCapture ? adjustedVoltage(capture.maxVoltage, zeroOffsetVoltage, calibrationGain) : 0;
     const adjustedAverageVoltage = hasCapture ? adjustedVoltage(capture.averageVoltage, zeroOffsetVoltage, calibrationGain) : 0;
+    const rawAverageVoltage = hasCapture ? finiteNumber(capture.rawAverageVoltage ?? capture.averageVoltage) : 0;
     const adjustedTrendHistory = state.trendHistory.map((item) => ({
       min: adjustedVoltage(item.min, zeroOffsetVoltage, calibrationGain),
       max: adjustedVoltage(item.max, zeroOffsetVoltage, calibrationGain),
@@ -257,152 +267,164 @@
     const singleDisableAttr = busy || state.isRunning ? " disabled" : "";
     const runDisableAttr = busy ? " disabled" : "";
     const recordDisableAttr = busy ? " disabled" : "";
-    const zeroDisableAttr = busy || !hasCapture ? " disabled" : "";
-    const calDisableAttr = busy || !hasCapture || !zeroReady ? " disabled" : "";
+    const zeroDisableAttr = busy ? " disabled" : "";
+    const calDisableAttr = busy ? " disabled" : "";
     const modeLabel = state.isRecording ? "REC" : state.isRunning ? "RUN" : "STOP";
     const storageLabel = state.isRecording
       ? `${formatNumber(state.recordFrameCount)} frame`
       : state.tempCapturePath
         ? "Temp Roaming"
         : "-";
+    const sampleRateLabel = hasCapture ? formatRate(capture.actualSampleRateHz) : formatRate(state.sampleRateHz);
+    const sampleCountLabel = hasCapture ? formatNumber(capture.sampleCount) : formatNumber(state.sampleCount);
+    const calibrationReferenceVoltage = normalizeCalibrationReference(state.calibrationReferenceVoltage);
+    const durationLabel = hasCapture
+      ? `${formatNumber(capture.durationMs, 2)} ms`
+      : `${formatNumber(Number(state.sampleCount || 0) / Number(state.sampleRateHz || 1) * 1000, 2)} ms`;
 
     return `
-      <div class="oscilloscope-layout">
-        <section class="spi-card${statusClass}">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Device</p>
-              <h4>STM32 OSC</h4>
+      <div class="oscilloscope-shell${statusClass}">
+        <section class="oscilloscope-scope-panel">
+          <div class="oscilloscope-topbar">
+            <div class="oscilloscope-title-block">
+              <p>TEKNISIHUB STM32 OSC</p>
+              <h4>${escapeHtml(modeLabel)}</h4>
             </div>
-            <button type="button" id="oscilloscopeScanButton" class="ghost"${scanDisableAttr}>
+            <div class="oscilloscope-status-strip">
+              <span class="${device.isPresent ? "is-online" : "is-offline"}">${escapeHtml(device.isPresent ? "USB OK" : "USB OFF")}</span>
+              <span>${escapeHtml(sampleRateLabel)}</span>
+              <span>${escapeHtml(sampleCountLabel)} pts</span>
+              <span>${escapeHtml(durationLabel)}</span>
+              <span>${escapeHtml(device.bits || 12)} bit</span>
+            </div>
+            <button type="button" id="oscilloscopeScanButton" class="ghost oscilloscope-scan-button"${scanDisableAttr}>
               <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "usb"}</span>
               <span>Scan</span>
             </button>
           </div>
-          <div class="spi-inline-meta oscilloscope-meta">
-            <span>Status <strong>${escapeHtml(device.isPresent ? "Terhubung" : "Belum terhubung")}</strong></span>
-            <span>Mode <strong>${escapeHtml(modeLabel)}</strong></span>
-            <span>Device <strong>${escapeHtml(device.deviceLabel || "TEKNISIHUB_STM32_OSC")}</strong></span>
-            <span>ADC <strong>${escapeHtml(`${device.bits || 12}-bit`)}</strong></span>
-            <span>Max <strong>${escapeHtml(formatRate(device.maxSampleRateHz || 1000000))}</strong></span>
+
+          <div class="oscilloscope-display-grid">
+            <div class="oscilloscope-main-display">
+              <div class="oscilloscope-readout-row">
+                <span>CH1 <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedAverageVoltage) : "-")}</strong></span>
+                <span>MIN <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedMinVoltage) : "-")}</strong></span>
+                <span>MAX <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedMaxVoltage) : "-")}</strong></span>
+                <span>RAW AVG <strong>${escapeHtml(hasCapture ? formatVoltage(rawAverageVoltage) : "-")}</strong></span>
+                <span>Y <strong>Auto</strong></span>
+              </div>
+              <div class="oscilloscope-waveform-wrap">
+                <canvas id="oscilloscopeWaveformCanvas" class="oscilloscope-waveform" width="1200" height="520"></canvas>
+              </div>
+              <div class="oscilloscope-bottom-strip">
+                <span>Frame <strong>${escapeHtml(formatNumber(state.framesCaptured))}</strong></span>
+                <span>Storage <strong>${escapeHtml(storageLabel)}</strong></span>
+                <span>Zero <strong>${escapeHtml(zeroReady ? formatVoltage(zeroOffsetVoltage) : "Raw")}</strong></span>
+                <span>Gain <strong>${escapeHtml(calibrationGain === 1 ? "1.000x" : `${formatNumber(calibrationGain, 3)}x`)}</strong></span>
+                <span>Scale <strong>${escapeHtml(hasCapture ? `${formatVoltage(capture.voltsPerCount)} / count` : "-")}</strong></span>
+              </div>
+            </div>
+
+            <aside class="oscilloscope-control-rail">
+              <div class="oscilloscope-control-group oscilloscope-run-group">
+                <p>Acquire</p>
+                <button type="button" id="oscilloscopeRunButton" class="ghost oscilloscope-run-button${state.isRunning ? " is-active" : ""}"${runDisableAttr}>
+                  <span class="material-symbols-outlined${state.isRunning && state.isCapturing ? " is-spinning" : ""}">${state.isRunning && state.isCapturing ? "progress_activity" : state.isRunning ? "pause" : "play_arrow"}</span>
+                  <span>${state.isRunning ? "Stop" : "Run"}</span>
+                </button>
+                <button type="button" id="oscilloscopeSingleButton" class="ghost"${singleDisableAttr}>
+                  <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "show_chart"}</span>
+                  <span>Single</span>
+                </button>
+                <button type="button" id="oscilloscopeRecordButton" class="ghost oscilloscope-record-button${state.isRecording ? " is-active" : ""}"${recordDisableAttr}>
+                  <span class="material-symbols-outlined">fiber_manual_record</span>
+                  <span>${state.isRecording ? "Stop Rec" : "Record"}</span>
+                </button>
+              </div>
+
+              <div class="oscilloscope-control-group">
+                <p>Vertical</p>
+                <label>
+                  Probe
+                  <select id="oscilloscopeProbe"${configDisableAttr}>
+                    <option value="10"${Number(state.probeAttenuation) === 10 ? " selected" : ""}>x10 / 0-30V</option>
+                    <option value="1"${Number(state.probeAttenuation) === 1 ? " selected" : ""}>x1 / 0-3.3V</option>
+                  </select>
+                </label>
+                <label>
+                  Cal Ref
+                  <input id="oscilloscopeCalReference" type="number" min="0.050" max="30" step="0.001" value="${escapeHtml(calibrationReferenceVoltage.toFixed(3))}"${busy ? " disabled" : ""}>
+                </label>
+                <button type="button" id="oscilloscopeZeroButton" class="ghost"${zeroDisableAttr}>
+                  <span class="material-symbols-outlined">vertical_align_center</span>
+                  <span>Zero</span>
+                </button>
+                <button type="button" id="oscilloscopeCalVrefButton" class="ghost"${calDisableAttr}>
+                  <span class="material-symbols-outlined">speed</span>
+                  <span>Cal Vref</span>
+                </button>
+                <button type="button" id="oscilloscopeClearZeroButton" class="ghost"${busy || (!zeroReady && calibrationGain === 1) ? " disabled" : ""}>
+                  <span class="material-symbols-outlined">restart_alt</span>
+                  <span>Clear</span>
+                </button>
+              </div>
+
+              <div class="oscilloscope-control-group">
+                <p>Timebase</p>
+                <label>
+                  Sample Rate
+                  <select id="oscilloscopeSampleRate"${configDisableAttr}>
+                    ${[1000, 2000, 5000, 10000, 50000, 100000, 250000, 500000].map((rate) => `
+                      <option value="${rate}"${Number(state.sampleRateHz) === rate ? " selected" : ""}>${escapeHtml(formatRate(rate))}</option>
+                    `).join("")}
+                  </select>
+                </label>
+                <label>
+                  Memory
+                  <select id="oscilloscopeSampleCount"${configDisableAttr}>
+                    ${[1024, 2048, 4096, 8192, 16384].map((count) => `
+                      <option value="${count}"${Number(state.sampleCount) === count ? " selected" : ""}>${escapeHtml(formatNumber(count))} pts</option>
+                    `).join("")}
+                  </select>
+                </label>
+              </div>
+
+              <div class="oscilloscope-control-group">
+                <p>Trigger</p>
+                <div class="oscilloscope-trigger-box">
+                  <span>Mode <strong>Auto</strong></span>
+                  <span>Level <strong>Mid</strong></span>
+                  <span>Source <strong>CH1</strong></span>
+                </div>
+              </div>
+            </aside>
           </div>
-          <p class="spi-note">${escapeHtml(state.errorMessage || state.message || device.message)}</p>
+
+          <p class="oscilloscope-message">${escapeHtml(state.errorMessage || state.message || device.message)}</p>
         </section>
 
-        <section class="spi-card">
-          <div class="spi-card-head">
+        <section class="oscilloscope-trace-panel">
+          <div class="oscilloscope-section-head">
             <div>
-              <p class="label">Capture</p>
-              <h4>Parameter sampling</h4>
-            </div>
-            <div class="oscilloscope-actions">
-              <button type="button" id="oscilloscopeSingleButton" class="ghost"${singleDisableAttr}>
-                <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "show_chart"}</span>
-                <span>Single</span>
-              </button>
-              <button type="button" id="oscilloscopeRunButton" class="ghost oscilloscope-run-button${state.isRunning ? " is-active" : ""}"${runDisableAttr}>
-                <span class="material-symbols-outlined${state.isRunning && state.isCapturing ? " is-spinning" : ""}">${state.isRunning && state.isCapturing ? "progress_activity" : state.isRunning ? "pause" : "play_arrow"}</span>
-                <span>${state.isRunning ? "Stop" : "Run"}</span>
-              </button>
-              <button type="button" id="oscilloscopeRecordButton" class="ghost oscilloscope-record-button${state.isRecording ? " is-active" : ""}"${recordDisableAttr}>
-                <span class="material-symbols-outlined">fiber_manual_record</span>
-                <span>${state.isRecording ? "Stop Rec" : "Record"}</span>
-              </button>
-              <button type="button" id="oscilloscopeZeroButton" class="ghost"${zeroDisableAttr}>
-                <span class="material-symbols-outlined">vertical_align_center</span>
-                <span>Zero</span>
-              </button>
-              <button type="button" id="oscilloscopeCal3vButton" class="ghost"${calDisableAttr}>
-                <span class="material-symbols-outlined">speed</span>
-                <span>Cal 3V</span>
-              </button>
-              <button type="button" id="oscilloscopeClearZeroButton" class="ghost"${busy || (!zeroReady && calibrationGain === 1) ? " disabled" : ""}>
-                <span class="material-symbols-outlined">restart_alt</span>
-                <span>Clear</span>
-              </button>
-            </div>
-          </div>
-          <div class="spi-form-grid oscilloscope-form-grid">
-            <label>
-              Sample Rate
-              <select id="oscilloscopeSampleRate"${configDisableAttr}>
-                ${[10000, 50000, 100000, 250000, 500000, 1000000].map((rate) => `
-                  <option value="${rate}"${Number(state.sampleRateHz) === rate ? " selected" : ""}>${escapeHtml(formatRate(rate))}</option>
-                `).join("")}
-              </select>
-            </label>
-            <label>
-              Sample Count
-              <select id="oscilloscopeSampleCount"${configDisableAttr}>
-                ${[1024, 2048, 4096, 8192, 16384].map((count) => `
-                  <option value="${count}"${Number(state.sampleCount) === count ? " selected" : ""}>${escapeHtml(formatNumber(count))}</option>
-                `).join("")}
-              </select>
-            </label>
-            <label>
-              Probe
-              <select id="oscilloscopeProbe"${configDisableAttr}>
-                <option value="10"${Number(state.probeAttenuation) === 10 ? " selected" : ""}>x10</option>
-                <option value="1"${Number(state.probeAttenuation) === 1 ? " selected" : ""}>x1</option>
-              </select>
-            </label>
-            <label>
-              Durasi
-              <input type="text" value="${escapeHtml(formatNumber(Number(state.sampleCount || 0) / Number(state.sampleRateHz || 1) * 1000, 2))} ms" readonly>
-            </label>
-          </div>
-          <div class="spi-inline-meta oscilloscope-meta">
-            <span>Frame <strong>${escapeHtml(formatNumber(state.framesCaptured))}</strong></span>
-            <span>Storage <strong>${escapeHtml(storageLabel)}</strong></span>
-            <span>Zero <strong>${escapeHtml(zeroReady ? formatVoltage(zeroOffsetVoltage) : "Raw")}</strong></span>
-            <span>Gain <strong>${escapeHtml(calibrationGain === 1 ? "1.000x" : `${formatNumber(calibrationGain, 3)}x`)}</strong></span>
-            <span>Record ID <strong>${escapeHtml(state.recordSessionId || "-")}</strong></span>
-          </div>
-          <p class="spi-note">Untuk target 0-30VDC gunakan probe x10. Ground probe tersambung ke ground USB/PC.</p>
-        </section>
-
-        <section class="spi-card oscilloscope-waveform-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Waveform</p>
-              <h4>${hasCapture ? escapeHtml(`${formatRate(capture.actualSampleRateHz)} / ${formatNumber(capture.sampleCount)} sample`) : "Standby"}</h4>
-            </div>
-            <span class="spi-mini-badge">${escapeHtml(hasCapture ? `${formatNumber(capture.durationMs, 2)} ms / Auto Y` : "No data")}</span>
-          </div>
-          <div class="oscilloscope-waveform-wrap">
-            <canvas id="oscilloscopeWaveformCanvas" class="oscilloscope-waveform" width="1200" height="420"></canvas>
-          </div>
-          <div class="spi-inline-meta oscilloscope-meta">
-            <span>Min <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedMinVoltage) : "-")}</strong></span>
-            <span>Max <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedMaxVoltage) : "-")}</strong></span>
-            <span>Avg <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedAverageVoltage) : "-")}</strong></span>
-            <span>Raw Avg <strong>${escapeHtml(hasCapture ? formatVoltage(capture.averageVoltage) : "-")}</strong></span>
-            <span>Scale <strong>${escapeHtml(hasCapture ? `${formatVoltage(capture.voltsPerCount)} / count` : "-")}</strong></span>
-          </div>
-        </section>
-
-        <section class="spi-card oscilloscope-waveform-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Voltage Trace</p>
+              <p>Voltage Trace</p>
               <h4>${escapeHtml(`${formatNumber(state.trendHistory.length)} frame`)}</h4>
             </div>
-            <span class="spi-mini-badge">Avg Auto Y</span>
+            <span>Avg Auto Y</span>
           </div>
           <div class="oscilloscope-trend-wrap">
             <canvas id="oscilloscopeTrendCanvas" class="oscilloscope-trend" width="1200" height="260"></canvas>
           </div>
-          <div class="spi-inline-meta oscilloscope-meta">
+          <div class="oscilloscope-bottom-strip">
             <span>Trace Low <strong>${escapeHtml(adjustedTrendAverages.length ? formatVoltage(Math.min(...adjustedTrendAverages)) : "-")}</strong></span>
             <span>Trace High <strong>${escapeHtml(adjustedTrendAverages.length ? formatVoltage(Math.max(...adjustedTrendAverages)) : "-")}</strong></span>
             <span>Last Avg <strong>${escapeHtml(adjustedTrendHistory.length ? formatVoltage(adjustedTrendHistory[adjustedTrendHistory.length - 1].avg) : "-")}</strong></span>
+            <span>Record ID <strong>${escapeHtml(state.recordSessionId || "-")}</strong></span>
           </div>
         </section>
       </div>
     `;
   }
 
-  function drawWaveform(container, capture, probeAttenuation, zeroOffsetVoltage = 0, calibrationGain = 1) {
+  function drawWaveform(container, capture, probeAttenuation, zeroOffsetVoltage = 0, calibrationGain = 1, scaleMemory = null) {
     const canvas = container?.querySelector("#oscilloscopeWaveformCanvas");
     if (!canvas) {
       return;
@@ -443,7 +465,7 @@
       : [];
     const scaleValues = sampleVoltages.length ? sampleVoltages : [averageVoltage];
     const minSpan = Math.max(probe >= 10 ? 0.15 : 0.03, Math.abs(averageVoltage) * 0.04);
-    const voltageScale = createVoltageScale(scaleValues, {
+    let voltageScale = createVoltageScale(scaleValues, {
       lowPercentile: 0.15,
       highPercentile: 0.85,
       minSpan,
@@ -451,6 +473,36 @@
       tickCount: 6,
       includeValues: [averageVoltage]
     });
+    if (scaleMemory && sampleVoltages.length) {
+      const scaleKey = `${probe}:${Math.round(zeroOffset * 1000000)}:${Math.round(gain * 1000000)}`;
+      if (scaleMemory.key !== scaleKey) {
+        scaleMemory.key = scaleKey;
+        scaleMemory.scale = null;
+      }
+
+      const previousScale = scaleMemory.scale;
+      if (previousScale) {
+        const fitsPrevious =
+          voltageScale.min >= previousScale.min &&
+          voltageScale.max <= previousScale.max &&
+          voltageScale.range >= previousScale.range * 0.35;
+        if (fitsPrevious) {
+          voltageScale = previousScale;
+        } else {
+          const expandedMin = Math.min(previousScale.min, voltageScale.min);
+          const expandedMax = Math.max(previousScale.max, voltageScale.max);
+          const expandedRange = Math.max(voltageScale.step, expandedMax - expandedMin);
+          voltageScale = {
+            ...voltageScale,
+            min: expandedMin,
+            max: expandedMin + expandedRange,
+            range: expandedRange
+          };
+        }
+      }
+
+      scaleMemory.scale = voltageScale;
+    }
     const scaleMinVoltage = voltageScale.min;
     const scaleMaxVoltage = voltageScale.max;
     const scaleRangeVoltage = voltageScale.range;
@@ -666,6 +718,7 @@
     let notify = () => {};
     let loopTimer = null;
     let loopGeneration = 0;
+    const waveformScaleMemory = {};
 
     function render() {
       if (!mountedContainer) {
@@ -673,15 +726,15 @@
       }
 
       mountedContainer.innerHTML = createWorkbenchMarkup(state, busy);
-      drawWaveform(mountedContainer, state.capture, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain);
+      drawWaveform(mountedContainer, state.capture, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain, waveformScaleMemory);
       drawVoltageTrace(mountedContainer, state.trendHistory, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain);
 
       bindActionButton("#oscilloscopeScanButton", () => withBusy(scanDevice));
       bindActionButton("#oscilloscopeSingleButton", () => withBusy(() => captureWaveform({ saveTemporary: true })));
       bindActionButton("#oscilloscopeRunButton", toggleContinuous);
       bindActionButton("#oscilloscopeRecordButton", toggleRecording);
-      bindActionButton("#oscilloscopeZeroButton", zeroDisplay);
-      bindActionButton("#oscilloscopeCal3vButton", calibrateThreeVolts);
+      bindActionButton("#oscilloscopeZeroButton", () => withBusy(zeroDisplay, { allowRunning: true }));
+      bindActionButton("#oscilloscopeCalVrefButton", () => withBusy(calibrateReferenceVoltage, { allowRunning: true }));
       bindActionButton("#oscilloscopeClearZeroButton", clearZero);
       mountedContainer.querySelector("#oscilloscopeSampleRate")?.addEventListener("change", (event) => {
         state.sampleRateHz = Number(event.target.value || state.sampleRateHz);
@@ -693,6 +746,10 @@
       });
       mountedContainer.querySelector("#oscilloscopeProbe")?.addEventListener("change", (event) => {
         state.probeAttenuation = Number(event.target.value || state.probeAttenuation);
+        render();
+      });
+      mountedContainer.querySelector("#oscilloscopeCalReference")?.addEventListener("change", (event) => {
+        state.calibrationReferenceVoltage = normalizeCalibrationReference(event.target.value);
         render();
       });
     }
@@ -711,7 +768,7 @@
         handler();
       };
 
-      button.addEventListener("pointerdown", invoke);
+      button.addEventListener("click", invoke);
       button.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           invoke(event);
@@ -719,8 +776,12 @@
       });
     }
 
-    async function withBusy(work) {
-      if (busy || state.isRunning) {
+    async function withBusy(work, options = {}) {
+      if (busy) {
+        return;
+      }
+
+      if (state.isRunning && !options.allowRunning) {
         return;
       }
 
@@ -747,12 +808,17 @@
       }
     }
 
-    async function requestCapture({ saveTemporary = true, recordEnabled = false } = {}) {
+    async function requestCapture({
+      saveTemporary = true,
+      recordEnabled = false,
+      sampleRateHz = state.sampleRateHz,
+      sampleCount = state.sampleCount
+    } = {}) {
       return fetchJson("/tools/oscilloscope/capture", {
         method: "POST",
         body: JSON.stringify({
-          sampleRateHz: Number(state.sampleRateHz || 100000),
-          sampleCount: Number(state.sampleCount || 4096),
+          sampleRateHz: Number(sampleRateHz || calibrationSampleRateHz),
+          sampleCount: Number(sampleCount || calibrationSampleCount),
           probeAttenuation: Number(state.probeAttenuation || 10),
           saveTemporary,
           recordEnabled,
@@ -790,11 +856,113 @@
       }
     }
 
-    function zeroDisplay() {
-      if (!state.capture || !Number.isFinite(Number(state.capture.averageVoltage))) {
+    function median(values) {
+      const safeValues = values
+        .map((value) => Number(value))
+        .filter(Number.isFinite)
+        .sort((left, right) => left - right);
+      if (!safeValues.length) {
+        return NaN;
+      }
+
+      const middle = Math.floor(safeValues.length / 2);
+      return safeValues.length % 2
+        ? safeValues[middle]
+        : (safeValues[middle - 1] + safeValues[middle]) / 2;
+    }
+
+    function rememberCalibrationCapture(result) {
+      if (!result) {
         return;
       }
-      state.zeroOffsetVoltage = Number(state.capture.averageVoltage || 0);
+
+      state.capture = result;
+      state.device = {
+        ...state.device,
+        isPresent: true,
+        success: true,
+        identity: result.identity || state.device.identity
+      };
+    }
+
+    async function collectStableMeasurement(frameCount = calibrationFrameCount, label = "Measurement") {
+      const values = [];
+      let lastResult = null;
+      const measurementRateHz = calibrationSampleRateHz;
+      const measurementCount = calibrationSampleCount;
+
+      for (let frame = 0; frame < frameCount; frame += 1) {
+        state.message = `${label} ${formatNumber(frame + 1)}/${formatNumber(frameCount)}...`;
+        render();
+        const result = await requestCapture({
+          saveTemporary: false,
+          recordEnabled: false,
+          sampleRateHz: measurementRateHz,
+          sampleCount: measurementCount
+        });
+        lastResult = result;
+        const value = Number(result?.averageVoltage);
+        if (Number.isFinite(value)) {
+          values.push(value);
+        }
+      }
+
+      rememberCalibrationCapture(lastResult);
+      const value = median(values);
+      if (!Number.isFinite(value)) {
+        throw new Error("Measurement stabil gagal dibaca.");
+      }
+
+      return { value, lastResult };
+    }
+
+    async function getCalibrationMeasurement(label) {
+      const currentValue = Number(state.capture?.averageVoltage);
+      if (state.isRunning) {
+        if (!Number.isFinite(currentValue)) {
+          throw new Error(`${label} butuh frame live dulu. Tunggu grafik tampil, lalu tekan lagi.`);
+        }
+
+        return {
+          value: currentValue,
+          lastResult: state.capture
+        };
+      }
+
+      if (Number.isFinite(currentValue)) {
+        return {
+          value: currentValue,
+          lastResult: state.capture
+        };
+      }
+
+      state.message = `${label} ambil 1 frame...`;
+      render();
+      const result = await requestCapture({
+        saveTemporary: false,
+        recordEnabled: false,
+        sampleRateHz: 100000,
+        sampleCount: 2048
+      });
+      rememberCalibrationCapture(result);
+      const value = Number(result?.averageVoltage);
+      if (!Number.isFinite(value)) {
+        throw new Error(`${label} gagal membaca frame.`);
+      }
+
+      return {
+        value,
+        lastResult: result
+      };
+    }
+
+    async function zeroDisplay() {
+      state.message = "Zero dari frame stabil 500k...";
+      state.errorMessage = "";
+      render();
+
+      const measurement = await collectStableMeasurement(calibrationFrameCount, "Zero");
+      state.zeroOffsetVoltage = measurement.value;
       state.isZeroed = true;
       state.calibrationGain = 1;
       state.trendHistory = [];
@@ -803,25 +971,32 @@
       notify(state.message, "success");
     }
 
-    function calibrateThreeVolts() {
-      if (!state.capture || !Number.isFinite(Number(state.capture.averageVoltage)) || !state.isZeroed) {
-        state.message = "Zero dulu saat probe ke GND, lalu sentuh 3V dan klik Cal 3V.";
+    async function calibrateReferenceVoltage() {
+      const referenceVoltage = normalizeCalibrationReference(state.calibrationReferenceVoltage);
+      if (!state.isZeroed) {
+        state.message = `Zero dulu saat probe ke GND, lalu sentuh ${formatVoltage(referenceVoltage)} dan klik Cal Vref.`;
         render();
         notify(state.message, "warning");
         return;
       }
 
-      const measuredDelta = Number(state.capture.averageVoltage || 0) - Number(state.zeroOffsetVoltage || 0);
+      state.message = "Cal Vref dari frame stabil 500k...";
+      state.errorMessage = "";
+      render();
+
+      const measurement = await collectStableMeasurement(calibrationFrameCount, "Cal Vref");
+      const measuredDelta = measurement.value - Number(state.zeroOffsetVoltage || 0);
       if (Math.abs(measuredDelta) < 0.05) {
-        state.message = "Cal 3V gagal: delta terlalu kecil. Pastikan input sedang di 3V.";
+        state.message = `Cal Vref gagal: delta terlalu kecil. Pastikan input sedang di ${formatVoltage(referenceVoltage)}.`;
         render();
         notify(state.message, "warning");
         return;
       }
 
-      state.calibrationGain = 3 / measuredDelta;
+      state.calibrationReferenceVoltage = referenceVoltage;
+      state.calibrationGain = referenceVoltage / measuredDelta;
       state.trendHistory = [];
-      state.message = `Cal 3V diset, gain ${formatNumber(state.calibrationGain, 3)}x.`;
+      state.message = `Cal Vref ${formatVoltage(referenceVoltage)} diset, gain ${formatNumber(state.calibrationGain, 3)}x.`;
       render();
       notify(state.message, "success");
     }
@@ -831,7 +1006,7 @@
       state.isZeroed = false;
       state.calibrationGain = 1;
       state.trendHistory = [];
-      state.message = "Zero dan Cal 3V dibersihkan.";
+      state.message = "Zero dan Cal Vref dibersihkan.";
       render();
       notify(state.message, "info");
     }
@@ -990,7 +1165,7 @@
           return;
         }
         requestAnimationFrame(() => {
-          drawWaveform(mountedContainer, state.capture, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain);
+          drawWaveform(mountedContainer, state.capture, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain, waveformScaleMemory);
           drawVoltageTrace(mountedContainer, state.trendHistory, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain);
         });
       },
