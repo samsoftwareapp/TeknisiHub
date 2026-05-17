@@ -103,6 +103,7 @@ const state = {
   routesMode: 'selected',
   visibleSide: 'top',
   mirrorMode: "off",  // "off" | "x" | "y" | "xy"
+  rotationDeg: 0,
   selectedPart: null,
   selectedNet: null,
   selectedPin: null,
@@ -1622,16 +1623,70 @@ function isSideVisible(side) {
   return state.visibleSide === 'both' || side === state.visibleSide || side === 'both' || side === 'all';
 }
 
+function normalizeRotationDeg(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return ((Math.round(numeric / 90) * 90) % 360 + 360) % 360;
+}
+
+function mirrorWorldPoint(x, y, bounds, mode = state.mirrorMode) {
+  if (!bounds || !mode || mode === 'off') return { x, y };
+  return {
+    x: (mode === 'x' || mode === 'xy') ? bounds.x_min + bounds.x_max - x : x,
+    y: (mode === 'y' || mode === 'xy') ? bounds.y_min + bounds.y_max - y : y,
+  };
+}
+
+function rotateWorldPoint(x, y, bounds, rotationDeg = state.rotationDeg) {
+  if (!bounds) return { x, y };
+  const rotation = normalizeRotationDeg(rotationDeg);
+  if (rotation === 0) return { x, y };
+  const cx = (bounds.x_min + bounds.x_max) / 2;
+  const cy = (bounds.y_min + bounds.y_max) / 2;
+  const dx = x - cx;
+  const dy = y - cy;
+  if (rotation === 90) return { x: cx - dy, y: cy + dx };
+  if (rotation === 180) return { x: cx - dx, y: cy - dy };
+  return { x: cx + dy, y: cy - dx };
+}
+
 function transformWorld(x, y) {
-  if (state.board && state.mirrorMode && state.mirrorMode !== 'off') {
-    const b = state.board.bounds;
-    const mx = (state.mirrorMode === 'x' || state.mirrorMode === 'xy')
-      ? b.x_min + b.x_max - x : x;
-    const my = (state.mirrorMode === 'y' || state.mirrorMode === 'xy')
-      ? b.y_min + b.y_max - y : y;
-    return { x: mx, y: my };
-  }
-  return { x, y };
+  if (!state.board?.bounds) return { x, y };
+  const mirrored = mirrorWorldPoint(x, y, state.board.bounds);
+  return rotateWorldPoint(mirrored.x, mirrored.y, state.board.bounds);
+}
+
+function inverseTransformWorld(x, y) {
+  if (!state.board?.bounds) return { x, y };
+  const unrotated = rotateWorldPoint(x, y, state.board.bounds, -state.rotationDeg);
+  return mirrorWorldPoint(unrotated.x, unrotated.y, state.board.bounds);
+}
+
+function getTransformedRectBounds(bounds) {
+  if (!bounds) return null;
+  const xMin = bounds.x_min ?? bounds.xMin ?? 0;
+  const xMax = bounds.x_max ?? bounds.xMax ?? 0;
+  const yMin = bounds.y_min ?? bounds.yMin ?? 0;
+  const yMax = bounds.y_max ?? bounds.yMax ?? 0;
+  const points = [
+    transformWorld(xMin, yMin),
+    transformWorld(xMax, yMin),
+    transformWorld(xMax, yMax),
+    transformWorld(xMin, yMax),
+  ];
+  const result = {
+    x_min: Math.min(...points.map((point) => point.x)),
+    x_max: Math.max(...points.map((point) => point.x)),
+    y_min: Math.min(...points.map((point) => point.y)),
+    y_max: Math.max(...points.map((point) => point.y)),
+  };
+  result.width = result.x_max - result.x_min;
+  result.height = result.y_max - result.y_min;
+  return result;
+}
+
+function getTransformedBoardBounds() {
+  return state.board?.bounds ? getTransformedRectBounds(state.board.bounds) : null;
 }
 
 function worldToScreen(x, y) {
@@ -1643,25 +1698,24 @@ function worldToScreen(x, y) {
 }
 
 function screenToWorld(x, y) {
-  let wx = (x - state.camera.offsetX) / state.camera.scale;
-  let wy = (y - state.camera.offsetY) / state.camera.scale;
-  if (state.board && state.mirrorMode && state.mirrorMode !== 'off') {
-    const b = state.board.bounds;
-    if (state.mirrorMode === 'x' || state.mirrorMode === 'xy') wx = b.x_min + b.x_max - wx;
-    if (state.mirrorMode === 'y' || state.mirrorMode === 'xy') wy = b.y_min + b.y_max - wy;
-  }
-  return { x: wx, y: wy };
+  const wx = (x - state.camera.offsetX) / state.camera.scale;
+  const wy = (y - state.camera.offsetY) / state.camera.scale;
+  return inverseTransformWorld(wx, wy);
 }
 
 function getViewportWorldBounds(padPx = 80) {
   const pad = padPx / Math.max(state.camera.scale, 0.0001);
-  const a = screenToWorld(-padPx, -padPx);
-  const b = screenToWorld(canvas.clientWidth + padPx, canvas.clientHeight + padPx);
+  const corners = [
+    screenToWorld(-padPx, -padPx),
+    screenToWorld(canvas.clientWidth + padPx, -padPx),
+    screenToWorld(canvas.clientWidth + padPx, canvas.clientHeight + padPx),
+    screenToWorld(-padPx, canvas.clientHeight + padPx),
+  ];
   return {
-    x_min: Math.min(a.x, b.x) - pad,
-    x_max: Math.max(a.x, b.x) + pad,
-    y_min: Math.min(a.y, b.y) - pad,
-    y_max: Math.max(a.y, b.y) + pad,
+    x_min: Math.min(...corners.map((point) => point.x)) - pad,
+    x_max: Math.max(...corners.map((point) => point.x)) + pad,
+    y_min: Math.min(...corners.map((point) => point.y)) - pad,
+    y_max: Math.max(...corners.map((point) => point.y)) + pad,
   };
 }
 
@@ -1735,7 +1789,7 @@ function updateHoverTooltip(clientX, clientY) {
 
 function getMinimapLayout() {
   if (!state.board || !minimapCanvas) return null;
-  const bounds = state.board.bounds;
+  const bounds = getTransformedBoardBounds() || state.board.bounds;
   const pad = 10;
   const innerW = minimapCanvas.width - pad * 2;
   const innerH = minimapCanvas.height - pad * 2;
@@ -1748,22 +1802,25 @@ function getMinimapLayout() {
 }
 
 function minimapWorldToScreen(x, y, layout) {
-  let mx = x, my = y;
-  if (state.mirrorMode && state.mirrorMode !== 'off' && state.board?.bounds) {
-    const b = state.board.bounds;
-    if (state.mirrorMode === 'x' || state.mirrorMode === 'xy') mx = b.x_min + b.x_max - x;
-    if (state.mirrorMode === 'y' || state.mirrorMode === 'xy') my = b.y_min + b.y_max - y;
-  }
+  const transformed = transformWorld(x, y);
   return {
-    x: layout.offsetX + (mx - layout.bounds.x_min) * layout.scale,
-    y: layout.offsetY + (my - layout.bounds.y_min) * layout.scale,
+    x: layout.offsetX + (transformed.x - layout.bounds.x_min) * layout.scale,
+    y: layout.offsetY + (transformed.y - layout.bounds.y_min) * layout.scale,
   };
 }
 
 function minimapScreenToWorld(x, y, layout) {
-  return {
+  const transformed = {
     x: layout.bounds.x_min + (x - layout.offsetX) / layout.scale,
     y: layout.bounds.y_min + (y - layout.offsetY) / layout.scale,
+  };
+  return inverseTransformWorld(transformed.x, transformed.y);
+}
+
+function transformedViewToMinimapScreen(x, y, layout) {
+  return {
+    x: layout.offsetX + (x - layout.bounds.x_min) * layout.scale,
+    y: layout.offsetY + (y - layout.bounds.y_min) * layout.scale,
   };
 }
 
@@ -1803,16 +1860,23 @@ function drawMinimap() {
     minimapCtx.fillRect(x, y, w, h);
   }
 
-  const view = getViewportWorldBounds(0);
-  const vp1 = minimapWorldToScreen(view.x_min, view.y_min, layout);
-  const vp2 = minimapWorldToScreen(view.x_max, view.y_max, layout);
+  const vp1 = transformedViewToMinimapScreen(
+    (0 - state.camera.offsetX) / state.camera.scale,
+    (0 - state.camera.offsetY) / state.camera.scale,
+    layout,
+  );
+  const vp2 = transformedViewToMinimapScreen(
+    (canvas.clientWidth - state.camera.offsetX) / state.camera.scale,
+    (canvas.clientHeight - state.camera.offsetY) / state.camera.scale,
+    layout,
+  );
   minimapCtx.fillStyle = state.theme === 'light' ? 'rgba(14, 165, 233, 0.15)' : 'rgba(56, 189, 248, 0.18)';
   minimapCtx.strokeStyle = state.theme === 'light' ? '#0284c7' : '#38bdf8';
   minimapCtx.lineWidth = 1.25;
   minimapCtx.fillRect(Math.min(vp1.x, vp2.x), Math.min(vp1.y, vp2.y), Math.abs(vp2.x - vp1.x), Math.abs(vp2.y - vp1.y));
   minimapCtx.strokeRect(Math.min(vp1.x, vp2.x), Math.min(vp1.y, vp2.y), Math.abs(vp2.x - vp1.x), Math.abs(vp2.y - vp1.y));
 
-  if (minimapZoomEl) minimapZoomEl.textContent = `${state.visibleSide} | x${getDetailZoom().toFixed(2)}`;
+  if (minimapZoomEl) minimapZoomEl.textContent = `${state.visibleSide} | rot ${state.rotationDeg} | x${getDetailZoom().toFixed(2)}`;
 }
 
 function recenterFromMinimapEvent(ev) {
@@ -1829,7 +1893,7 @@ function recenterFromMinimapEvent(ev) {
 
 function fitBoard() {
   if (!state.board) return;
-  const { bounds } = state.board;
+  const bounds = getTransformedBoardBounds() || state.board.bounds;
   const vw = Math.max(1, canvas.clientWidth);
   const vh = Math.max(1, canvas.clientHeight);
   const margin = 40;
@@ -1873,8 +1937,9 @@ function zoomToBounds(bounds, options = {}) {
   const xMax = bounds.x_max ?? bounds.xMax ?? 0;
   const yMin = bounds.y_min ?? bounds.yMin ?? 0;
   const yMax = bounds.y_max ?? bounds.yMax ?? 0;
-  const width = Math.max(1, Math.abs(xMax - xMin));
-  const height = Math.max(1, Math.abs(yMax - yMin));
+  const transformedBounds = getTransformedRectBounds({ x_min: xMin, x_max: xMax, y_min: yMin, y_max: yMax });
+  const width = Math.max(1, transformedBounds ? Math.abs(transformedBounds.width) : Math.abs(xMax - xMin));
+  const height = Math.max(1, transformedBounds ? Math.abs(transformedBounds.height) : Math.abs(yMax - yMin));
   const centerX = (xMin + xMax) / 2;
   const centerY = (yMin + yMax) / 2;
   const padding = options.padding ?? 0.42;
@@ -3534,6 +3599,8 @@ function permalinkEncode() {
   p.set('v', '1'); p.set('s', state.visibleSide);
   p.set('x', state.camera.offsetX.toFixed(1)); p.set('y', state.camera.offsetY.toFixed(1));
   p.set('z', state.camera.scale.toFixed(4));
+  if (state.mirrorMode && state.mirrorMode !== 'off') p.set('m', state.mirrorMode);
+  if (state.rotationDeg) p.set('r', String(state.rotationDeg));
   if (state.selectedPart) p.set('part', state.selectedPart.name);
   if (state.selectedNet)  p.set('net',  state.selectedNet);
   if (state.selectedPin)  p.set('pin',  String(state.selectedPin.index));
@@ -3547,13 +3614,16 @@ function permalinkDecode() {
     if (p.get('v') !== '1') return null;
     return { side: p.get('s') || null, offsetX: p.has('x') ? parseFloat(p.get('x')) : null,
       offsetY: p.has('y') ? parseFloat(p.get('y')) : null, scale: p.has('z') ? parseFloat(p.get('z')) : null,
+      m: p.get('m') || null, rotation: p.has('r') ? parseFloat(p.get('r')) : null,
       part: p.get('part') || null, net: p.get('net') || null, pin: p.has('pin') ? parseInt(p.get('pin'), 10) : null };
   } catch (e) { return null; }
 }
 function permalinkApply(pl) {
   if (!pl || !state.board) return;
   if (pl.side) { state.visibleSide = pl.side; refreshToolbarButtons(); }
-  if (pl.m) { state.mirrorMode = ['x','y','xy'].includes(pl.m) ? pl.m : 'off'; }
+  state.mirrorMode = ['x','y','xy'].includes(pl.m) ? pl.m : 'off';
+  state.rotationDeg = normalizeRotationDeg(pl.rotation ?? 0);
+  refreshToolbarButtons();
   if (pl.scale !== null && pl.offsetX !== null) {
     const _plBase = state.camera.baseScale || 1;
     state.camera.scale = Math.max(_plBase * 0.05, Math.min(_plBase * 80, pl.scale));
@@ -4443,6 +4513,28 @@ function setPartSideFilter(side) {
   populatePartList();
 }
 
+function updateBoardViewTransform(mutator) {
+  const centerBefore = state.board ? screenToWorld(canvas.clientWidth / 2, canvas.clientHeight / 2) : null;
+  mutator();
+  refreshToolbarButtons();
+  if (centerBefore) centerOnPoint(centerBefore.x, centerBefore.y);
+  render();
+  onViewChanged();
+}
+
+function cycleBoardRotation() {
+  updateBoardViewTransform(() => {
+    state.rotationDeg = normalizeRotationDeg(state.rotationDeg + 90);
+  });
+}
+
+function cycleMirrorMode() {
+  updateBoardViewTransform(() => {
+    const cycle = { 'off': 'x', 'x': 'y', 'y': 'xy', 'xy': 'off' };
+    state.mirrorMode = cycle[state.mirrorMode] || 'x';
+  });
+}
+
 function cycleRoutesMode() {
   const order = ['selected', 'all', 'off'];
   const index = order.indexOf(state.routesMode);
@@ -4485,6 +4577,12 @@ function refreshToolbarButtons() {
   setToolButtonState('side-both-btn', { active: state.visibleSide === 'both', title: 'Show both sides (1)' });
   setToolButtonState('side-top-btn', { active: state.visibleSide === 'top', title: 'Show top side (2)' });
   setToolButtonState('side-bottom-btn', { active: state.visibleSide === 'bottom', title: 'Show bottom side (3)' });
+  setToolButtonState('rotate-board-btn', {
+    active: state.rotationDeg !== 0,
+    status: String(state.rotationDeg),
+    title: `Rotate: ${state.rotationDeg} deg - click to rotate 90 deg clockwise`,
+    pressed: state.rotationDeg !== 0,
+  });
   const _mirrorLabels = { 'off': 'Off', 'x': '<-> X', 'y': '<-> Y', 'xy': '<-><-> XY' };
   setToolButtonState('mirror-bottom-btn', {
     active: state.mirrorMode !== 'off',
@@ -4789,12 +4887,8 @@ document.getElementById('part-side-all-btn').addEventListener('click', () => set
 document.getElementById('part-side-top-btn').addEventListener('click', () => setPartSideFilter('top'));
 document.getElementById('part-side-bottom-btn').addEventListener('click', () => setPartSideFilter('bottom'));
 
-document.getElementById('mirror-bottom-btn').addEventListener('click', () => {
-  const cycle = { 'off': 'x', 'x': 'y', 'y': 'xy', 'xy': 'off' };
-  state.mirrorMode = cycle[state.mirrorMode] || 'x';
-  refreshToolbarButtons();
-  render();
-});
+document.getElementById('rotate-board-btn')?.addEventListener('click', cycleBoardRotation);
+document.getElementById('mirror-bottom-btn').addEventListener('click', cycleMirrorMode);
 
 document.getElementById('toggle-parts-btn').addEventListener('click', () => {
   state.showParts = !state.showParts;

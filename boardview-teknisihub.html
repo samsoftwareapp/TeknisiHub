@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
   <link rel="icon" type="image/png" href="./assets/HubLogo.png">
-  <link rel="stylesheet" href="./boardview-teknisihub.css?v=20260512b">
+  <link rel="stylesheet" href="./boardview-teknisihub.css?v=20260518a">
 </head>
 <body data-theme="light">
 
@@ -210,10 +210,11 @@
           </button>
         </div>
 
-        <div class="tool-cluster" role="group" aria-label="Visible board side">
+        <div class="tool-cluster" role="group" aria-label="Visible board side and orientation">
           <button id="side-both-btn" class="tool-btn has-label" type="button" title="Show both sides (1)" aria-label="Show both sides (1)"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">splitscreen</span><span class="tool-label">Both</span></button>
           <button id="side-top-btn" class="tool-btn has-label active" type="button" title="Show top side (2)" aria-label="Show top side (2)"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">flip_to_front</span><span class="tool-label">Top</span></button>
           <button id="side-bottom-btn" class="tool-btn has-label" type="button" title="Show bottom side (3)" aria-label="Show bottom side (3)"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">flip_to_back</span><span class="tool-label">Bottom</span></button>
+          <button id="rotate-board-btn" class="tool-btn has-label" type="button" title="Rotate: 0 deg - click to rotate 90 deg clockwise" aria-label="Rotate: 0 deg - click to rotate 90 deg clockwise" data-state="0" aria-pressed="false"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">rotate_90_degrees_cw</span><span class="tool-label">Rotate</span></button>
           <button id="mirror-bottom-btn" class="tool-btn has-label" type="button" title="Mirror: OFF - click to cycle Off -> X -> Y -> XY" aria-label="Mirror: OFF - click to cycle Off -> X -> Y -> XY" data-state="Off" aria-pressed="false"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">flip</span><span class="tool-label">Mirror</span></button>
         </div>
 
@@ -384,7 +385,7 @@
   </div>
 
   <script src="./service-config.js?v=202605110643"></script>
-  <script src="./boardview-teknisihub.js?v=20260512b"></script>
+  <script src="./boardview-teknisihub.js?v=20260518a"></script>
 
 </body></html>
 
