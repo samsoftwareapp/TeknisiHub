@@ -1,10 +1,18 @@
 (function initializeOscilloscopePage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
-  const continuousDelayMs = 35;
-  const calibrationFrameCount = 5;
-  const calibrationReferenceDefaultVoltage = 3.3;
-  const calibrationSampleRateHz = 500000;
-  const calibrationSampleCount = 2048;
+  const continuousDelayMs = 70;
+  const maxRecordSamples = 110000;
+  const maxVoltageHistoryFrames = 1200;
+  const referenceWarmupFrames = 8;
+  const defaultSampleRateHz = 100000;
+  const defaultSampleCount = 2048;
+  const defaultDisplayMode = "drop";
+  const defaultProbeAttenuation = 10;
+  const settingsStorageKey = "teknisihub.oscilloscope.settings.v1";
+  const probeProfiles = {
+    1: { value: 1, label: "1X 0-3.3V", min: 0, max: 3.3, minSpan: 0.5 },
+    10: { value: 10, label: "10X 0-30V", min: 0, max: 30, minSpan: 5 }
+  };
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -22,7 +30,6 @@
     });
     const rawText = await response.text();
     let payload = {};
-
     if (rawText) {
       try {
         payload = JSON.parse(rawText);
@@ -30,16 +37,14 @@
         payload = { message: rawText };
       }
     }
-
     if (!response.ok) {
       throw new Error(payload.message || payload.title || `Request gagal (${response.status}).`);
     }
-
     return payload;
   }
 
   function formatNumber(value, fractionDigits = 0) {
-    const number = Number(value || 0);
+    const number = Number(value);
     if (!Number.isFinite(number)) {
       return "-";
     }
@@ -60,8 +65,19 @@
     return `${formatNumber(rate)} Sa/s`;
   }
 
+  function formatFrequency(value) {
+    const frequency = Math.max(0, Number(value) || 0);
+    if (frequency >= 1000000) {
+      return `${formatNumber(frequency / 1000000, 2)} MHz`;
+    }
+    if (frequency >= 1000) {
+      return `${formatNumber(frequency / 1000, 2)} kHz`;
+    }
+    return `${formatNumber(frequency, frequency >= 10 ? 0 : 1)} Hz`;
+  }
+
   function formatVoltage(value) {
-    const voltage = Number(value || 0);
+    const voltage = Number(value);
     if (!Number.isFinite(voltage)) {
       return "-";
     }
@@ -69,6 +85,29 @@
       return `${formatNumber(voltage * 1000, 1)} mV`;
     }
     return `${formatNumber(voltage, 3)} V`;
+  }
+
+  function formatDurationSeconds(value) {
+    const seconds = Math.max(0, Number(value) || 0);
+    if (seconds >= 1) {
+      return `${formatNumber(seconds, 2)} s`;
+    }
+    if (seconds >= 0.001) {
+      return `${formatNumber(seconds * 1000, 2)} ms`;
+    }
+    if (seconds >= 0.000001) {
+      return `${formatNumber(seconds * 1000000, 1)} us`;
+    }
+    return `${formatNumber(seconds * 1000000000, 0)} ns`;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function finiteNumber(value, fallback = 0) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
   }
 
   function createRecordSessionId() {
@@ -86,995 +125,1618 @@
     ].join("");
   }
 
-  function finiteNumber(value, fallback = 0) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
+  function probeProfile(value) {
+    return Number(value) === 10 ? probeProfiles[10] : probeProfiles[1];
   }
 
-  function adjustedVoltage(value, zeroOffsetVoltage = 0, calibrationGain = 1) {
-    const gain = finiteNumber(calibrationGain, 1) || 1;
-    return (finiteNumber(value) - finiteNumber(zeroOffsetVoltage)) * gain;
+  function readStoredSettings() {
+    try {
+      const raw = globalScope.localStorage?.getItem(settingsStorageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
   }
 
-  function normalizeCalibrationReference(value) {
-    return clamp(finiteNumber(value, calibrationReferenceDefaultVoltage), 0.05, 30);
+  function writeStoredSettings(nextSettings) {
+    try {
+      globalScope.localStorage?.setItem(settingsStorageKey, JSON.stringify(nextSettings));
+    } catch {
+      // Local storage can be blocked; oscilloscope must keep working without it.
+    }
   }
 
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+  function storedCorrectionGain(probeAttenuation) {
+    const settings = readStoredSettings();
+    const gain = finiteNumber(settings?.correctionGains?.[String(probeAttenuation)], 1);
+    return gain > 0 ? gain : 1;
   }
 
-  function percentile(sortedValues, ratio) {
-    if (!sortedValues.length) {
-      return 0;
-    }
-
-    const safeRatio = clamp(finiteNumber(ratio, 0.5), 0, 1);
-    const index = safeRatio * (sortedValues.length - 1);
-    const lowerIndex = Math.floor(index);
-    const upperIndex = Math.ceil(index);
-    if (lowerIndex === upperIndex) {
-      return sortedValues[lowerIndex];
-    }
-
-    const weight = index - lowerIndex;
-    return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight;
+  function saveCorrectionGain(probeAttenuation, gain) {
+    const settings = readStoredSettings();
+    const correctionGains = {
+      ...(settings.correctionGains || {}),
+      [String(probeAttenuation)]: gain
+    };
+    writeStoredSettings({ ...settings, correctionGains });
   }
 
-  function niceNumber(value) {
-    const safeValue = Math.max(Math.abs(finiteNumber(value, 1)), 0.000001);
-    const exponent = Math.floor(Math.log10(safeValue));
-    const base = 10 ** exponent;
-    const fraction = safeValue / base;
-
-    if (fraction <= 1) {
-      return base;
-    }
-    if (fraction <= 2) {
-      return 2 * base;
-    }
-    if (fraction <= 5) {
-      return 5 * base;
-    }
-    return 10 * base;
+  function storedActualVoltage(probeAttenuation) {
+    const settings = readStoredSettings();
+    const value = finiteNumber(settings?.actualVoltages?.[String(probeAttenuation)], NaN);
+    return Number.isFinite(value) && value > 0 ? value : null;
   }
 
-  function createVoltageScale(values, options = {}) {
-    const cleanValues = (Array.isArray(values) ? values : [])
-      .map((value) => finiteNumber(value, NaN))
-      .filter(Number.isFinite);
-    const tickCount = Math.max(2, Math.floor(finiteNumber(options.tickCount, 5)));
-    const minSpan = Math.max(0.001, finiteNumber(options.minSpan, 0.2));
-    const paddingRatio = clamp(finiteNumber(options.paddingRatio, 0.22), 0.05, 0.6);
+  function saveActualVoltage(probeAttenuation, actualVoltage) {
+    const settings = readStoredSettings();
+    const actualVoltages = {
+      ...(settings.actualVoltages || {}),
+      [String(probeAttenuation)]: actualVoltage
+    };
+    writeStoredSettings({ ...settings, actualVoltages });
+  }
 
-    if (!cleanValues.length) {
-      return {
-        min: -minSpan / 2,
-        max: minSpan / 2,
-        range: minSpan,
-        step: minSpan / tickCount
-      };
-    }
-
-    const sortedValues = [...cleanValues].sort((left, right) => left - right);
-    const center = Number.isFinite(options.center)
-      ? Number(options.center)
-      : percentile(sortedValues, 0.5);
-    let min = percentile(sortedValues, finiteNumber(options.lowPercentile, 0.03));
-    let max = percentile(sortedValues, finiteNumber(options.highPercentile, 0.97));
-
-    const includeValues = Array.isArray(options.includeValues) ? options.includeValues : [];
-    includeValues.forEach((value) => {
-      const safeValue = finiteNumber(value, NaN);
-      if (Number.isFinite(safeValue)) {
-        min = Math.min(min, safeValue);
-        max = Math.max(max, safeValue);
-      }
-    });
-
-    let span = max - min;
-    if (!Number.isFinite(span) || span < minSpan) {
-      min = center - minSpan / 2;
-      max = center + minSpan / 2;
-      span = minSpan;
-    } else {
-      const padding = Math.max(span * paddingRatio, minSpan * 0.18);
-      min -= padding;
-      max += padding;
-      span = max - min;
-    }
-
-    const step = niceNumber(span / tickCount);
-    const niceMin = Math.floor(min / step) * step;
-    const niceMax = Math.ceil(max / step) * step;
-    const range = Math.max(step, niceMax - niceMin);
-
+  function emptySummary() {
     return {
-      min: niceMin,
-      max: niceMin + range,
-      range,
-      step
+      frequencyHz: 0,
+      peakToPeakVoltage: 0,
+      rmsVoltage: 0,
+      lowestVoltage: 0,
+      minVoltage: 0,
+      maxVoltage: 0,
+      averageVoltage: 0,
+      spanSeconds: 0,
+      binHz: 0,
+      triggerLocked: false,
+      triggerLevel: 0
     };
   }
 
-  function formatAxisVoltage(value) {
-    const voltage = finiteNumber(value);
-    if (Math.abs(voltage) < 1) {
-      return `${formatNumber(voltage * 1000, 0)}mV`;
-    }
-    if (Math.abs(voltage) < 10) {
-      return `${formatNumber(voltage, 2)}V`;
-    }
-    return `${formatNumber(voltage, 1)}V`;
-  }
-
   function createInitialState() {
+    const initialProbeAttenuation = defaultProbeAttenuation;
     return {
-      sampleRateHz: 500000,
-      sampleCount: 2048,
-      probeAttenuation: 10,
-      zeroOffsetVoltage: 0,
-      isZeroed: false,
-      calibrationGain: 1,
-      calibrationReferenceVoltage: calibrationReferenceDefaultVoltage,
       device: {
         success: false,
         isPresent: false,
-        message: "TEKNISIHUB_STM32_OSC belum dicek.",
-        identity: "",
-        maxSampleRateHz: 500000,
+        message: "Tekan Scan untuk cek TEKNISIHUB_STM32_OSC.",
+        deviceLabel: "TEKNISIHUB_STM32_OSC",
+        maxSampleRateHz: defaultSampleRateHz,
         maxSampleCount: 16384,
         bits: 12,
         vrefMv: 3300
       },
+      displayMode: defaultDisplayMode,
+      sampleRateHz: defaultSampleRateHz,
+      sampleCount: defaultSampleCount,
+      probeAttenuation: initialProbeAttenuation,
+      sincInterpolation: true,
+      voltsPerDiv: "auto",
+      verticalPosition: 0,
+      triggerEdge: "rising",
+      triggerLevelPercent: 50,
+      preTriggerPercent: 50,
+      autoReferenceOnRun: true,
+      pendingRunReference: false,
+      referenceWarmupValues: [],
+      referenceVoltage: null,
+      voltageCorrectionGain: storedCorrectionGain(initialProbeAttenuation),
+      actualVoltage: storedActualVoltage(initialProbeAttenuation),
+      lastRawStableVoltage: null,
       capture: null,
-      trendHistory: [],
+      frameBuffer: [],
+      frameSampleRateHz: defaultSampleRateHz,
+      latestCaptureVoltages: [],
+      displayWindow: [],
+      displaySummary: emptySummary(),
+      spectrum: null,
+      voltageHistory: [],
+      lowestDropVoltage: null,
+      framesCaptured: 0,
+      recordSessionId: "",
+      recordFrameCount: 0,
+      recordFilePath: "",
       isRunning: false,
       isCapturing: false,
+      isBusy: false,
       isRecording: false,
-      framesCaptured: 0,
-      recordFrameCount: 0,
-      recordSessionId: "",
-      recordFilePath: "",
-      tempCapturePath: "",
-      message: "Siap capture.",
+      message: "OSC siap. Pipeline: record buffer, trigger, pre-trigger, resample, render.",
       errorMessage: ""
     };
   }
 
-  function createWorkbenchMarkup(state, busy) {
-    const device = state.device || {};
-    const capture = state.capture || {};
-    const hasCapture = Array.isArray(capture.samples) && capture.samples.length > 0;
-    const zeroOffsetVoltage = Number(state.zeroOffsetVoltage || 0);
-    const calibrationGain = Number(state.calibrationGain || 1);
-    const zeroReady = Boolean(state.isZeroed);
-    const adjustedMinVoltage = hasCapture ? adjustedVoltage(capture.minVoltage, zeroOffsetVoltage, calibrationGain) : 0;
-    const adjustedMaxVoltage = hasCapture ? adjustedVoltage(capture.maxVoltage, zeroOffsetVoltage, calibrationGain) : 0;
-    const adjustedAverageVoltage = hasCapture ? adjustedVoltage(capture.averageVoltage, zeroOffsetVoltage, calibrationGain) : 0;
-    const rawAverageVoltage = hasCapture ? finiteNumber(capture.rawAverageVoltage ?? capture.averageVoltage) : 0;
-    const adjustedTrendHistory = state.trendHistory.map((item) => ({
-      min: adjustedVoltage(item.min, zeroOffsetVoltage, calibrationGain),
-      max: adjustedVoltage(item.max, zeroOffsetVoltage, calibrationGain),
-      avg: adjustedVoltage(item.avg, zeroOffsetVoltage, calibrationGain)
-    }));
-    const adjustedTrendAverages = adjustedTrendHistory
-      .map((item) => item.avg)
-      .filter(Number.isFinite);
-    const statusClass = device.isPresent ? " is-success" : "";
-    const configDisableAttr = busy || state.isRunning ? " disabled" : "";
-    const scanDisableAttr = busy || state.isRunning ? " disabled" : "";
-    const singleDisableAttr = busy || state.isRunning ? " disabled" : "";
-    const runDisableAttr = busy ? " disabled" : "";
-    const recordDisableAttr = busy ? " disabled" : "";
-    const zeroDisableAttr = busy ? " disabled" : "";
-    const calDisableAttr = busy ? " disabled" : "";
-    const modeLabel = state.isRecording ? "REC" : state.isRunning ? "RUN" : "STOP";
-    const storageLabel = state.isRecording
-      ? `${formatNumber(state.recordFrameCount)} frame`
-      : state.tempCapturePath
-        ? "Temp Roaming"
-        : "-";
-    const sampleRateLabel = hasCapture ? formatRate(capture.actualSampleRateHz) : formatRate(state.sampleRateHz);
-    const sampleCountLabel = hasCapture ? formatNumber(capture.sampleCount) : formatNumber(state.sampleCount);
-    const calibrationReferenceVoltage = normalizeCalibrationReference(state.calibrationReferenceVoltage);
-    const durationLabel = hasCapture
-      ? `${formatNumber(capture.durationMs, 2)} ms`
-      : `${formatNumber(Number(state.sampleCount || 0) / Number(state.sampleRateHz || 1) * 1000, 2)} ms`;
+  function statsFor(values) {
+    if (!values.length) {
+      return { min: 0, max: 0, avg: 0, rms: 0, vpp: 0 };
+    }
+    let min = values[0];
+    let max = values[0];
+    let sum = 0;
+    for (const value of values) {
+      if (value < min) {
+        min = value;
+      }
+      if (value > max) {
+        max = value;
+      }
+      sum += value;
+    }
+    const avg = sum / values.length;
+    let squareSum = 0;
+    for (const value of values) {
+      const centered = value - avg;
+      squareSum += centered * centered;
+    }
+    return {
+      min,
+      max,
+      avg,
+      rms: Math.sqrt(squareSum / values.length),
+      vpp: max - min
+    };
+  }
+
+  function captureToVoltages(capture) {
+    const samples = Array.isArray(capture?.samples) ? capture.samples : [];
+    const voltsPerCount = Number(capture?.voltsPerCount || 0);
+    if (!samples.length || voltsPerCount <= 0) {
+      return [];
+    }
+    return samples.map((sample) => Number(sample || 0) * voltsPerCount);
+  }
+
+  function stableReferenceVoltage(values) {
+    if (!values.length) {
+      return 0;
+    }
+
+    const sorted = values.slice().sort((a, b) => a - b);
+    const lower = Math.floor((sorted.length - 1) * 0.40);
+    const upper = Math.ceil((sorted.length - 1) * 0.60);
+    let sum = 0;
+    let count = 0;
+    for (let index = lower; index <= upper; index++) {
+      sum += sorted[index];
+      count += 1;
+    }
+    return count > 0 ? sum / count : statsFor(values).avg;
+  }
+
+  function parseVoltageInput(value) {
+    return Number(String(value ?? "").trim().replace(",", "."));
+  }
+
+  function applyCorrectionGain(values, correctionGain) {
+    const gain = Number(correctionGain);
+    if (!Number.isFinite(gain) || gain <= 0) {
+      return values.slice();
+    }
+    return values.map((value) => value * gain);
+  }
+
+  function applyDisplayReference(values, referenceVoltage) {
+    const reference = Number(referenceVoltage);
+    if (!Number.isFinite(reference)) {
+      return values.slice();
+    }
+    return values.map((value) => value - reference);
+  }
+
+  function appendRecordBuffer(state, values, sampleRateHz) {
+    if (!values.length) {
+      return;
+    }
+    const rate = Number(sampleRateHz || state.sampleRateHz || defaultSampleRateHz);
+    const previousRate = Number(state.frameSampleRateHz || rate);
+    if (previousRate > 0 && Math.abs(previousRate - rate) / previousRate > 0.02) {
+      state.frameBuffer = [];
+    }
+    state.frameSampleRateHz = rate;
+    state.frameBuffer.push(...values);
+    if (state.frameBuffer.length > maxRecordSamples) {
+      state.frameBuffer = state.frameBuffer.slice(state.frameBuffer.length - maxRecordSamples);
+    }
+  }
+
+  function appendVoltageHistory(state, values) {
+    if (!values.length) {
+      return;
+    }
+
+    const traceStats = statsFor(values);
+    const nowMs = typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
+    state.voltageHistory.push({
+      timeMs: nowMs,
+      min: traceStats.min,
+      avg: traceStats.avg,
+      max: traceStats.max,
+      rms: traceStats.rms,
+      vpp: traceStats.vpp
+    });
+
+    if (state.voltageHistory.length > maxVoltageHistoryFrames) {
+      state.voltageHistory = state.voltageHistory.slice(state.voltageHistory.length - maxVoltageHistoryFrames);
+    }
+
+    if (state.lowestDropVoltage === null || traceStats.min < state.lowestDropVoltage) {
+      state.lowestDropVoltage = traceStats.min;
+    }
+  }
+
+  function sinc(value) {
+    if (Math.abs(value) < 0.000001) {
+      return 1;
+    }
+    const angle = Math.PI * value;
+    return Math.sin(angle) / angle;
+  }
+
+  function lanczos(value, taps = 3) {
+    const distance = Math.abs(value);
+    if (distance >= taps) {
+      return 0;
+    }
+    return sinc(value) * sinc(value / taps);
+  }
+
+  function linearResample(values, targetCount) {
+    if (!values.length || targetCount <= 0) {
+      return [];
+    }
+    if (targetCount === 1) {
+      return [values[0]];
+    }
+    if (values.length === targetCount) {
+      return values.slice();
+    }
+    const result = new Array(targetCount);
+    const scale = (values.length - 1) / Math.max(1, targetCount - 1);
+    for (let index = 0; index < targetCount; index++) {
+      const position = index * scale;
+      const left = Math.floor(position);
+      const right = Math.min(values.length - 1, left + 1);
+      const fraction = position - left;
+      result[index] = values[left] * (1 - fraction) + values[right] * fraction;
+    }
+    return result;
+  }
+
+  function sincResample(values, targetCount) {
+    if (!values.length || targetCount <= 0) {
+      return [];
+    }
+    if (values.length <= targetCount) {
+      return linearResample(values, targetCount);
+    }
+    const result = new Array(targetCount);
+    const scale = (values.length - 1) / Math.max(1, targetCount - 1);
+    const radius = Math.min(64, Math.max(3, scale * 0.65));
+    for (let index = 0; index < targetCount; index++) {
+      const center = index * scale;
+      const left = Math.max(0, Math.floor(center - radius));
+      const right = Math.min(values.length - 1, Math.ceil(center + radius));
+      let sum = 0;
+      let weightSum = 0;
+      for (let sampleIndex = left; sampleIndex <= right; sampleIndex++) {
+        const normalizedDistance = (sampleIndex - center) / Math.max(1, scale);
+        const weight = lanczos(normalizedDistance, 3);
+        if (weight === 0) {
+          continue;
+        }
+        sum += values[sampleIndex] * weight;
+        weightSum += weight;
+      }
+      result[index] = weightSum > 0 ? sum / weightSum : values[Math.round(center)];
+    }
+    return result;
+  }
+
+  function resampleForDisplay(values, targetCount, sincEnabled) {
+    return sincEnabled ? sincResample(values, targetCount) : linearResample(values, targetCount);
+  }
+
+  function triggerLevelFor(values, state) {
+    const traceStats = statsFor(values);
+    const profile = probeProfile(state.probeAttenuation);
+    const span = Math.max(traceStats.vpp, profile.minSpan);
+    const min = traceStats.vpp > 0 ? traceStats.avg - span / 2 : profile.min;
+    const max = traceStats.vpp > 0 ? traceStats.avg + span / 2 : profile.max;
+    return min + (max - min) * clamp(Number(state.triggerLevelPercent || 50), 0, 100) / 100;
+  }
+
+  function findTriggerIndex(values, level, edge) {
+    if (values.length < 8) {
+      return -1;
+    }
+    const traceStats = statsFor(values);
+    if (traceStats.vpp < 0.006) {
+      return -1;
+    }
+    const hysteresis = Math.max(traceStats.vpp * 0.05, 0.002);
+    const start = Math.max(1, Math.floor(values.length * 0.06));
+    const end = Math.max(start + 1, Math.floor(values.length * 0.94));
+
+    if (edge === "falling") {
+      let armed = values[start - 1] > level + hysteresis;
+      for (let index = start; index < end; index++) {
+        const previous = values[index - 1];
+        const current = values[index];
+        if (!armed && current > level + hysteresis) {
+          armed = true;
+        }
+        if (armed && previous >= level && current < level) {
+          return index;
+        }
+      }
+      return -1;
+    }
+
+    let armed = values[start - 1] < level - hysteresis;
+    for (let index = start; index < end; index++) {
+      const previous = values[index - 1];
+      const current = values[index];
+      if (!armed && current < level - hysteresis) {
+        armed = true;
+      }
+      if (armed && previous <= level && current > level) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  function prepareDisplayWindow(state) {
+    const source = state.frameBuffer.length >= 256 ? state.frameBuffer : state.latestCaptureVoltages;
+    if (!source.length) {
+      state.displayWindow = [];
+      state.displaySummary = emptySummary();
+      return;
+    }
+
+    const requestedCount = clamp(Math.floor(state.sampleCount || defaultSampleCount), 128, source.length);
+    const level = triggerLevelFor(source, state);
+    const triggerIndex = findTriggerIndex(source, level, state.triggerEdge);
+    const locked = triggerIndex >= 0;
+    const preTrigger = clamp(Number(state.preTriggerPercent || 50), 10, 90) / 100;
+    const fallbackStart = Math.max(0, source.length - requestedCount);
+    const preferredStart = locked ? triggerIndex - Math.floor(requestedCount * preTrigger) : fallbackStart;
+    const start = clamp(preferredStart, 0, Math.max(0, source.length - requestedCount));
+    const windowValues = source.slice(start, start + requestedCount);
+    const traceStats = statsFor(windowValues);
+    const rate = Number(state.frameSampleRateHz || state.sampleRateHz || defaultSampleRateHz);
+
+    state.displayWindow = windowValues;
+    state.displaySummary = {
+      frequencyHz: estimateFrequency(windowValues, rate),
+      peakToPeakVoltage: traceStats.vpp,
+      rmsVoltage: traceStats.rms,
+      lowestVoltage: state.lowestDropVoltage ?? traceStats.min,
+      minVoltage: traceStats.min,
+      maxVoltage: traceStats.max,
+      averageVoltage: traceStats.avg,
+      spanSeconds: rate > 0 ? windowValues.length / rate : 0,
+      binHz: rate > 0 && windowValues.length > 0 ? rate / windowValues.length : 0,
+      triggerLocked: locked,
+      triggerLevel: level
+    };
+  }
+
+  function estimateFrequency(values, sampleRateHz) {
+    const rate = Number(sampleRateHz || 0);
+    if (values.length < 16 || rate <= 0) {
+      return 0;
+    }
+    const traceStats = statsFor(values);
+    if (traceStats.vpp < 0.01) {
+      return 0;
+    }
+    const level = traceStats.avg;
+    const hysteresis = Math.max(traceStats.vpp * 0.1, 0.003);
+    const crossings = [];
+    let armed = values[0] < level - hysteresis;
+    for (let index = 1; index < values.length; index++) {
+      const previous = values[index - 1];
+      const current = values[index];
+      if (!armed && current < level - hysteresis) {
+        armed = true;
+      }
+      if (armed && previous <= level && current > level) {
+        const denominator = current - previous;
+        const fraction = Math.abs(denominator) > 0.0000001 ? (level - previous) / denominator : 0;
+        const crossing = index - 1 + clamp(fraction, 0, 1);
+        if (!crossings.length || crossing - crossings[crossings.length - 1] > 3) {
+          crossings.push(crossing);
+        }
+        armed = false;
+      }
+    }
+    if (crossings.length < 2) {
+      return 0;
+    }
+    const periods = [];
+    for (let index = 1; index < crossings.length; index++) {
+      periods.push(crossings[index] - crossings[index - 1]);
+    }
+    periods.sort((a, b) => a - b);
+    const median = periods[Math.floor(periods.length / 2)];
+    return median > 0 ? rate / median : 0;
+  }
+
+  function largestPowerOfTwo(value) {
+    let power = 1;
+    const limit = Math.max(1, Math.floor(value));
+    while (power * 2 <= limit) {
+      power *= 2;
+    }
+    return power;
+  }
+
+  function buildSpectrum(values, sampleRateHz) {
+    const rate = Number(sampleRateHz || 0);
+    if (values.length < 16 || rate <= 0) {
+      return { bins: [], peakFrequencyHz: 0, peakMagnitude: 0, binHz: 0 };
+    }
+
+    const size = largestPowerOfTwo(Math.min(values.length, 4096));
+    const source = values.slice(values.length - size);
+    const traceStats = statsFor(source);
+    const real = new Array(size);
+    const imag = new Array(size).fill(0);
+    for (let index = 0; index < size; index++) {
+      const windowValue = 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / Math.max(1, size - 1));
+      real[index] = (source[index] - traceStats.avg) * windowValue;
+    }
+
+    for (let index = 1, reverse = 0; index < size; index++) {
+      let bit = size >> 1;
+      for (; reverse & bit; bit >>= 1) {
+        reverse ^= bit;
+      }
+      reverse ^= bit;
+      if (index < reverse) {
+        [real[index], real[reverse]] = [real[reverse], real[index]];
+        [imag[index], imag[reverse]] = [imag[reverse], imag[index]];
+      }
+    }
+
+    for (let length = 2; length <= size; length <<= 1) {
+      const angle = (-2 * Math.PI) / length;
+      const stepReal = Math.cos(angle);
+      const stepImag = Math.sin(angle);
+      for (let start = 0; start < size; start += length) {
+        let wReal = 1;
+        let wImag = 0;
+        for (let offset = 0; offset < length / 2; offset++) {
+          const even = start + offset;
+          const odd = even + length / 2;
+          const oddReal = real[odd] * wReal - imag[odd] * wImag;
+          const oddImag = real[odd] * wImag + imag[odd] * wReal;
+          real[odd] = real[even] - oddReal;
+          imag[odd] = imag[even] - oddImag;
+          real[even] += oddReal;
+          imag[even] += oddImag;
+          const nextReal = wReal * stepReal - wImag * stepImag;
+          wImag = wReal * stepImag + wImag * stepReal;
+          wReal = nextReal;
+        }
+      }
+    }
+
+    const binHz = rate / size;
+    const bins = [];
+    let peakFrequencyHz = 0;
+    let peakMagnitude = 0;
+    for (let index = 1; index < size / 2; index++) {
+      const magnitude = 2 * Math.sqrt(real[index] * real[index] + imag[index] * imag[index]) / size;
+      const frequencyHz = index * binHz;
+      bins.push({ frequencyHz, magnitude });
+      if (magnitude > peakMagnitude) {
+        peakMagnitude = magnitude;
+        peakFrequencyHz = frequencyHz;
+      }
+    }
+    return { bins, peakFrequencyHz, peakMagnitude, binHz };
+  }
+
+  function canvasScope(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const width = Math.max(320, Math.floor(rect.width || canvas.clientWidth || 960));
+    const height = Math.max(300, Math.floor(rect.height || canvas.clientHeight || 460));
+    const pixelWidth = Math.floor(width * dpr);
+    const pixelHeight = Math.floor(height * dpr);
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return {
+      ctx,
+      width,
+      height,
+      bounds: {
+        canvasWidth: width,
+        canvasHeight: height,
+        left: 68,
+        top: 24,
+        right: width - 18,
+        bottom: height - 36,
+        get width() {
+          return this.right - this.left;
+        },
+        get height() {
+          return this.bottom - this.top;
+        }
+      }
+    };
+  }
+
+  function drawGrid(ctx, bounds, xLabels, yLabels) {
+    ctx.fillStyle = "#06111a";
+    ctx.fillRect(0, 0, bounds.canvasWidth, bounds.canvasHeight);
+    ctx.strokeStyle = "#173246";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let column = 0; column <= 10; column++) {
+      const x = bounds.left + bounds.width * column / 10;
+      ctx.moveTo(x, bounds.top);
+      ctx.lineTo(x, bounds.bottom);
+    }
+    for (let row = 0; row <= 8; row++) {
+      const y = bounds.top + bounds.height * row / 8;
+      ctx.moveTo(bounds.left, y);
+      ctx.lineTo(bounds.right, y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = "#9db5c8";
+    ctx.font = "11px Consolas, monospace";
+    ctx.textBaseline = "middle";
+    yLabels.forEach((label, index) => {
+      const y = bounds.top + bounds.height * index / Math.max(1, yLabels.length - 1);
+      ctx.textAlign = "right";
+      ctx.fillText(label, bounds.left - 9, y);
+    });
+    ctx.textBaseline = "top";
+    xLabels.forEach((label, index) => {
+      const x = bounds.left + bounds.width * index / Math.max(1, xLabels.length - 1);
+      ctx.textAlign = index === 0 ? "left" : index === xLabels.length - 1 ? "right" : "center";
+      ctx.fillText(label, x, bounds.bottom + 10);
+    });
+  }
+
+  function verticalAxisFor(values, state) {
+    const profile = probeProfile(state.probeAttenuation);
+    if (!values.length) {
+      return { min: profile.min, max: profile.max };
+    }
+    const traceStats = statsFor(values);
+    const manualDiv = state.voltsPerDiv === "auto" ? 0 : Number(state.voltsPerDiv);
+    const span = manualDiv > 0
+      ? manualDiv * 8
+      : Math.max(traceStats.vpp * 1.7, profile.minSpan);
+    const position = finiteNumber(state.verticalPosition, 0);
+    const center = traceStats.avg - position;
+    return {
+      min: center - span / 2,
+      max: center + span / 2
+    };
+  }
+
+  function drawTrace(ctx, bounds, values, axis) {
+    if (values.length < 2) {
+      return;
+    }
+    const span = Math.max(0.000001, axis.max - axis.min);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+    ctx.clip();
+    ctx.shadowColor = "rgba(45, 228, 193, 0.26)";
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = "#2de4c1";
+    ctx.lineWidth = 1.7;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    values.forEach((value, index) => {
+      const x = bounds.left + bounds.width * index / Math.max(1, values.length - 1);
+      const y = bounds.bottom - (value - axis.min) / span * bounds.height;
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawEmpty(ctx, bounds, message) {
+    drawGrid(ctx, bounds, ["0 s", "", ""], ["", "", "", "", ""]);
+    ctx.fillStyle = "#91aabc";
+    ctx.font = "700 14px Inter, Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(message, bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+  }
+
+  function roundedRect(ctx, x, y, width, height, radius) {
+    const safeRadius = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + safeRadius, y);
+    ctx.lineTo(x + width - safeRadius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+    ctx.lineTo(x + width, y + height - safeRadius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+    ctx.lineTo(x + safeRadius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+    ctx.lineTo(x, y + safeRadius);
+    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    ctx.closePath();
+  }
+
+  function averageTelemetry(state) {
+    const history = state.voltageHistory;
+    const summary = state.displaySummary || emptySummary();
+    const relativeAverage = state.displayMode === "drop" && history.length
+      ? history[history.length - 1].avg
+      : summary.averageVoltage;
+    const hasReference = Number.isFinite(Number(state.referenceVoltage));
+    const absoluteAverage = hasReference
+      ? relativeAverage + Number(state.referenceVoltage)
+      : relativeAverage;
+    return { relativeAverage, absoluteAverage, hasReference };
+  }
+
+  function drawAverageTooltip(ctx, bounds, state, axis = null) {
+    if (!state.capture && !state.voltageHistory.length) {
+      return;
+    }
+
+    const telemetry = averageTelemetry(state);
+    const mainLabel = formatVoltage(telemetry.absoluteAverage);
+    const subLabel = telemetry.hasReference
+      ? `REL ${formatVoltage(telemetry.relativeAverage)}`
+      : `CORR ${formatNumber(state.voltageCorrectionGain, 3)}x`;
+    const boxWidth = 150;
+    const boxHeight = 58;
+    const boxX = bounds.right - boxWidth - 10;
+    let boxY = bounds.top + 10;
+
+    if (axis && state.displayMode === "yt") {
+      const span = Math.max(0.000001, axis.max - axis.min);
+      const avgY = bounds.bottom - (telemetry.relativeAverage - axis.min) / span * bounds.height;
+      if (avgY >= bounds.top && avgY <= bounds.bottom) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 213, 111, 0.68)";
+        ctx.setLineDash([7, 5]);
+        ctx.beginPath();
+        ctx.moveTo(bounds.left, avgY);
+        ctx.lineTo(bounds.right, avgY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+        boxY = clamp(avgY - boxHeight / 2, bounds.top + 8, bounds.bottom - boxHeight - 8);
+      }
+    }
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0, 0, 0, 0.32)";
+    ctx.shadowBlur = 14;
+    roundedRect(ctx, boxX, boxY, boxWidth, boxHeight, 8);
+    ctx.fillStyle = "rgba(8, 20, 30, 0.92)";
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255, 213, 111, 0.55)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffd56f";
+    ctx.font = "800 10px Inter, Segoe UI, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("AVG", boxX + 12, boxY + 8);
+
+    ctx.fillStyle = "#f7fbff";
+    ctx.font = "900 18px Consolas, monospace";
+    ctx.fillText(mainLabel, boxX + 12, boxY + 23);
+
+    ctx.fillStyle = "#9fb6c8";
+    ctx.font = "700 10px Consolas, monospace";
+    ctx.fillText(subLabel, boxX + 12, boxY + 45);
+    ctx.restore();
+  }
+
+  function drawYt(ctx, bounds, state) {
+    const values = state.displayWindow;
+    if (!values.length) {
+      drawEmpty(ctx, bounds, "No capture");
+      return;
+    }
+    const targetCount = Math.max(320, Math.min(2400, Math.floor(bounds.width * 1.4)));
+    const plotValues = resampleForDisplay(values, targetCount, state.sincInterpolation);
+    const axis = verticalAxisFor(plotValues, state);
+    const summary = state.displaySummary;
+    drawGrid(ctx, bounds, [
+      "0 s",
+      formatDurationSeconds(summary.spanSeconds / 2),
+      formatDurationSeconds(summary.spanSeconds)
+    ], [
+      formatVoltage(axis.max),
+      formatVoltage(axis.min + (axis.max - axis.min) * 0.75),
+      formatVoltage(axis.min + (axis.max - axis.min) * 0.50),
+      formatVoltage(axis.min + (axis.max - axis.min) * 0.25),
+      formatVoltage(axis.min)
+    ]);
+
+    const span = Math.max(0.000001, axis.max - axis.min);
+    const zeroY = bounds.bottom - (0 - axis.min) / span * bounds.height;
+    if (zeroY >= bounds.top && zeroY <= bounds.bottom) {
+      ctx.strokeStyle = "rgba(226, 238, 246, 0.34)";
+      ctx.beginPath();
+      ctx.moveTo(bounds.left, zeroY);
+      ctx.lineTo(bounds.right, zeroY);
+      ctx.stroke();
+    }
+
+    const triggerY = bounds.bottom - (summary.triggerLevel - axis.min) / span * bounds.height;
+    if (triggerY >= bounds.top && triggerY <= bounds.bottom) {
+      ctx.strokeStyle = summary.triggerLocked ? "rgba(255, 205, 91, 0.68)" : "rgba(151, 174, 190, 0.38)";
+      ctx.beginPath();
+      ctx.moveTo(bounds.left, triggerY);
+      ctx.lineTo(bounds.right, triggerY);
+      ctx.stroke();
+    }
+
+    const triggerX = bounds.left + bounds.width * clamp(Number(state.preTriggerPercent || 50), 10, 90) / 100;
+    ctx.strokeStyle = summary.triggerLocked ? "rgba(255, 205, 91, 0.68)" : "rgba(151, 174, 190, 0.38)";
+    ctx.beginPath();
+    ctx.moveTo(triggerX, bounds.top);
+    ctx.lineTo(triggerX, bounds.bottom);
+    ctx.stroke();
+
+    drawTrace(ctx, bounds, plotValues, axis);
+    drawAverageTooltip(ctx, bounds, state, axis);
+    ctx.fillStyle = summary.triggerLocked ? "#ffd56f" : "#9fb6c6";
+    ctx.font = "700 11px Consolas, monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(summary.triggerLocked ? "TRIG" : "AUTO", bounds.left + 8, bounds.top + 8);
+  }
+
+  function drawFft(ctx, bounds, state) {
+    if (!state.displayWindow.length) {
+      drawEmpty(ctx, bounds, "FFT waiting");
+      return;
+    }
+    const spectrum = buildSpectrum(state.displayWindow, state.frameSampleRateHz);
+    state.spectrum = spectrum;
+    if (!spectrum.bins.length) {
+      drawEmpty(ctx, bounds, "FFT waiting");
+      return;
+    }
+    const maxFrequency = Number(state.frameSampleRateHz || 0) / 2;
+    const maxMagnitude = Math.max(spectrum.peakMagnitude * 1.25, 0.001);
+    drawGrid(ctx, bounds, ["0 Hz", formatFrequency(maxFrequency / 2), formatFrequency(maxFrequency)], [
+      formatVoltage(maxMagnitude),
+      formatVoltage(maxMagnitude * 0.75),
+      formatVoltage(maxMagnitude * 0.50),
+      formatVoltage(maxMagnitude * 0.25),
+      "0 V"
+    ]);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+    ctx.clip();
+    ctx.strokeStyle = "#2de4c1";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    spectrum.bins.forEach((bin, index) => {
+      const x = bounds.left + bin.frequencyHz / maxFrequency * bounds.width;
+      const y = bounds.bottom - bin.magnitude / maxMagnitude * bounds.height;
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = "#ffd56f";
+    ctx.font = "700 11px Consolas, monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`${formatFrequency(spectrum.peakFrequencyHz)} / ${formatVoltage(spectrum.peakMagnitude)}`, bounds.left + 8, bounds.top + 8);
+    drawAverageTooltip(ctx, bounds, state);
+  }
+
+  function drawXy(ctx, bounds, state) {
+    const values = state.displayWindow;
+    if (values.length < 32) {
+      drawEmpty(ctx, bounds, "XY waiting");
+      return;
+    }
+    const delay = Math.max(2, Math.floor(values.length / 48));
+    const source = resampleForDisplay(values, Math.min(2200, Math.max(320, Math.floor(bounds.width * 1.4))), state.sincInterpolation);
+    const xValues = source.slice(0, source.length - delay);
+    const yValues = source.slice(delay);
+    const axis = verticalAxisFor(source, state);
+    drawGrid(ctx, bounds, [
+      formatVoltage(axis.min),
+      formatVoltage(axis.min + (axis.max - axis.min) / 2),
+      formatVoltage(axis.max)
+    ], [
+      formatVoltage(axis.max),
+      "",
+      formatVoltage(axis.min + (axis.max - axis.min) / 2),
+      "",
+      formatVoltage(axis.min)
+    ]);
+    const span = Math.max(0.000001, axis.max - axis.min);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+    ctx.clip();
+    ctx.strokeStyle = "#2de4c1";
+    ctx.lineWidth = 1.4;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for (let index = 0; index < xValues.length; index++) {
+      const x = bounds.left + (xValues[index] - axis.min) / span * bounds.width;
+      const y = bounds.bottom - (yValues[index] - axis.min) / span * bounds.height;
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = "#ffd56f";
+    ctx.font = "700 11px Consolas, monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`Delay ${formatDurationSeconds(delay / Number(state.frameSampleRateHz || defaultSampleRateHz))}`, bounds.left + 8, bounds.top + 8);
+    drawAverageTooltip(ctx, bounds, state);
+  }
+
+  function drawHistoryLine(ctx, bounds, points, key, axis, color, width = 1.5) {
+    if (points.length < 2) {
+      return;
+    }
+
+    const span = Math.max(0.000001, axis.max - axis.min);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+    ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      const x = bounds.left + bounds.width * index / Math.max(1, points.length - 1);
+      const y = bounds.bottom - (point[key] - axis.min) / span * bounds.height;
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDropTrend(ctx, bounds, state) {
+    const history = state.voltageHistory;
+    if (history.length < 2) {
+      drawEmpty(ctx, bounds, "DROP waiting");
+      return;
+    }
+
+    const values = [];
+    history.forEach((point) => {
+      values.push(point.min, point.avg, point.max);
+    });
+    const axis = verticalAxisFor(values, state);
+    const first = history[0];
+    const last = history[history.length - 1];
+    const spanSeconds = Math.max(0, (last.timeMs - first.timeMs) / 1000);
+    drawGrid(ctx, bounds, [
+      `-${formatDurationSeconds(spanSeconds)}`,
+      formatDurationSeconds(spanSeconds / 2),
+      "now"
+    ], [
+      formatVoltage(axis.max),
+      formatVoltage(axis.min + (axis.max - axis.min) * 0.75),
+      formatVoltage(axis.min + (axis.max - axis.min) * 0.50),
+      formatVoltage(axis.min + (axis.max - axis.min) * 0.25),
+      formatVoltage(axis.min)
+    ]);
+
+    const span = Math.max(0.000001, axis.max - axis.min);
+    const zeroY = bounds.bottom - (0 - axis.min) / span * bounds.height;
+    if (zeroY >= bounds.top && zeroY <= bounds.bottom) {
+      ctx.strokeStyle = "rgba(226, 238, 246, 0.34)";
+      ctx.beginPath();
+      ctx.moveTo(bounds.left, zeroY);
+      ctx.lineTo(bounds.right, zeroY);
+      ctx.stroke();
+    }
+
+    drawHistoryLine(ctx, bounds, history, "max", axis, "rgba(123, 205, 255, 0.55)", 1.1);
+    drawHistoryLine(ctx, bounds, history, "avg", axis, "#2de4c1", 1.8);
+    drawHistoryLine(ctx, bounds, history, "min", axis, "#ff6f61", 1.8);
+
+    const lowest = state.lowestDropVoltage ?? Math.min(...history.map((point) => point.min));
+    const lowY = bounds.bottom - (lowest - axis.min) / span * bounds.height;
+    if (lowY >= bounds.top && lowY <= bounds.bottom) {
+      ctx.strokeStyle = "rgba(255, 111, 97, 0.72)";
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(bounds.left, lowY);
+      ctx.lineTo(bounds.right, lowY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.fillStyle = "#ffb0a6";
+    ctx.font = "700 11px Consolas, monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`LOW ${formatVoltage(lowest)}   MIN red / AVG green / MAX blue`, bounds.left + 8, bounds.top + 8);
+    drawAverageTooltip(ctx, bounds, state);
+  }
+
+  function createShellMarkup() {
+    const sampleRateOptions = [10000, 20000, 50000, 100000];
+    const sampleCountOptions = [512, 1024, 2048, 4096, 8192, 16384];
+    const voltsPerDivOptions = ["auto", 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
 
     return `
-      <div class="oscilloscope-shell${statusClass}">
+      <div class="oscilloscope-shell scoppy-scope">
         <section class="oscilloscope-scope-panel">
           <div class="oscilloscope-topbar">
             <div class="oscilloscope-title-block">
-              <p>TEKNISIHUB STM32 OSC</p>
-              <h4>${escapeHtml(modeLabel)}</h4>
+              <p data-osc-device-label>TEKNISIHUB_STM32_OSC</p>
+              <h4 data-osc-run-title>STOP DROP</h4>
             </div>
             <div class="oscilloscope-status-strip">
-              <span class="${device.isPresent ? "is-online" : "is-offline"}">${escapeHtml(device.isPresent ? "USB OK" : "USB OFF")}</span>
-              <span>${escapeHtml(sampleRateLabel)}</span>
-              <span>${escapeHtml(sampleCountLabel)} pts</span>
-              <span>${escapeHtml(durationLabel)}</span>
-              <span>${escapeHtml(device.bits || 12)} bit</span>
+              <span data-osc-usb class="is-offline">USB OFF</span>
+              <span data-osc-rate>100,0 kSa/s</span>
+              <span data-osc-points>2.048 pts</span>
+              <span data-osc-span>20,48 ms</span>
+              <span data-osc-bits>12 bit</span>
             </div>
-            <button type="button" id="oscilloscopeScanButton" class="ghost oscilloscope-scan-button"${scanDisableAttr}>
-              <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "usb"}</span>
+            <button type="button" id="oscScan" class="ghost oscilloscope-scan-button">
+              <span class="material-symbols-outlined" aria-hidden="true">usb</span>
               <span>Scan</span>
             </button>
           </div>
 
-          <div class="oscilloscope-display-grid">
-            <div class="oscilloscope-main-display">
-              <div class="oscilloscope-readout-row">
-                <span>CH1 <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedAverageVoltage) : "-")}</strong></span>
-                <span>MIN <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedMinVoltage) : "-")}</strong></span>
-                <span>MAX <strong>${escapeHtml(hasCapture ? formatVoltage(adjustedMaxVoltage) : "-")}</strong></span>
-                <span>RAW AVG <strong>${escapeHtml(hasCapture ? formatVoltage(rawAverageVoltage) : "-")}</strong></span>
-                <span>Y <strong>Auto</strong></span>
-              </div>
-              <div class="oscilloscope-waveform-wrap">
-                <canvas id="oscilloscopeWaveformCanvas" class="oscilloscope-waveform" width="1200" height="520"></canvas>
-              </div>
-              <div class="oscilloscope-bottom-strip">
-                <span>Frame <strong>${escapeHtml(formatNumber(state.framesCaptured))}</strong></span>
-                <span>Storage <strong>${escapeHtml(storageLabel)}</strong></span>
-                <span>Zero <strong>${escapeHtml(zeroReady ? formatVoltage(zeroOffsetVoltage) : "Raw")}</strong></span>
-                <span>Gain <strong>${escapeHtml(calibrationGain === 1 ? "1.000x" : `${formatNumber(calibrationGain, 3)}x`)}</strong></span>
-                <span>Scale <strong>${escapeHtml(hasCapture ? `${formatVoltage(capture.voltsPerCount)} / count` : "-")}</strong></span>
-              </div>
+          <div class="oscilloscope-readout-row">
+            <span>FREQ <strong data-osc-freq>-</strong></span>
+            <span>VPP <strong data-osc-vpp>-</strong></span>
+            <span>RMS <strong data-osc-rms>-</strong></span>
+            <span>AVG <strong data-osc-avg>-</strong></span>
+            <span>LOW <strong data-osc-low>-</strong></span>
+            <span>REF <strong data-osc-ref>ABS</strong></span>
+            <span>CORR <strong data-osc-correction>1.000x</strong></span>
+            <span>TRIG <strong data-osc-trigger>-</strong></span>
+            <span>MODE <strong data-osc-mode>DROP</strong></span>
+          </div>
+
+          <div class="oscilloscope-waveform-wrap">
+            <canvas id="oscCanvas" class="oscilloscope-waveform" width="1200" height="520"></canvas>
+          </div>
+
+          <div class="oscilloscope-control-rail">
+            <div class="oscilloscope-control-group oscilloscope-run-group">
+              <p>Acquire</p>
+              <button type="button" id="oscRun" class="ghost oscilloscope-run-button">
+                <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+                <span>Run</span>
+              </button>
+              <button type="button" id="oscSingle" class="ghost">
+                <span class="material-symbols-outlined" aria-hidden="true">timeline</span>
+                <span>Single</span>
+              </button>
+              <button type="button" id="oscRecord" class="ghost oscilloscope-record-button">
+                <span class="material-symbols-outlined" aria-hidden="true">radio_button_checked</span>
+                <span>Record</span>
+              </button>
             </div>
 
-            <aside class="oscilloscope-control-rail">
-              <div class="oscilloscope-control-group oscilloscope-run-group">
-                <p>Acquire</p>
-                <button type="button" id="oscilloscopeRunButton" class="ghost oscilloscope-run-button${state.isRunning ? " is-active" : ""}"${runDisableAttr}>
-                  <span class="material-symbols-outlined${state.isRunning && state.isCapturing ? " is-spinning" : ""}">${state.isRunning && state.isCapturing ? "progress_activity" : state.isRunning ? "pause" : "play_arrow"}</span>
-                  <span>${state.isRunning ? "Stop" : "Run"}</span>
+            <div class="oscilloscope-control-group">
+              <p>Display</p>
+              <div class="oscilloscope-mode-toggle">
+                <button type="button" id="oscModeYt" class="ghost">
+                  <span class="material-symbols-outlined" aria-hidden="true">show_chart</span>
+                  <span>YT</span>
                 </button>
-                <button type="button" id="oscilloscopeSingleButton" class="ghost"${singleDisableAttr}>
-                  <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "show_chart"}</span>
-                  <span>Single</span>
+                <button type="button" id="oscModeFft" class="ghost">
+                  <span class="material-symbols-outlined" aria-hidden="true">monitoring</span>
+                  <span>FFT</span>
                 </button>
-                <button type="button" id="oscilloscopeRecordButton" class="ghost oscilloscope-record-button${state.isRecording ? " is-active" : ""}"${recordDisableAttr}>
-                  <span class="material-symbols-outlined">fiber_manual_record</span>
-                  <span>${state.isRecording ? "Stop Rec" : "Record"}</span>
+                <button type="button" id="oscModeXy" class="ghost">
+                  <span class="material-symbols-outlined" aria-hidden="true">scatter_plot</span>
+                  <span>XY</span>
                 </button>
-              </div>
-
-              <div class="oscilloscope-control-group">
-                <p>Vertical</p>
-                <label>
-                  Probe
-                  <select id="oscilloscopeProbe"${configDisableAttr}>
-                    <option value="10"${Number(state.probeAttenuation) === 10 ? " selected" : ""}>x10 / 0-30V</option>
-                    <option value="1"${Number(state.probeAttenuation) === 1 ? " selected" : ""}>x1 / 0-3.3V</option>
-                  </select>
-                </label>
-                <label>
-                  Cal Ref
-                  <input id="oscilloscopeCalReference" type="number" min="0.050" max="30" step="0.001" value="${escapeHtml(calibrationReferenceVoltage.toFixed(3))}"${busy ? " disabled" : ""}>
-                </label>
-                <button type="button" id="oscilloscopeZeroButton" class="ghost"${zeroDisableAttr}>
-                  <span class="material-symbols-outlined">vertical_align_center</span>
-                  <span>Zero</span>
-                </button>
-                <button type="button" id="oscilloscopeCalVrefButton" class="ghost"${calDisableAttr}>
-                  <span class="material-symbols-outlined">speed</span>
-                  <span>Cal Vref</span>
-                </button>
-                <button type="button" id="oscilloscopeClearZeroButton" class="ghost"${busy || (!zeroReady && calibrationGain === 1) ? " disabled" : ""}>
-                  <span class="material-symbols-outlined">restart_alt</span>
-                  <span>Clear</span>
+                <button type="button" id="oscModeDrop" class="ghost is-active">
+                  <span class="material-symbols-outlined" aria-hidden="true">trending_down</span>
+                  <span>DROP</span>
                 </button>
               </div>
-
-              <div class="oscilloscope-control-group">
-                <p>Timebase</p>
-                <label>
-                  Sample Rate
-                  <select id="oscilloscopeSampleRate"${configDisableAttr}>
-                    ${[1000, 2000, 5000, 10000, 50000, 100000, 250000, 500000].map((rate) => `
-                      <option value="${rate}"${Number(state.sampleRateHz) === rate ? " selected" : ""}>${escapeHtml(formatRate(rate))}</option>
-                    `).join("")}
-                  </select>
-                </label>
-                <label>
-                  Memory
-                  <select id="oscilloscopeSampleCount"${configDisableAttr}>
-                    ${[1024, 2048, 4096, 8192, 16384].map((count) => `
-                      <option value="${count}"${Number(state.sampleCount) === count ? " selected" : ""}>${escapeHtml(formatNumber(count))} pts</option>
-                    `).join("")}
-                  </select>
-                </label>
-              </div>
-
-              <div class="oscilloscope-control-group">
-                <p>Trigger</p>
-                <div class="oscilloscope-trigger-box">
-                  <span>Mode <strong>Auto</strong></span>
-                  <span>Level <strong>Mid</strong></span>
-                  <span>Source <strong>CH1</strong></span>
-                </div>
-              </div>
-            </aside>
-          </div>
-
-          <p class="oscilloscope-message">${escapeHtml(state.errorMessage || state.message || device.message)}</p>
-        </section>
-
-        <section class="oscilloscope-trace-panel">
-          <div class="oscilloscope-section-head">
-            <div>
-              <p>Voltage Trace</p>
-              <h4>${escapeHtml(`${formatNumber(state.trendHistory.length)} frame`)}</h4>
+              <label class="oscilloscope-switch-row">
+                <input id="oscSinc" type="checkbox" checked>
+                <span>Sin(x)/x interpolation</span>
+              </label>
+              <button type="button" id="oscClearDrop" class="ghost">
+                <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                <span>Clear Drop</span>
+              </button>
             </div>
-            <span>Avg Auto Y</span>
+
+            <div class="oscilloscope-control-group">
+              <p>Channel</p>
+              <label>
+                Probe
+                <select id="oscProbe">
+                  ${Object.values(probeProfiles).map((profile) => `
+                    <option value="${escapeHtml(profile.value)}"${profile.value === defaultProbeAttenuation ? " selected" : ""}>${escapeHtml(profile.label)}</option>
+                  `).join("")}
+                </select>
+              </label>
+              <label>
+                Actual V
+                <input id="oscActualVoltage" type="number" inputmode="decimal" step="0.001" placeholder="2.900" value="${escapeHtml(storedActualVoltage(defaultProbeAttenuation) ?? "")}">
+              </label>
+              <button type="button" id="oscApplyCorrection" class="ghost">
+                <span class="material-symbols-outlined" aria-hidden="true">straighten</span>
+                <span>Apply Correct</span>
+              </button>
+              <label>
+                Volts/Div
+                <select id="oscVoltsDiv">
+                  ${voltsPerDivOptions.map((value) => `
+                    <option value="${escapeHtml(value)}">${escapeHtml(value === "auto" ? "Auto" : `${value} V/div`)}</option>
+                  `).join("")}
+                </select>
+              </label>
+              <label>
+                Position
+                <input id="oscVerticalPosition" type="range" min="-10" max="10" step="0.05" value="0">
+              </label>
+            </div>
+
+            <div class="oscilloscope-control-group">
+              <p>Timebase</p>
+              <label>
+                Sample Rate
+                <select id="oscSampleRate">
+                  ${sampleRateOptions.map((rate) => `
+                    <option value="${escapeHtml(rate)}"${rate === defaultSampleRateHz ? " selected" : ""}>${escapeHtml(formatRate(rate))}</option>
+                  `).join("")}
+                </select>
+              </label>
+              <label>
+                Record Length
+                <select id="oscSampleCount">
+                  ${sampleCountOptions.map((count) => `
+                    <option value="${escapeHtml(count)}"${count === defaultSampleCount ? " selected" : ""}>${escapeHtml(formatNumber(count))} pts</option>
+                  `).join("")}
+                </select>
+              </label>
+            </div>
+
+            <div class="oscilloscope-control-group">
+              <p>Trigger</p>
+              <label>
+                Edge
+                <select id="oscTriggerEdge">
+                  <option value="rising">Rising</option>
+                  <option value="falling">Falling</option>
+                </select>
+              </label>
+              <label>
+                Pre-trigger
+                <select id="oscPreTrigger">
+                  <option value="10">10%</option>
+                  <option value="25">25%</option>
+                  <option value="50" selected>50%</option>
+                  <option value="75">75%</option>
+                  <option value="90">90%</option>
+                </select>
+              </label>
+              <label>
+                Level
+                <input id="oscTriggerLevel" type="range" min="0" max="100" step="1" value="50">
+              </label>
+            </div>
           </div>
-          <div class="oscilloscope-trend-wrap">
-            <canvas id="oscilloscopeTrendCanvas" class="oscilloscope-trend" width="1200" height="260"></canvas>
-          </div>
-          <div class="oscilloscope-bottom-strip">
-            <span>Trace Low <strong>${escapeHtml(adjustedTrendAverages.length ? formatVoltage(Math.min(...adjustedTrendAverages)) : "-")}</strong></span>
-            <span>Trace High <strong>${escapeHtml(adjustedTrendAverages.length ? formatVoltage(Math.max(...adjustedTrendAverages)) : "-")}</strong></span>
-            <span>Last Avg <strong>${escapeHtml(adjustedTrendHistory.length ? formatVoltage(adjustedTrendHistory[adjustedTrendHistory.length - 1].avg) : "-")}</strong></span>
-            <span>Record ID <strong>${escapeHtml(state.recordSessionId || "-")}</strong></span>
-          </div>
+
+          <p class="oscilloscope-message" data-osc-message>OSC siap.</p>
         </section>
       </div>
     `;
   }
 
-  function drawWaveform(container, capture, probeAttenuation, zeroOffsetVoltage = 0, calibrationGain = 1, scaleMemory = null) {
-    const canvas = container?.querySelector("#oscilloscopeWaveformCanvas");
-    if (!canvas) {
-      return;
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const width = Math.max(600, Math.floor((rect.width || 900) * dpr));
-    const height = Math.max(300, Math.floor((rect.height || 360) * dpr));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return;
-    }
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#07131d";
-    ctx.fillRect(0, 0, width, height);
-
-    const padLeft = 54 * dpr;
-    const padRight = 18 * dpr;
-    const padTop = 18 * dpr;
-    const padBottom = 34 * dpr;
-    const plotWidth = width - padLeft - padRight;
-    const plotHeight = height - padTop - padBottom;
-    const samples = capture?.samples || [];
-    const voltsPerCount = Number(capture?.voltsPerCount || 0);
-    const zeroOffset = finiteNumber(zeroOffsetVoltage);
-    const gain = finiteNumber(calibrationGain, 1) || 1;
-    const probe = finiteNumber(probeAttenuation, 10);
-    const averageVoltage = adjustedVoltage(capture?.averageVoltage, zeroOffset, gain);
-    const sampleVoltages = voltsPerCount > 0
-      ? samples.map((sample) => adjustedVoltage(Number(sample || 0) * voltsPerCount, zeroOffset, gain))
-      : [];
-    const scaleValues = sampleVoltages.length ? sampleVoltages : [averageVoltage];
-    const minSpan = Math.max(probe >= 10 ? 0.15 : 0.03, Math.abs(averageVoltage) * 0.04);
-    let voltageScale = createVoltageScale(scaleValues, {
-      lowPercentile: 0.15,
-      highPercentile: 0.85,
-      minSpan,
-      paddingRatio: 0.2,
-      tickCount: 6,
-      includeValues: [averageVoltage]
-    });
-    if (scaleMemory && sampleVoltages.length) {
-      const scaleKey = `${probe}:${Math.round(zeroOffset * 1000000)}:${Math.round(gain * 1000000)}`;
-      if (scaleMemory.key !== scaleKey) {
-        scaleMemory.key = scaleKey;
-        scaleMemory.scale = null;
-      }
-
-      const previousScale = scaleMemory.scale;
-      if (previousScale) {
-        const fitsPrevious =
-          voltageScale.min >= previousScale.min &&
-          voltageScale.max <= previousScale.max &&
-          voltageScale.range >= previousScale.range * 0.35;
-        if (fitsPrevious) {
-          voltageScale = previousScale;
-        } else {
-          const expandedMin = Math.min(previousScale.min, voltageScale.min);
-          const expandedMax = Math.max(previousScale.max, voltageScale.max);
-          const expandedRange = Math.max(voltageScale.step, expandedMax - expandedMin);
-          voltageScale = {
-            ...voltageScale,
-            min: expandedMin,
-            max: expandedMin + expandedRange,
-            range: expandedRange
-          };
-        }
-      }
-
-      scaleMemory.scale = voltageScale;
-    }
-    const scaleMinVoltage = voltageScale.min;
-    const scaleMaxVoltage = voltageScale.max;
-    const scaleRangeVoltage = voltageScale.range;
-    const valueToY = (value) =>
-      padTop + (scaleMaxVoltage - clamp(value, scaleMinVoltage, scaleMaxVoltage)) / scaleRangeVoltage * plotHeight;
-
-    ctx.strokeStyle = "rgba(120, 178, 210, 0.22)";
-    ctx.lineWidth = 1 * dpr;
-    ctx.font = `${11 * dpr}px Consolas, monospace`;
-    ctx.fillStyle = "rgba(220, 240, 250, 0.72)";
-    for (let i = 0; i <= 8; i += 1) {
-      const x = padLeft + (plotWidth / 8) * i;
-      ctx.beginPath();
-      ctx.moveTo(x, padTop);
-      ctx.lineTo(x, padTop + plotHeight);
-      ctx.stroke();
-    }
-    for (let i = 0; i <= 6; i += 1) {
-      const y = padTop + (plotHeight / 6) * i;
-      const labelVoltage = scaleMaxVoltage - (scaleRangeVoltage / 6) * i;
-      ctx.beginPath();
-      ctx.moveTo(padLeft, y);
-      ctx.lineTo(padLeft + plotWidth, y);
-      ctx.stroke();
-      ctx.fillText(formatAxisVoltage(labelVoltage), 8 * dpr, y + 4 * dpr);
-    }
-
-    if (scaleMinVoltage < 0 && scaleMaxVoltage > 0) {
-      const zeroY = valueToY(0);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-      ctx.lineWidth = 1.5 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(padLeft, zeroY);
-      ctx.lineTo(padLeft + plotWidth, zeroY);
-      ctx.stroke();
-    }
-
-    if (!sampleVoltages.length || voltsPerCount <= 0) {
-      ctx.fillStyle = "rgba(220, 240, 250, 0.78)";
-      ctx.textAlign = "center";
-      ctx.fillText("Belum ada capture", width / 2, height / 2);
-      ctx.textAlign = "start";
-      return;
-    }
-
-    ctx.strokeStyle = "#35d0a2";
-    ctx.lineWidth = 2 * dpr;
-    ctx.beginPath();
-    const step = Math.max(1, sampleVoltages.length / Math.max(1, plotWidth));
-    let first = true;
-    for (let xIndex = 0; xIndex < plotWidth; xIndex += 1) {
-      const sampleIndex = Math.min(sampleVoltages.length - 1, Math.floor(xIndex * step));
-      const voltage = sampleVoltages[sampleIndex];
-      const y = valueToY(voltage);
-      const x = padLeft + xIndex;
-      if (first) {
-        ctx.moveTo(x, y);
-        first = false;
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-    ctx.stroke();
-  }
-
-  function drawTrendLine(ctx, points, plot, valueToY, key, color, width) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    points.forEach((point, index) => {
-      const x = plot.left + (points.length <= 1 ? 0 : (plot.width / (points.length - 1)) * index);
-      const y = valueToY(Number(point[key] || 0));
-      if (index === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
-  }
-
-  function drawVoltageTrace(container, points, probeAttenuation, zeroOffsetVoltage = 0, calibrationGain = 1) {
-    const canvas = container?.querySelector("#oscilloscopeTrendCanvas");
-    if (!canvas) {
-      return;
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const width = Math.max(600, Math.floor((rect.width || 900) * dpr));
-    const height = Math.max(220, Math.floor((rect.height || 240) * dpr));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return;
-    }
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#07131d";
-    ctx.fillRect(0, 0, width, height);
-
-    const plot = {
-      left: 54 * dpr,
-      right: 18 * dpr,
-      top: 16 * dpr,
-      bottom: 30 * dpr
-    };
-    plot.width = width - plot.left - plot.right;
-    plot.height = height - plot.top - plot.bottom;
-
-    const zeroOffset = finiteNumber(zeroOffsetVoltage);
-    const gain = finiteNumber(calibrationGain, 1) || 1;
-    const probe = finiteNumber(probeAttenuation, 10);
-    const safePoints = (Array.isArray(points) ? points : []).map((point) => ({
-      min: adjustedVoltage(point.min, zeroOffset, gain),
-      max: adjustedVoltage(point.max, zeroOffset, gain),
-      avg: adjustedVoltage(point.avg, zeroOffset, gain)
-    }));
-    const averageValues = safePoints
-      .map((point) => point.avg)
-      .filter(Number.isFinite);
-    const averageCenter = averageValues.length
-      ? percentile([...averageValues].sort((left, right) => left - right), 0.5)
-      : 0;
-    const lastAverage = averageValues.length ? averageValues[averageValues.length - 1] : averageCenter;
-    const minSpan = Math.max(probe >= 10 ? 0.12 : 0.025, Math.abs(averageCenter) * 0.05);
-    const voltageScale = createVoltageScale(averageValues.length ? averageValues : [0], {
-      lowPercentile: 0,
-      highPercentile: 1,
-      minSpan,
-      paddingRatio: 0.3,
-      tickCount: 4,
-      center: averageCenter,
-      includeValues: [lastAverage]
-    });
-    const scaleMinVoltage = voltageScale.min;
-    const scaleMaxVoltage = voltageScale.max;
-    const scaleRangeVoltage = voltageScale.range;
-    const valueToY = (value) =>
-      plot.top + (scaleMaxVoltage - clamp(value, scaleMinVoltage, scaleMaxVoltage)) / scaleRangeVoltage * plot.height;
-
-    ctx.strokeStyle = "rgba(120, 178, 210, 0.22)";
-    ctx.lineWidth = 1 * dpr;
-    ctx.font = `${11 * dpr}px Consolas, monospace`;
-    ctx.fillStyle = "rgba(220, 240, 250, 0.72)";
-    for (let i = 0; i <= 8; i += 1) {
-      const x = plot.left + (plot.width / 8) * i;
-      ctx.beginPath();
-      ctx.moveTo(x, plot.top);
-      ctx.lineTo(x, plot.top + plot.height);
-      ctx.stroke();
-    }
-    for (let i = 0; i <= 4; i += 1) {
-      const y = plot.top + (plot.height / 4) * i;
-      const labelVoltage = scaleMaxVoltage - (scaleRangeVoltage / 4) * i;
-      ctx.beginPath();
-      ctx.moveTo(plot.left, y);
-      ctx.lineTo(plot.left + plot.width, y);
-      ctx.stroke();
-      ctx.fillText(formatAxisVoltage(labelVoltage), 8 * dpr, y + 4 * dpr);
-    }
-
-    if (scaleMinVoltage < 0 && scaleMaxVoltage > 0) {
-      const zeroY = valueToY(0);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-      ctx.lineWidth = 1.5 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(plot.left, zeroY);
-      ctx.lineTo(plot.left + plot.width, zeroY);
-      ctx.stroke();
-    }
-
-    if (!safePoints.length) {
-      ctx.fillStyle = "rgba(220, 240, 250, 0.78)";
-      ctx.textAlign = "center";
-      ctx.fillText("Belum ada trace", width / 2, height / 2);
-      ctx.textAlign = "start";
-      return;
-    }
-
-    ctx.fillStyle = "rgba(45, 115, 185, 0.08)";
-    ctx.beginPath();
-    safePoints.forEach((point, index) => {
-      const x = plot.left + (safePoints.length <= 1 ? 0 : (plot.width / (safePoints.length - 1)) * index);
-      const y = valueToY(Number(point.max || 0));
-      if (index === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    for (let index = safePoints.length - 1; index >= 0; index -= 1) {
-      const point = safePoints[index];
-      const x = plot.left + (safePoints.length <= 1 ? 0 : (plot.width / (safePoints.length - 1)) * index);
-      ctx.lineTo(x, valueToY(Number(point.min || 0)));
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    drawTrendLine(ctx, safePoints, plot, valueToY, "max", "rgba(239, 182, 79, 0.42)", 1 * dpr);
-    drawTrendLine(ctx, safePoints, plot, valueToY, "avg", "#35d0a2", 2.2 * dpr);
-    drawTrendLine(ctx, safePoints, plot, valueToY, "min", "rgba(125, 183, 255, 0.42)", 1 * dpr);
-  }
-
   function createApi() {
-    let state = createInitialState();
+    const state = createInitialState();
     let mountedContainer = null;
-    let busy = false;
     let notify = () => {};
+    let refs = {};
     let loopTimer = null;
     let loopGeneration = 0;
-    const waveformScaleMemory = {};
+    let drawQueued = false;
 
-    function render() {
+    function mountShell() {
       if (!mountedContainer) {
         return;
       }
-
-      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy);
-      drawWaveform(mountedContainer, state.capture, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain, waveformScaleMemory);
-      drawVoltageTrace(mountedContainer, state.trendHistory, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain);
-
-      bindActionButton("#oscilloscopeScanButton", () => withBusy(scanDevice));
-      bindActionButton("#oscilloscopeSingleButton", () => withBusy(() => captureWaveform({ saveTemporary: true })));
-      bindActionButton("#oscilloscopeRunButton", toggleContinuous);
-      bindActionButton("#oscilloscopeRecordButton", toggleRecording);
-      bindActionButton("#oscilloscopeZeroButton", () => withBusy(zeroDisplay, { allowRunning: true }));
-      bindActionButton("#oscilloscopeCalVrefButton", () => withBusy(calibrateReferenceVoltage, { allowRunning: true }));
-      bindActionButton("#oscilloscopeClearZeroButton", clearZero);
-      mountedContainer.querySelector("#oscilloscopeSampleRate")?.addEventListener("change", (event) => {
-        state.sampleRateHz = Number(event.target.value || state.sampleRateHz);
-        render();
-      });
-      mountedContainer.querySelector("#oscilloscopeSampleCount")?.addEventListener("change", (event) => {
-        state.sampleCount = Number(event.target.value || state.sampleCount);
-        render();
-      });
-      mountedContainer.querySelector("#oscilloscopeProbe")?.addEventListener("change", (event) => {
-        state.probeAttenuation = Number(event.target.value || state.probeAttenuation);
-        render();
-      });
-      mountedContainer.querySelector("#oscilloscopeCalReference")?.addEventListener("change", (event) => {
-        state.calibrationReferenceVoltage = normalizeCalibrationReference(event.target.value);
-        render();
-      });
-    }
-
-    function bindActionButton(selector, handler) {
-      const button = mountedContainer?.querySelector(selector);
-      if (!button) {
-        return;
-      }
-
-      const invoke = (event) => {
-        if (button.disabled) {
-          return;
+      mountedContainer.innerHTML = createShellMarkup();
+      refs = {
+        canvas: mountedContainer.querySelector("#oscCanvas"),
+        scan: mountedContainer.querySelector("#oscScan"),
+        run: mountedContainer.querySelector("#oscRun"),
+        single: mountedContainer.querySelector("#oscSingle"),
+        record: mountedContainer.querySelector("#oscRecord"),
+        modeYt: mountedContainer.querySelector("#oscModeYt"),
+        modeFft: mountedContainer.querySelector("#oscModeFft"),
+        modeXy: mountedContainer.querySelector("#oscModeXy"),
+        modeDrop: mountedContainer.querySelector("#oscModeDrop"),
+        clearDrop: mountedContainer.querySelector("#oscClearDrop"),
+        sinc: mountedContainer.querySelector("#oscSinc"),
+        probe: mountedContainer.querySelector("#oscProbe"),
+        actualVoltage: mountedContainer.querySelector("#oscActualVoltage"),
+        applyCorrection: mountedContainer.querySelector("#oscApplyCorrection"),
+        voltsDiv: mountedContainer.querySelector("#oscVoltsDiv"),
+        verticalPosition: mountedContainer.querySelector("#oscVerticalPosition"),
+        sampleRate: mountedContainer.querySelector("#oscSampleRate"),
+        sampleCount: mountedContainer.querySelector("#oscSampleCount"),
+        triggerEdge: mountedContainer.querySelector("#oscTriggerEdge"),
+        preTrigger: mountedContainer.querySelector("#oscPreTrigger"),
+        triggerLevel: mountedContainer.querySelector("#oscTriggerLevel"),
+        labels: {
+          device: mountedContainer.querySelector("[data-osc-device-label]"),
+          title: mountedContainer.querySelector("[data-osc-run-title]"),
+          usb: mountedContainer.querySelector("[data-osc-usb]"),
+          rate: mountedContainer.querySelector("[data-osc-rate]"),
+          points: mountedContainer.querySelector("[data-osc-points]"),
+          span: mountedContainer.querySelector("[data-osc-span]"),
+          bits: mountedContainer.querySelector("[data-osc-bits]"),
+          freq: mountedContainer.querySelector("[data-osc-freq]"),
+          vpp: mountedContainer.querySelector("[data-osc-vpp]"),
+          rms: mountedContainer.querySelector("[data-osc-rms]"),
+          avg: mountedContainer.querySelector("[data-osc-avg]"),
+          low: mountedContainer.querySelector("[data-osc-low]"),
+          ref: mountedContainer.querySelector("[data-osc-ref]"),
+          correction: mountedContainer.querySelector("[data-osc-correction]"),
+          trigger: mountedContainer.querySelector("[data-osc-trigger]"),
+          mode: mountedContainer.querySelector("[data-osc-mode]"),
+          message: mountedContainer.querySelector("[data-osc-message]")
         }
-        event.preventDefault();
-        handler();
       };
+      bindEvents();
+      updateInstrument();
+    }
 
-      button.addEventListener("click", invoke);
-      button.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          invoke(event);
+    function bindEvents() {
+      refs.scan?.addEventListener("click", () => withBusy(scanDevice));
+      refs.run?.addEventListener("click", toggleContinuous);
+      refs.single?.addEventListener("click", () => withBusy(() => captureWaveform({ saveTemporary: true })));
+      refs.record?.addEventListener("click", toggleRecording);
+      refs.modeYt?.addEventListener("click", () => setDisplayMode("yt"));
+      refs.modeFft?.addEventListener("click", () => setDisplayMode("fft"));
+      refs.modeXy?.addEventListener("click", () => setDisplayMode("xy"));
+      refs.modeDrop?.addEventListener("click", () => setDisplayMode("drop"));
+      refs.clearDrop?.addEventListener("click", clearDropHistory);
+      refs.sinc?.addEventListener("change", () => {
+        state.sincInterpolation = Boolean(refs.sinc.checked);
+        state.message = state.sincInterpolation ? "Sin(x)/x interpolation aktif." : "Interpolation linear aktif.";
+        updateInstrument();
+      });
+      refs.probe?.addEventListener("change", () => {
+        state.probeAttenuation = Number(refs.probe.value || 1) === 10 ? 10 : 1;
+        state.voltageCorrectionGain = storedCorrectionGain(state.probeAttenuation);
+        state.actualVoltage = storedActualVoltage(state.probeAttenuation);
+        state.lastRawStableVoltage = null;
+        if (refs.actualVoltage) {
+          refs.actualVoltage.value = state.actualVoltage ?? "";
         }
+        clearCaptureMemory(`Probe ${probeProfile(state.probeAttenuation).label}. Capture ulang agar range benar.`);
+      });
+      refs.applyCorrection?.addEventListener("click", applyManualVoltageCorrection);
+      refs.actualVoltage?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          applyManualVoltageCorrection();
+        }
+      });
+      refs.voltsDiv?.addEventListener("change", () => {
+        state.voltsPerDiv = refs.voltsDiv.value === "auto" ? "auto" : Number(refs.voltsDiv.value || 0);
+        updateInstrument();
+      });
+      refs.verticalPosition?.addEventListener("input", () => {
+        state.verticalPosition = Number(refs.verticalPosition.value || 0);
+        updateInstrument();
+      });
+      refs.sampleRate?.addEventListener("change", () => {
+        state.sampleRateHz = Number(refs.sampleRate.value || defaultSampleRateHz);
+        clearCaptureMemory("Sample rate diganti. Buffer record direset.");
+      });
+      refs.sampleCount?.addEventListener("change", () => {
+        state.sampleCount = Number(refs.sampleCount.value || defaultSampleCount);
+        updateInstrument();
+      });
+      refs.triggerEdge?.addEventListener("change", () => {
+        state.triggerEdge = refs.triggerEdge.value === "falling" ? "falling" : "rising";
+        updateInstrument();
+      });
+      refs.preTrigger?.addEventListener("change", () => {
+        state.preTriggerPercent = Number(refs.preTrigger.value || 50);
+        updateInstrument();
+      });
+      refs.triggerLevel?.addEventListener("input", () => {
+        state.triggerLevelPercent = Number(refs.triggerLevel.value || 50);
+        updateInstrument();
       });
     }
 
-    async function withBusy(work, options = {}) {
-      if (busy) {
+    function setText(element, value) {
+      if (element) {
+        element.textContent = value;
+      }
+    }
+
+    function updateInstrument() {
+      prepareDisplayWindow(state);
+      updateHud();
+      requestDraw();
+    }
+
+    function updateHud() {
+      const labels = refs.labels || {};
+      const device = state.device || {};
+      const summary = state.displaySummary || emptySummary();
+      const hasCapture = Boolean(state.capture);
+      const rate = hasCapture ? Number(state.capture.actualSampleRateHz || state.sampleRateHz) : state.sampleRateHz;
+      const points = hasCapture ? Number(state.capture.sampleCount || state.sampleCount) : state.sampleCount;
+      const spanSeconds = points / Math.max(1, rate);
+      const modeLabel = state.displayMode.toUpperCase();
+
+      setText(labels.device, device.deviceLabel || "TEKNISIHUB_STM32_OSC");
+      setText(labels.title, `${state.isRunning ? "RUN" : "STOP"} ${modeLabel}`);
+      setText(labels.usb, device.isPresent ? "USB OK" : "USB OFF");
+      labels.usb?.classList.toggle("is-online", Boolean(device.isPresent));
+      labels.usb?.classList.toggle("is-offline", !device.isPresent);
+      setText(labels.rate, formatRate(rate));
+      setText(labels.points, `${formatNumber(points)} pts`);
+      setText(labels.span, formatDurationSeconds(spanSeconds));
+      setText(labels.bits, `${formatNumber(device.bits || 12)} bit`);
+      setText(labels.freq, hasCapture ? formatFrequency(summary.frequencyHz) : "-");
+      setText(labels.vpp, hasCapture ? formatVoltage(summary.peakToPeakVoltage) : "-");
+      setText(labels.rms, hasCapture ? formatVoltage(summary.rmsVoltage) : "-");
+      setText(labels.avg, hasCapture ? formatVoltage(averageTelemetry(state).absoluteAverage) : "-");
+      setText(labels.low, state.lowestDropVoltage !== null ? formatVoltage(state.lowestDropVoltage) : "-");
+      setText(labels.ref, state.pendingRunReference
+        ? `ZERO ${state.referenceWarmupValues.length}/${referenceWarmupFrames}`
+        : state.referenceVoltage === null ? "ABS" : formatVoltage(state.referenceVoltage));
+      setText(labels.correction, `${formatNumber(state.voltageCorrectionGain, 3)}x`);
+      setText(labels.trigger, hasCapture ? `${summary.triggerLocked ? "Lock" : "Auto"} ${formatVoltage(summary.triggerLevel)}` : "-");
+      setText(labels.mode, `${modeLabel}${state.sincInterpolation ? " SINC" : " LIN"}`);
+      setText(labels.message, state.errorMessage || state.message || device.message || "");
+
+      refs.modeYt?.classList.toggle("is-active", state.displayMode === "yt");
+      refs.modeFft?.classList.toggle("is-active", state.displayMode === "fft");
+      refs.modeXy?.classList.toggle("is-active", state.displayMode === "xy");
+      refs.modeDrop?.classList.toggle("is-active", state.displayMode === "drop");
+
+      refs.run?.classList.toggle("is-active", state.isRunning);
+      refs.run?.querySelector(".material-symbols-outlined") && (refs.run.querySelector(".material-symbols-outlined").textContent = state.isRunning ? "pause" : "play_arrow");
+      refs.run?.querySelector("span:last-child") && (refs.run.querySelector("span:last-child").textContent = state.isRunning ? "Stop" : "Run");
+      refs.record?.classList.toggle("is-active", state.isRecording);
+      refs.record?.querySelector("span:last-child") && (refs.record.querySelector("span:last-child").textContent = state.isRecording ? "Rec On" : "Record");
+
+      const busy = state.isBusy || state.isCapturing;
+      [refs.scan, refs.single, refs.probe, refs.sampleRate, refs.applyCorrection].forEach((element) => {
+        if (element) {
+          element.disabled = busy;
+        }
+      });
+      if (refs.clearDrop) {
+        refs.clearDrop.disabled = busy || state.voltageHistory.length === 0;
+      }
+    }
+
+    function requestDraw() {
+      if (drawQueued || !refs.canvas) {
         return;
       }
+      drawQueued = true;
+      requestAnimationFrame(() => {
+        drawQueued = false;
+        drawCanvas();
+      });
+    }
 
-      if (state.isRunning && !options.allowRunning) {
+    function drawCanvas() {
+      if (!refs.canvas) {
         return;
       }
+      const scope = canvasScope(refs.canvas);
+      if (state.displayMode === "fft") {
+        drawFft(scope.ctx, scope.bounds, state);
+      } else if (state.displayMode === "xy") {
+        drawXy(scope.ctx, scope.bounds, state);
+      } else if (state.displayMode === "drop") {
+        drawDropTrend(scope.ctx, scope.bounds, state);
+      } else {
+        drawYt(scope.ctx, scope.bounds, state);
+      }
+    }
 
-      busy = true;
+    function setDisplayMode(mode) {
+      state.displayMode = ["yt", "fft", "xy", "drop"].includes(mode) ? mode : "yt";
+      state.message = `Display ${state.displayMode.toUpperCase()} aktif.`;
+      updateInstrument();
+    }
+
+    function clearCaptureMemory(message) {
+      state.capture = null;
+      state.frameBuffer = [];
+      state.latestCaptureVoltages = [];
+      state.displayWindow = [];
+      state.spectrum = null;
+      state.voltageHistory = [];
+      state.lowestDropVoltage = null;
+      state.pendingRunReference = false;
+      state.referenceWarmupValues = [];
+      state.referenceVoltage = null;
+      state.lastRawStableVoltage = null;
+      state.message = message;
       state.errorMessage = "";
-      render();
+      updateInstrument();
+    }
+
+    function resetDisplayMemoryOnly() {
+      state.frameBuffer = [];
+      state.latestCaptureVoltages = [];
+      state.displayWindow = [];
+      state.spectrum = null;
+      state.voltageHistory = [];
+      state.lowestDropVoltage = null;
+      state.referenceWarmupValues = [];
+    }
+
+    function clearDropHistory() {
+      state.voltageHistory = [];
+      state.lowestDropVoltage = null;
+      state.message = "Drop history dibersihkan.";
+      updateInstrument();
+    }
+
+    function applyManualVoltageCorrection() {
+      const actualVoltage = parseVoltageInput(refs.actualVoltage?.value);
+      if (!Number.isFinite(actualVoltage) || actualVoltage <= 0) {
+        state.errorMessage = "Isi Actual V dengan nilai tegangan real, contoh 2.900.";
+        updateInstrument();
+        return;
+      }
+
+      const rawStable = Number.isFinite(state.lastRawStableVoltage)
+        ? state.lastRawStableVoltage
+        : stableReferenceVoltage(captureToVoltages(state.capture));
+      if (!Number.isFinite(rawStable) || Math.abs(rawStable) < 0.001) {
+        state.errorMessage = "Belum ada pembacaan volt absolut untuk dikoreksi. Tekan Run/Single dulu.";
+        updateInstrument();
+        return;
+      }
+
+      const nextGain = actualVoltage / rawStable;
+      if (!Number.isFinite(nextGain) || nextGain <= 0) {
+        state.errorMessage = "Nilai koreksi tidak valid.";
+        updateInstrument();
+        return;
+      }
+
+      state.voltageCorrectionGain = nextGain;
+      state.actualVoltage = actualVoltage;
+      saveCorrectionGain(state.probeAttenuation, nextGain);
+      saveActualVoltage(state.probeAttenuation, actualVoltage);
+      resetDisplayMemoryOnly();
+      state.pendingRunReference = state.referenceVoltage !== null || (state.isRunning && state.autoReferenceOnRun);
+      state.referenceWarmupValues = [];
+      state.referenceVoltage = null;
+      state.errorMessage = "";
+
+      if (state.capture) {
+        applyCaptureResult(state.capture, {
+          countFrame: false,
+          useRecordResult: false,
+          message: `Koreksi aktif: raw ${formatVoltage(rawStable)} -> actual ${formatVoltage(actualVoltage)} (${formatNumber(nextGain, 3)}x).`
+        });
+      } else {
+        state.message = `Koreksi aktif: ${formatNumber(nextGain, 3)}x. Capture berikutnya memakai skala baru.`;
+      }
+
+      updateInstrument();
+    }
+
+    async function withBusy(task) {
+      if (state.isBusy || state.isCapturing) {
+        return;
+      }
+      state.isBusy = true;
+      state.errorMessage = "";
+      updateHud();
       try {
-        await work();
+        await task();
       } catch (error) {
         state.errorMessage = error?.message || "Operasi oscilloscope gagal.";
         notify(state.errorMessage, "warning");
       } finally {
-        busy = false;
-        render();
+        state.isBusy = false;
+        updateInstrument();
       }
     }
 
     async function scanDevice() {
+      state.message = "Scan TEKNISIHUB_STM32_OSC...";
+      updateHud();
       const device = await fetchJson("/tools/oscilloscope/device");
       state.device = { ...state.device, ...device };
-      state.message = device.message || "Scan selesai.";
+      state.message = device.message || (device.isPresent ? "Device OSC terhubung." : "Device OSC tidak ditemukan.");
       if (device.isPresent) {
-        notify("TEKNISIHUB_STM32_OSC terhubung.", "success");
+        notify(state.message, "success");
       }
     }
 
-    async function requestCapture({
-      saveTemporary = true,
-      recordEnabled = false,
-      sampleRateHz = state.sampleRateHz,
-      sampleCount = state.sampleCount
-    } = {}) {
+    async function requestCapture({ saveTemporary = true, recordEnabled = false } = {}) {
       return fetchJson("/tools/oscilloscope/capture", {
         method: "POST",
         body: JSON.stringify({
-          sampleRateHz: Number(sampleRateHz || calibrationSampleRateHz),
-          sampleCount: Number(sampleCount || calibrationSampleCount),
-          probeAttenuation: Number(state.probeAttenuation || 10),
+          sampleRateHz: Number(state.sampleRateHz || defaultSampleRateHz),
+          sampleCount: Number(state.sampleCount || defaultSampleCount),
+          probeAttenuation: Number(state.probeAttenuation || 1),
           saveTemporary,
           recordEnabled,
-          recordSessionId: state.recordSessionId || ""
+          recordSessionId: state.recordSessionId
         })
       });
     }
 
-    async function captureWaveform({ saveTemporary = true, recordEnabled = false } = {}) {
-      const result = await requestCapture({ saveTemporary, recordEnabled });
-      applyCaptureResult(result);
-      state.framesCaptured += 1;
-      state.message = result.message || "Capture selesai.";
-      notify(state.message, "success");
-    }
-
-    function applyCaptureResult(result) {
+    function applyCaptureResult(result, options = {}) {
+      const countFrame = options.countFrame !== false;
+      const useRecordResult = options.useRecordResult !== false;
       state.capture = result;
-      appendTrendPoint(result);
       state.device = {
         ...state.device,
-        isPresent: true,
         success: true,
-        identity: result.identity || state.device.identity
+        isPresent: true,
+        message: result.message || state.device.message,
+        identity: result.identity || state.device.identity,
+        bits: result.bits || state.device.bits,
+        vrefMv: result.vrefMv || state.device.vrefMv
       };
-      state.tempCapturePath = result.tempCapturePath || state.tempCapturePath;
-      if (result.recordSessionId) {
-        state.recordSessionId = result.recordSessionId;
+      state.probeAttenuation = Number(result.probeAttenuation || state.probeAttenuation) === 10 ? 10 : 1;
+      if (refs.probe) {
+        refs.probe.value = String(state.probeAttenuation);
       }
-      if (result.recordFilePath) {
-        state.recordFilePath = result.recordFilePath;
+
+      const rawVoltages = captureToVoltages(result);
+      state.lastRawStableVoltage = rawVoltages.length ? stableReferenceVoltage(rawVoltages) : state.lastRawStableVoltage;
+      const correctedRawVoltages = applyCorrectionGain(rawVoltages, state.voltageCorrectionGain);
+      if (state.pendingRunReference && state.autoReferenceOnRun && correctedRawVoltages.length) {
+        state.referenceWarmupValues.push(stableReferenceVoltage(correctedRawVoltages));
+        state.capture = null;
+        state.frameBuffer = [];
+        state.latestCaptureVoltages = [];
+        state.displayWindow = [];
+        state.spectrum = null;
+        state.voltageHistory = [];
+        state.lowestDropVoltage = null;
+        state.message = `Zeroing REF ${state.referenceWarmupValues.length}/${referenceWarmupFrames}...`;
+
+        if (state.referenceWarmupValues.length < referenceWarmupFrames) {
+          return;
+        }
+
+        state.referenceVoltage = stableReferenceVoltage(state.referenceWarmupValues);
+        state.referenceWarmupValues = [];
+        state.pendingRunReference = false;
+        state.capture = result;
       }
-      if (result.recorded) {
+
+      const voltages = applyDisplayReference(correctedRawVoltages, state.referenceVoltage);
+      state.latestCaptureVoltages = voltages;
+      appendRecordBuffer(state, voltages, result.actualSampleRateHz || state.sampleRateHz);
+      appendVoltageHistory(state, voltages);
+      if (countFrame) {
+        state.framesCaptured += 1;
+      }
+      if (useRecordResult && result.recorded) {
         state.recordFrameCount += 1;
+        state.recordFilePath = result.recordFilePath || state.recordFilePath;
       }
+      state.message = options.message || (state.isRecording
+        ? `Record berjalan: ${formatNumber(state.recordFrameCount)} frame.`
+        : state.referenceVoltage === null
+          ? result.message || "Capture selesai."
+          : `REF ${formatVoltage(state.referenceVoltage)} aktif. Grafik relatif ke awal Run.`);
     }
 
-    function median(values) {
-      const safeValues = values
-        .map((value) => Number(value))
-        .filter(Number.isFinite)
-        .sort((left, right) => left - right);
-      if (!safeValues.length) {
-        return NaN;
+    async function captureWaveform({ saveTemporary = true, recordEnabled = state.isRecording } = {}) {
+      if (state.isCapturing) {
+        return null;
       }
-
-      const middle = Math.floor(safeValues.length / 2);
-      return safeValues.length % 2
-        ? safeValues[middle]
-        : (safeValues[middle - 1] + safeValues[middle]) / 2;
-    }
-
-    function rememberCalibrationCapture(result) {
-      if (!result) {
-        return;
-      }
-
-      state.capture = result;
-      state.device = {
-        ...state.device,
-        isPresent: true,
-        success: true,
-        identity: result.identity || state.device.identity
-      };
-    }
-
-    async function collectStableMeasurement(frameCount = calibrationFrameCount, label = "Measurement") {
-      const values = [];
-      let lastResult = null;
-      const measurementRateHz = calibrationSampleRateHz;
-      const measurementCount = calibrationSampleCount;
-
-      for (let frame = 0; frame < frameCount; frame += 1) {
-        state.message = `${label} ${formatNumber(frame + 1)}/${formatNumber(frameCount)}...`;
-        render();
-        const result = await requestCapture({
-          saveTemporary: false,
-          recordEnabled: false,
-          sampleRateHz: measurementRateHz,
-          sampleCount: measurementCount
-        });
-        lastResult = result;
-        const value = Number(result?.averageVoltage);
-        if (Number.isFinite(value)) {
-          values.push(value);
-        }
-      }
-
-      rememberCalibrationCapture(lastResult);
-      const value = median(values);
-      if (!Number.isFinite(value)) {
-        throw new Error("Measurement stabil gagal dibaca.");
-      }
-
-      return { value, lastResult };
-    }
-
-    async function getCalibrationMeasurement(label) {
-      const currentValue = Number(state.capture?.averageVoltage);
-      if (state.isRunning) {
-        if (!Number.isFinite(currentValue)) {
-          throw new Error(`${label} butuh frame live dulu. Tunggu grafik tampil, lalu tekan lagi.`);
-        }
-
-        return {
-          value: currentValue,
-          lastResult: state.capture
-        };
-      }
-
-      if (Number.isFinite(currentValue)) {
-        return {
-          value: currentValue,
-          lastResult: state.capture
-        };
-      }
-
-      state.message = `${label} ambil 1 frame...`;
-      render();
-      const result = await requestCapture({
-        saveTemporary: false,
-        recordEnabled: false,
-        sampleRateHz: 100000,
-        sampleCount: 2048
-      });
-      rememberCalibrationCapture(result);
-      const value = Number(result?.averageVoltage);
-      if (!Number.isFinite(value)) {
-        throw new Error(`${label} gagal membaca frame.`);
-      }
-
-      return {
-        value,
-        lastResult: result
-      };
-    }
-
-    async function zeroDisplay() {
-      state.message = "Zero dari frame stabil 500k...";
+      state.isCapturing = true;
       state.errorMessage = "";
-      render();
-
-      const measurement = await collectStableMeasurement(calibrationFrameCount, "Zero");
-      state.zeroOffsetVoltage = measurement.value;
-      state.isZeroed = true;
-      state.calibrationGain = 1;
-      state.trendHistory = [];
-      state.message = `Zero diset ke ${formatVoltage(state.zeroOffsetVoltage)}.`;
-      render();
-      notify(state.message, "success");
-    }
-
-    async function calibrateReferenceVoltage() {
-      const referenceVoltage = normalizeCalibrationReference(state.calibrationReferenceVoltage);
-      if (!state.isZeroed) {
-        state.message = `Zero dulu saat probe ke GND, lalu sentuh ${formatVoltage(referenceVoltage)} dan klik Cal Vref.`;
-        render();
-        notify(state.message, "warning");
-        return;
+      state.message = "Capture...";
+      updateHud();
+      try {
+        const result = await requestCapture({ saveTemporary, recordEnabled });
+        applyCaptureResult(result);
+        return result;
+      } catch (error) {
+        state.errorMessage = error?.message || "Capture oscilloscope gagal.";
+        notify(state.errorMessage, "warning");
+        throw error;
+      } finally {
+        state.isCapturing = false;
+        updateInstrument();
       }
-
-      state.message = "Cal Vref dari frame stabil 500k...";
-      state.errorMessage = "";
-      render();
-
-      const measurement = await collectStableMeasurement(calibrationFrameCount, "Cal Vref");
-      const measuredDelta = measurement.value - Number(state.zeroOffsetVoltage || 0);
-      if (Math.abs(measuredDelta) < 0.05) {
-        state.message = `Cal Vref gagal: delta terlalu kecil. Pastikan input sedang di ${formatVoltage(referenceVoltage)}.`;
-        render();
-        notify(state.message, "warning");
-        return;
-      }
-
-      state.calibrationReferenceVoltage = referenceVoltage;
-      state.calibrationGain = referenceVoltage / measuredDelta;
-      state.trendHistory = [];
-      state.message = `Cal Vref ${formatVoltage(referenceVoltage)} diset, gain ${formatNumber(state.calibrationGain, 3)}x.`;
-      render();
-      notify(state.message, "success");
-    }
-
-    function clearZero() {
-      state.zeroOffsetVoltage = 0;
-      state.isZeroed = false;
-      state.calibrationGain = 1;
-      state.trendHistory = [];
-      state.message = "Zero dan Cal Vref dibersihkan.";
-      render();
-      notify(state.message, "info");
-    }
-
-    function appendTrendPoint(result) {
-      if (!result || !Number.isFinite(Number(result.averageVoltage))) {
-        return;
-      }
-      state.trendHistory = [
-        ...state.trendHistory,
-        {
-          min: Number(result.minVoltage || 0),
-          max: Number(result.maxVoltage || 0),
-          avg: Number(result.averageVoltage || 0)
-        }
-      ].slice(-240);
-    }
-
-    function toggleContinuous() {
-      if (state.isRunning) {
-        stopContinuous("Run berhenti.");
-        return;
-      }
-
-      startContinuous();
     }
 
     function startContinuous() {
-      if (busy || state.isRunning) {
+      if (state.isRunning) {
         return;
       }
-
       state.isRunning = true;
-      state.isCapturing = false;
-      state.framesCaptured = 0;
-      state.trendHistory = [];
       state.errorMessage = "";
-      state.message = "Run berjalan.";
+      if (state.autoReferenceOnRun) {
+        state.pendingRunReference = true;
+        state.referenceWarmupValues = [];
+        state.referenceVoltage = null;
+        state.capture = null;
+        state.frameBuffer = [];
+        state.latestCaptureVoltages = [];
+        state.displayWindow = [];
+        state.voltageHistory = [];
+        state.lowestDropVoltage = null;
+        state.message = `Zeroing REF 0/${referenceWarmupFrames}...`;
+      } else {
+        state.message = "Run berjalan.";
+      }
       loopGeneration += 1;
-      render();
       scheduleNextCapture(0, loopGeneration);
-      notify("Oscilloscope run berjalan.", "success");
+      updateInstrument();
     }
 
-    function stopContinuous(message, { silent = false } = {}) {
-      if (!state.isRunning && !state.isRecording) {
-        return;
-      }
-
+    function stopContinuous(message = "Run dihentikan.", options = {}) {
+      state.isRunning = false;
       loopGeneration += 1;
       if (loopTimer) {
         clearTimeout(loopTimer);
         loopTimer = null;
       }
-      state.isRunning = false;
-      state.isCapturing = false;
-      if (state.isRecording) {
-        state.isRecording = false;
-        state.message = state.recordFilePath
-          ? `Record berhenti. File: ${state.recordFilePath}`
-          : message;
-      } else {
+      if (!options.silent) {
         state.message = message;
+        updateInstrument();
       }
-      if (!silent) {
-        notify(state.message, "info");
+    }
+
+    function toggleContinuous() {
+      if (state.isRunning) {
+        stopContinuous("Run dihentikan.");
+      } else {
+        startContinuous();
       }
-      render();
     }
 
     function scheduleNextCapture(delayMs, generation) {
@@ -1085,34 +1747,19 @@
     }
 
     async function captureContinuousFrame(generation) {
-      if (!state.isRunning || generation !== loopGeneration) {
+      if (!state.isRunning || generation !== loopGeneration || state.isCapturing) {
         return;
       }
-
-      state.isCapturing = true;
       try {
-        const result = await requestCapture({
-          saveTemporary: state.isRecording,
+        await captureWaveform({
+          saveTemporary: !state.isRecording,
           recordEnabled: state.isRecording
         });
-        if (!state.isRunning || generation !== loopGeneration) {
-          return;
-        }
-
-        applyCaptureResult(result);
-        state.framesCaptured += 1;
-        state.errorMessage = "";
-        state.message = state.isRecording
-          ? `Record berjalan: ${formatNumber(state.recordFrameCount)} frame.`
-          : `Run berjalan: ${formatNumber(state.framesCaptured)} frame.`;
-      } catch (error) {
-        state.errorMessage = error?.message || "Continuous capture gagal.";
+      } catch {
         state.isRunning = false;
         state.isRecording = false;
-        notify(state.errorMessage, "warning");
+        updateInstrument();
       } finally {
-        state.isCapturing = false;
-        render();
         if (state.isRunning && generation === loopGeneration) {
           scheduleNextCapture(continuousDelayMs, generation);
         }
@@ -1125,21 +1772,19 @@
         state.message = state.recordFilePath
           ? `Record berhenti. File: ${state.recordFilePath}`
           : "Record berhenti.";
-        render();
+        updateInstrument();
         notify(state.message, "info");
         return;
       }
-
       state.isRecording = true;
       state.recordSessionId = createRecordSessionId();
       state.recordFrameCount = 0;
       state.recordFilePath = "";
-      state.errorMessage = "";
       state.message = "Record berjalan.";
       if (!state.isRunning) {
         startContinuous();
       } else {
-        render();
+        updateInstrument();
       }
       notify("Record mulai.", "success");
     }
@@ -1148,12 +1793,12 @@
       viewKey: "tool_oscilloscope",
       eyebrow: "Oscilloscope",
       title: "STM32 Oscilloscope",
-      subtitle: "Continuous capture single-channel dari TEKNISIHUB_STM32_OSC.",
+      subtitle: "Pipeline render mengikuti pola Scoppy: buffer, trigger, pre-trigger, resampling.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;
         notify = typeof options.notify === "function" ? options.notify : notify;
-        render();
+        mountShell();
       },
       setVisible(visible) {
         if (!mountedContainer) {
@@ -1164,13 +1809,10 @@
           stopContinuous("Run dihentikan.", { silent: true });
           return;
         }
-        requestAnimationFrame(() => {
-          drawWaveform(mountedContainer, state.capture, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain, waveformScaleMemory);
-          drawVoltageTrace(mountedContainer, state.trendHistory, state.probeAttenuation, state.zeroOffsetVoltage, state.calibrationGain);
-        });
+        requestDraw();
       },
       async refresh() {
-        render();
+        updateInstrument();
       }
     };
   }

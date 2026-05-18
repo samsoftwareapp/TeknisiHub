@@ -26,14 +26,14 @@
       transport: "USB WinUSB vendor bulk",
       status: "SPI + ENE/ITE KBC/EC",
       speed: "20 MHz request",
-      note: "Backend STM32 memakai firmware MYGPROG stabil dari repo rp2040-with-ene-main."
+      note: "Backend STM32 memakai firmware TEKNISIHUB_STM32_SPI_I2C (VID_1209 PID_2041)."
     },
     RB2040: {
       label: "RB2040 KBC/EC",
       transport: "USB WinUSB vendor bulk",
       status: "SPI + ENE/ITE KBC/EC",
       speed: "20 MHz request",
-      note: "Backend RB2040 memakai firmware TEKNISIHUB_RB2040."
+      note: "Backend RB2040 memakai firmware TEKNISIHUB_RB2040_SPI_I2C (VID_1209 PID_2040)."
     },
     EZP2019: {
       label: "EZP2019+",
@@ -46,7 +46,7 @@
 
   const disabledDeviceSelections = new Set(["CH347"]);
 
-  function isMygprogDevice(deviceType) {
+  function isTeknisiHubFlasherDevice(deviceType) {
     const normalizedDevice = String(deviceType || "").trim().toUpperCase();
     return normalizedDevice === "STM32" || normalizedDevice === "RB2040";
   }
@@ -961,7 +961,7 @@
     const actionDisableAttr = controlsDisabled || !state.selectedDevice ? " disabled" : "";
     const pageLabel = state.pageSize > 0 ? `${state.pageSize} byte` : "Belum ada data";
     const fileNameLabel = state.fileName || "Belum ada file";
-    const showStm32SpeedField = isMygprogDevice(state.selectedDevice);
+    const showStm32SpeedField = isTeknisiHubFlasherDevice(state.selectedDevice);
     const showEzpSpeedField = state.selectedDevice === "EZP2019";
     const showFixedSpeedField = state.selectedDevice === "CH341A";
     const fixedSpeedLabel = "0.75 MHz";
@@ -983,7 +983,7 @@
     const availableDevices = getEnabledDeviceEntries();
     const selectedDeviceLabel = resolveSelectedDeviceLabel(state.selectedDevice);
     const selectedDeviceSubtext = resolveSelectedDeviceSubtext(state.selectedDevice, deviceBusy);
-    const actionPadMarkup = isMygprogDevice(state.selectedDevice)
+    const actionPadMarkup = isTeknisiHubFlasherDevice(state.selectedDevice)
       ? createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr)
       : createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr);
 
@@ -1071,7 +1071,7 @@
             </div>
             <button type="button" class="ghost" data-spi-action="detect"${actionDisableAttr}>
               <span class="material-symbols-outlined">radar</span>
-              <span>${isMygprogDevice(state.selectedDevice) ? "SmartID" : "Detect JEDEC"}</span>
+              <span>${isTeknisiHubFlasherDevice(state.selectedDevice) ? "SmartID" : "Detect JEDEC"}</span>
             </button>
           </div>
           <div class="spi-form-grid">
@@ -1145,7 +1145,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Action Pad</p>
-              <h4>${isMygprogDevice(state.selectedDevice) ? "Flow SPI + KBC/EC" : "Flow operasi"}</h4>
+              <h4>${isTeknisiHubFlasherDevice(state.selectedDevice) ? "Flow SPI + KBC/EC" : "Flow operasi"}</h4>
             </div>
           </div>
           ${actionPadMarkup}
@@ -1506,8 +1506,8 @@
       state.driverInfoLoaded = false;
     }
 
-    async function refreshMygprogConnectionStatus(deviceType) {
-      if (!state.serviceAvailable || !isMygprogDevice(deviceType)) {
+    async function refreshTeknisiHubFlasherConnectionStatus(deviceType) {
+      if (!state.serviceAvailable || !isTeknisiHubFlasherDevice(deviceType)) {
         return;
       }
 
@@ -1515,7 +1515,7 @@
         const session = await runAction("connect");
         applySessionState(session);
       } catch {
-        if (isMygprogDevice(state.selectedDevice)) {
+        if (isTeknisiHubFlasherDevice(state.selectedDevice)) {
           state.connectionState = `${resolveSelectedDeviceLabel(state.selectedDevice)} belum terhubung`;
         }
       }
@@ -1560,7 +1560,7 @@
 
       try {
         await selectDevice(normalizedDevice);
-        await refreshMygprogConnectionStatus(normalizedDevice);
+        await refreshTeknisiHubFlasherConnectionStatus(normalizedDevice);
         try {
           await fetchDriverInfo(normalizedDevice);
         } catch {

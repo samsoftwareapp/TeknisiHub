@@ -5920,63 +5920,57 @@ body.is-dark-mode .microscope-debug-log {
 }
 
 .oscilloscope-shell {
-  display: grid;
-  gap: 14px;
+  display: block;
 }
 
-.oscilloscope-scope-panel,
-.oscilloscope-trace-panel {
+.oscilloscope-scope-panel {
   overflow: hidden;
-  border: 1px solid rgba(31, 86, 120, 0.2);
+  border: 1px solid rgba(118, 151, 169, 0.24);
   border-radius: 8px;
-  background: #08111a;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.oscilloscope-topbar,
-.oscilloscope-section-head,
-.oscilloscope-bottom-strip,
-.oscilloscope-readout-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  background: #07111a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .oscilloscope-topbar {
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(126, 166, 199, 0.14);
-  background: #111b25;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(118, 151, 169, 0.18);
+  background: #101a24;
 }
 
 .oscilloscope-title-block p,
-.oscilloscope-section-head p,
 .oscilloscope-control-group p {
   margin: 0;
-  color: #7fa2b8;
+  color: #8fb0c6;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
 }
 
-.oscilloscope-title-block h4,
-.oscilloscope-section-head h4 {
+.oscilloscope-title-block h4 {
   margin: 2px 0 0;
-  color: #f2fbff;
-  font-size: 1.05rem;
+  color: #f3fbff;
+  font-size: 1.02rem;
+  line-height: 1.15;
 }
 
-.oscilloscope-status-strip {
+.oscilloscope-status-strip,
+.oscilloscope-readout-row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.oscilloscope-status-strip {
+  justify-content: center;
+}
+
 .oscilloscope-status-strip span,
-.oscilloscope-bottom-strip span,
 .oscilloscope-readout-row span,
 .oscilloscope-trigger-box span {
   display: inline-flex;
@@ -5984,151 +5978,183 @@ body.is-dark-mode .microscope-debug-log {
   gap: 6px;
   min-height: 28px;
   padding: 5px 9px;
-  border: 1px solid rgba(126, 166, 199, 0.14);
+  border: 1px solid rgba(118, 151, 169, 0.18);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #9db5c8;
+  background: rgba(255, 255, 255, 0.045);
+  color: #a9bfce;
   font-family: "Consolas", "Courier New", monospace;
   font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .oscilloscope-status-strip strong,
-.oscilloscope-bottom-strip strong,
 .oscilloscope-readout-row strong,
 .oscilloscope-trigger-box strong {
   color: #f4fbff;
 }
 
 .oscilloscope-status-strip .is-online {
-  border-color: rgba(53, 208, 162, 0.32);
-  color: #79ecc7;
-  background: rgba(53, 208, 162, 0.1);
+  border-color: rgba(45, 228, 193, 0.35);
+  color: #82efd3;
+  background: rgba(45, 228, 193, 0.12);
 }
 
 .oscilloscope-status-strip .is-offline {
-  border-color: rgba(239, 113, 89, 0.34);
-  color: #ffb1a4;
-  background: rgba(239, 113, 89, 0.1);
-}
-
-.oscilloscope-display-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 230px;
-  min-height: 540px;
-}
-
-.oscilloscope-main-display {
-  display: grid;
-  grid-template-rows: auto minmax(360px, 1fr) auto;
-  min-width: 0;
-}
-
-.oscilloscope-readout-row,
-.oscilloscope-bottom-strip {
-  padding: 10px 12px;
-  background: #0b1620;
+  border-color: rgba(255, 121, 96, 0.35);
+  color: #ffb09f;
+  background: rgba(255, 121, 96, 0.12);
 }
 
 .oscilloscope-readout-row {
-  border-bottom: 1px solid rgba(126, 166, 199, 0.12);
-}
-
-.oscilloscope-bottom-strip {
-  border-top: 1px solid rgba(126, 166, 199, 0.12);
-}
-
-.oscilloscope-waveform-wrap,
-.oscilloscope-trend-wrap {
-  position: relative;
-  overflow: hidden;
-  background: #07131d;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(118, 151, 169, 0.16);
+  background: #0a151e;
 }
 
 .oscilloscope-waveform-wrap {
-  min-height: 420px;
-}
-
-.oscilloscope-waveform,
-.oscilloscope-trend {
-  display: block;
-  width: 100%;
-  background: #07131d;
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  min-height: clamp(340px, 48vh, 520px);
+  background: #06111a;
 }
 
 .oscilloscope-waveform {
-  height: 420px;
-}
-
-.oscilloscope-trend-wrap {
-  min-height: 220px;
-  border-top: 1px solid rgba(126, 166, 199, 0.12);
-  border-bottom: 1px solid rgba(126, 166, 199, 0.12);
-}
-
-.oscilloscope-trend {
-  height: 220px;
+  display: block;
+  width: 100%;
+  height: clamp(340px, 48vh, 520px);
+  background: #06111a;
 }
 
 .oscilloscope-control-rail {
+  position: relative;
+  z-index: 2;
   display: grid;
+  grid-template-columns: minmax(150px, 0.85fr) minmax(230px, 1.25fr) repeat(3, minmax(170px, 1fr));
   align-content: start;
-  gap: 12px;
+  align-items: start;
+  gap: 0;
+  margin: 12px;
   padding: 12px;
-  border-left: 1px solid rgba(126, 166, 199, 0.14);
-  background: #0e1822;
+  border: 1px solid rgba(118, 151, 169, 0.2);
+  border-radius: 8px;
+  background: rgba(13, 23, 32, 0.96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .oscilloscope-control-group {
   display: grid;
   gap: 9px;
-  padding: 10px;
-  border: 1px solid rgba(126, 166, 199, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.035);
+  min-width: 0;
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid rgba(118, 151, 169, 0.16);
+  border-radius: 0;
+  background: transparent;
+}
+
+.oscilloscope-control-group:first-child {
+  padding-left: 0;
+}
+
+.oscilloscope-control-group:last-child {
+  padding-right: 0;
+  border-right: 0;
 }
 
 .oscilloscope-control-group label {
   display: grid;
   gap: 5px;
-  color: #9db5c8;
+  color: #a8bdcc;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.oscilloscope-control-group select {
+.oscilloscope-control-group select,
+.oscilloscope-control-group input[type="number"] {
   width: 100%;
   min-height: 36px;
-  border-color: rgba(126, 166, 199, 0.18);
-  background: #07131d;
-  color: #ecf8ff;
+  border-color: rgba(118, 151, 169, 0.22);
+  background: #07111a;
+  color: #edf9ff;
+}
+
+.scoppy-scope button,
+.scoppy-scope select,
+.scoppy-scope input {
+  pointer-events: auto;
+}
+
+.oscilloscope-control-group input[type="range"] {
+  width: 100%;
+  accent-color: #2de4c1;
+}
+
+.oscilloscope-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.oscilloscope-switch-row input {
+  width: 16px;
+  height: 16px;
 }
 
 .oscilloscope-control-group .ghost,
 .oscilloscope-scan-button {
   justify-content: center;
-  border-color: rgba(126, 166, 199, 0.18);
-  background: #101f2b;
-  color: #eaf7ff;
+  border-color: rgba(118, 151, 169, 0.24);
+  background: #0b1c28;
+  color: #edf9ff;
+}
+
+.oscilloscope-scan-button {
+  min-height: 38px;
+  padding-inline: 18px;
+  border-radius: 999px;
 }
 
 .oscilloscope-run-group .ghost {
   min-height: 40px;
 }
 
+.oscilloscope-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.oscilloscope-mode-toggle .ghost {
+  min-width: 0;
+  min-height: 40px;
+  gap: 5px;
+  padding-inline: 7px;
+}
+
+.oscilloscope-mode-toggle .ghost span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.oscilloscope-mode-toggle .ghost.is-active,
 .oscilloscope-run-button.is-active {
-  border-color: rgba(53, 208, 162, 0.36);
-  color: #7ff0c8;
-  background: rgba(53, 208, 162, 0.14);
+  border-color: rgba(45, 228, 193, 0.38);
+  color: #86f3d4;
+  background: rgba(45, 228, 193, 0.15);
 }
 
 .oscilloscope-record-button.is-active {
-  border-color: rgba(255, 98, 98, 0.36);
+  border-color: rgba(255, 92, 92, 0.38);
   color: #ffb1b1;
-  background: rgba(255, 98, 98, 0.14);
+  background: rgba(255, 92, 92, 0.15);
 }
 
 .oscilloscope-record-button.is-active .material-symbols-outlined {
-  color: #ff7474;
+  color: #ff7373;
 }
 
 .oscilloscope-trigger-box {
@@ -6139,47 +6165,51 @@ body.is-dark-mode .microscope-debug-log {
 .oscilloscope-message {
   margin: 0;
   padding: 10px 14px;
-  border-top: 1px solid rgba(126, 166, 199, 0.12);
-  color: #9db5c8;
+  border-top: 1px solid rgba(118, 151, 169, 0.16);
+  color: #a9bfce;
   font-size: 0.86rem;
 }
 
-.oscilloscope-section-head {
-  justify-content: space-between;
-  padding: 12px 14px;
-  background: #111b25;
+body.is-dark-mode .oscilloscope-scope-panel {
+  border-color: rgba(118, 151, 169, 0.2);
 }
 
-.oscilloscope-section-head > span {
-  border: 1px solid rgba(53, 208, 162, 0.26);
-  border-radius: 999px;
-  padding: 5px 9px;
-  color: #79ecc7;
-  background: rgba(53, 208, 162, 0.08);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-body.is-dark-mode .oscilloscope-scope-panel,
-body.is-dark-mode .oscilloscope-trace-panel {
-  border-color: rgba(126, 166, 199, 0.16);
-}
-
-@media (max-width: 1080px) {
-  .oscilloscope-display-grid {
+@media (max-width: 1180px) {
+  .oscilloscope-topbar {
     grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .oscilloscope-status-strip {
+    justify-content: flex-start;
   }
 
   .oscilloscope-control-rail {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    border-left: 0;
-    border-top: 1px solid rgba(126, 166, 199, 0.14);
+    gap: 14px 0;
+  }
+
+  .oscilloscope-control-group:nth-child(2n) {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .oscilloscope-control-group:nth-child(2n + 1) {
+    padding-left: 0;
   }
 }
 
 @media (max-width: 720px) {
   .oscilloscope-control-rail {
     grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .oscilloscope-control-group,
+  .oscilloscope-control-group:first-child,
+  .oscilloscope-control-group:last-child {
+    padding: 0;
+    border-right: 0;
   }
 
   .oscilloscope-waveform-wrap,
