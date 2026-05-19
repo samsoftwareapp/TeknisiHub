@@ -31,9 +31,9 @@
     RB2040: {
       label: "RB2040 KBC/EC",
       transport: "USB WinUSB vendor bulk",
-      status: "SPI + ENE/ITE KBC/EC",
+      status: "SPI + ENE/ITE KBC/EC + OSC",
       speed: "20 MHz request",
-      note: "Backend RB2040 memakai firmware TEKNISIHUB_RB2040_SPI_I2C (VID_1209 PID_2040)."
+      note: "Backend RB2040 memakai firmware TEKNISIHUB_RB2040_SPI_I2C_OSC (VID_1209 PID_2042)."
     },
     EZP2019: {
       label: "EZP2019+",
