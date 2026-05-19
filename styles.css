@@ -5963,11 +5963,11 @@ body.is-dark-mode .microscope-debug-log {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .oscilloscope-status-strip {
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .oscilloscope-status-strip span,
@@ -5983,7 +5983,7 @@ body.is-dark-mode .microscope-debug-log {
   background: rgba(255, 255, 255, 0.045);
   color: #a9bfce;
   font-family: "Consolas", "Courier New", monospace;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   white-space: nowrap;
 }
 
@@ -6006,9 +6006,25 @@ body.is-dark-mode .microscope-debug-log {
 }
 
 .oscilloscope-readout-row {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(118, 151, 169, 0.16);
+  flex-wrap: nowrap;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(118, 151, 169, 0.16);
+  border-bottom: 1px solid rgba(118, 151, 169, 0.12);
   background: #0a151e;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(118, 151, 169, 0.45) transparent;
+}
+
+.oscilloscope-readout-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.oscilloscope-readout-row::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(118, 151, 169, 0.42);
 }
 
 .oscilloscope-waveform-wrap {

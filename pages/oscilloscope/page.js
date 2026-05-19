@@ -4,15 +4,31 @@
   const maxRecordSamples = 110000;
   const maxVoltageHistoryFrames = 1200;
   const referenceWarmupFrames = 8;
+  const fftAverageDepth = 8;
+  const fftLowCutHz = 100;
   const defaultSampleRateHz = 100000;
-  const defaultSampleCount = 2048;
-  const defaultDisplayMode = "drop";
+  const defaultSampleCount = 8192;
+  const defaultDisplayMode = "yt";
   const defaultProbeAttenuation = 10;
   const settingsStorageKey = "teknisihub.oscilloscope.settings.v1";
   const probeProfiles = {
     1: { value: 1, label: "1X 0-3.3V", min: 0, max: 3.3, minSpan: 0.5 },
     10: { value: 10, label: "10X 0-30V", min: 0, max: 30, minSpan: 5 }
   };
+  const channelStyles = [
+    {
+      label: "CH1",
+      line: "#ffd56f",
+      shadow: "rgba(255, 213, 111, 0.24)",
+      fill: "rgba(255, 213, 111, 0.10)"
+    },
+    {
+      label: "CH2",
+      line: "#2de4c1",
+      shadow: "rgba(45, 228, 193, 0.24)",
+      fill: "rgba(45, 228, 193, 0.10)"
+    }
+  ];
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -188,7 +204,8 @@
       spanSeconds: 0,
       binHz: 0,
       triggerLocked: false,
-      triggerLevel: 0
+      triggerLevel: 0,
+      periodicConfidence: 0
     };
   }
 
@@ -201,11 +218,13 @@
         message: "Tekan Scan untuk cek TEKNISIHUB_STM32_OSC.",
         deviceLabel: "TEKNISIHUB_STM32_OSC",
         maxSampleRateHz: defaultSampleRateHz,
-        maxSampleCount: 16384,
+        maxSampleCount: 8192,
         bits: 12,
-        vrefMv: 3300
+        vrefMv: 3300,
+        channelCount: 1
       },
       displayMode: defaultDisplayMode,
+      channelVisibility: [true, true],
       sampleRateHz: defaultSampleRateHz,
       sampleCount: defaultSampleCount,
       probeAttenuation: initialProbeAttenuation,
@@ -218,17 +237,25 @@
       autoReferenceOnRun: true,
       pendingRunReference: false,
       referenceWarmupValues: [],
+      referenceWarmupChannelValues: [],
       referenceVoltage: null,
+      referenceVoltages: null,
       voltageCorrectionGain: storedCorrectionGain(initialProbeAttenuation),
       actualVoltage: storedActualVoltage(initialProbeAttenuation),
       lastRawStableVoltage: null,
       capture: null,
       frameBuffer: [],
+      channelFrameBuffers: [],
       frameSampleRateHz: defaultSampleRateHz,
       latestCaptureVoltages: [],
+      latestCaptureChannels: [],
       displayWindow: [],
+      displayChannelWindows: [],
       displaySummary: emptySummary(),
       spectrum: null,
+      fftAverageBins: [],
+      fftAverageKey: "",
+      fftAverageCount: 0,
       voltageHistory: [],
       lowestDropVoltage: null,
       framesCaptured: 0,
@@ -276,12 +303,26 @@
   }
 
   function captureToVoltages(capture) {
+    return captureToVoltageChannels(capture)[0] || [];
+  }
+
+  function captureToVoltageChannels(capture) {
     const samples = Array.isArray(capture?.samples) ? capture.samples : [];
+    const channelSamples = Array.isArray(capture?.channelSamples) ? capture.channelSamples : null;
     const voltsPerCount = Number(capture?.voltsPerCount || 0);
-    if (!samples.length || voltsPerCount <= 0) {
+    if (voltsPerCount <= 0) {
       return [];
     }
-    return samples.map((sample) => Number(sample || 0) * voltsPerCount);
+
+    if (channelSamples?.length) {
+      return channelSamples
+        .filter((channel) => Array.isArray(channel) && channel.length)
+        .map((channel) => channel.map((sample) => Number(sample || 0) * voltsPerCount));
+    }
+
+    return samples.length
+      ? [samples.map((sample) => Number(sample || 0) * voltsPerCount)]
+      : [];
   }
 
   function stableReferenceVoltage(values) {
@@ -321,6 +362,18 @@
     return values.map((value) => value - reference);
   }
 
+  function applyDisplayReferences(channelValues, referenceVoltages) {
+    if (!Array.isArray(channelValues)) {
+      return [];
+    }
+    return channelValues.map((values, index) => {
+      const reference = Array.isArray(referenceVoltages)
+        ? referenceVoltages[index]
+        : index === 0 ? referenceVoltages : null;
+      return applyDisplayReference(values, reference);
+    });
+  }
+
   function appendRecordBuffer(state, values, sampleRateHz) {
     if (!values.length) {
       return;
@@ -335,6 +388,28 @@
     if (state.frameBuffer.length > maxRecordSamples) {
       state.frameBuffer = state.frameBuffer.slice(state.frameBuffer.length - maxRecordSamples);
     }
+  }
+
+  function appendChannelRecordBuffers(state, channelValues, sampleRateHz) {
+    const channels = Array.isArray(channelValues) ? channelValues : [];
+    if (!channels.length || !channels[0]?.length) {
+      return;
+    }
+
+    const rate = Number(sampleRateHz || state.sampleRateHz || defaultSampleRateHz);
+    const previousRate = Number(state.frameSampleRateHz || rate);
+    if (previousRate > 0 && Math.abs(previousRate - rate) / previousRate > 0.02) {
+      state.channelFrameBuffers = [];
+      state.frameBuffer = [];
+    }
+
+    state.frameSampleRateHz = rate;
+    state.channelFrameBuffers = channels.map((values, index) => {
+      const existing = state.channelFrameBuffers[index] || [];
+      const next = existing.concat(values || []);
+      return next.length > maxRecordSamples ? next.slice(next.length - maxRecordSamples) : next;
+    });
+    state.frameBuffer = state.channelFrameBuffers[0] || [];
   }
 
   function appendVoltageHistory(state, values) {
@@ -487,9 +562,12 @@
   }
 
   function prepareDisplayWindow(state) {
-    const source = state.frameBuffer.length >= 256 ? state.frameBuffer : state.latestCaptureVoltages;
+    const primaryFrameBuffer = state.channelFrameBuffers?.[0]?.length ? state.channelFrameBuffers[0] : state.frameBuffer;
+    const primaryLatest = state.latestCaptureChannels?.[0]?.length ? state.latestCaptureChannels[0] : state.latestCaptureVoltages;
+    const source = primaryFrameBuffer.length >= 256 ? primaryFrameBuffer : primaryLatest;
     if (!source.length) {
       state.displayWindow = [];
+      state.displayChannelWindows = [];
       state.displaySummary = emptySummary();
       return;
     }
@@ -503,12 +581,24 @@
     const preferredStart = locked ? triggerIndex - Math.floor(requestedCount * preTrigger) : fallbackStart;
     const start = clamp(preferredStart, 0, Math.max(0, source.length - requestedCount));
     const windowValues = source.slice(start, start + requestedCount);
+    const sourceChannels = primaryFrameBuffer.length >= 256
+      ? state.channelFrameBuffers
+      : state.latestCaptureChannels;
+    state.displayChannelWindows = (sourceChannels?.length ? sourceChannels : [source])
+      .map((channelValues) => (channelValues || []).slice(start, start + requestedCount));
     const traceStats = statsFor(windowValues);
     const rate = Number(state.frameSampleRateHz || state.sampleRateHz || defaultSampleRateHz);
 
+    const periodic = analyzePeriodicSignal(windowValues, rate);
+    const edgeSignal = periodic.confidence >= 0.82
+      ? { frequencyHz: 0, confidence: 0 }
+      : analyzeEdgeSignal(windowValues, rate);
+    const signalConfidence = Math.max(periodic.confidence, edgeSignal.confidence);
+    const frequencyHz = periodic.frequencyHz > 0 ? periodic.frequencyHz : edgeSignal.frequencyHz;
+    const hasValidFrequency = frequencyHz >= 1;
     state.displayWindow = windowValues;
     state.displaySummary = {
-      frequencyHz: estimateFrequency(windowValues, rate),
+      frequencyHz,
       peakToPeakVoltage: traceStats.vpp,
       rmsVoltage: traceStats.rms,
       lowestVoltage: state.lowestDropVoltage ?? traceStats.min,
@@ -517,22 +607,23 @@
       averageVoltage: traceStats.avg,
       spanSeconds: rate > 0 ? windowValues.length / rate : 0,
       binHz: rate > 0 && windowValues.length > 0 ? rate / windowValues.length : 0,
-      triggerLocked: locked,
-      triggerLevel: level
+      triggerLocked: locked && hasValidFrequency && signalConfidence >= 0.50,
+      triggerLevel: level,
+      periodicConfidence: hasValidFrequency ? signalConfidence : 0
     };
   }
 
-  function estimateFrequency(values, sampleRateHz) {
+  function analyzePeriodicSignal(values, sampleRateHz) {
     const rate = Number(sampleRateHz || 0);
     if (values.length < 16 || rate <= 0) {
-      return 0;
+      return { frequencyHz: 0, confidence: 0 };
     }
     const traceStats = statsFor(values);
-    if (traceStats.vpp < 0.01) {
-      return 0;
+    if (traceStats.vpp < 0.20) {
+      return { frequencyHz: 0, confidence: 0 };
     }
     const level = traceStats.avg;
-    const hysteresis = Math.max(traceStats.vpp * 0.1, 0.003);
+    const hysteresis = Math.max(traceStats.vpp * 0.16, 0.006);
     const crossings = [];
     let armed = values[0] < level - hysteresis;
     for (let index = 1; index < values.length; index++) {
@@ -551,8 +642,8 @@
         armed = false;
       }
     }
-    if (crossings.length < 2) {
-      return 0;
+    if (crossings.length < 4) {
+      return { frequencyHz: 0, confidence: 0 };
     }
     const periods = [];
     for (let index = 1; index < crossings.length; index++) {
@@ -560,7 +651,92 @@
     }
     periods.sort((a, b) => a - b);
     const median = periods[Math.floor(periods.length / 2)];
-    return median > 0 ? rate / median : 0;
+    if (!median || median < 8) {
+      return { frequencyHz: 0, confidence: 0 };
+    }
+
+    const deviations = periods.map((period) => Math.abs(period - median)).sort((a, b) => a - b);
+    const medianDeviation = deviations[Math.floor(deviations.length / 2)] || 0;
+    const consistency = clamp(1 - medianDeviation / median, 0, 1);
+    if (consistency < 0.82) {
+      return { frequencyHz: 0, confidence: consistency };
+    }
+
+    return {
+      frequencyHz: rate / median,
+      confidence: consistency
+    };
+  }
+
+  function analyzeEdgeSignal(values, sampleRateHz) {
+    const rate = Number(sampleRateHz || 0);
+    if (values.length < 32 || rate <= 0) {
+      return { frequencyHz: 0, confidence: 0 };
+    }
+
+    const traceStats = statsFor(values);
+    if (traceStats.vpp < 0.12) {
+      return { frequencyHz: 0, confidence: 0 };
+    }
+
+    const low = traceStats.min + traceStats.vpp * 0.25;
+    const high = traceStats.min + traceStats.vpp * 0.75;
+    const zoneFor = (value) => {
+      if (value >= high) {
+        return 1;
+      }
+      if (value <= low) {
+        return -1;
+      }
+      return 0;
+    };
+
+    let lastZone = zoneFor(values[0]);
+    let lastTransition = -9999;
+    const transitions = [];
+    for (let index = 1; index < values.length; index++) {
+      const zone = zoneFor(values[index]);
+      if (zone === 0) {
+        continue;
+      }
+      if (lastZone !== 0 && zone !== lastZone && index - lastTransition > 3) {
+        transitions.push(index);
+        lastTransition = index;
+      }
+      lastZone = zone;
+    }
+
+    if (transitions.length < 4) {
+      return { frequencyHz: 0, confidence: 0 };
+    }
+
+    const gaps = [];
+    for (let index = 1; index < transitions.length; index++) {
+      gaps.push(transitions[index] - transitions[index - 1]);
+    }
+    gaps.sort((a, b) => a - b);
+    const medianGap = gaps[Math.floor(gaps.length / 2)];
+    if (!medianGap || medianGap < 4) {
+      return { frequencyHz: 0, confidence: 0 };
+    }
+
+    const deviations = gaps.map((gap) => Math.abs(gap - medianGap)).sort((a, b) => a - b);
+    const medianDeviation = deviations[Math.floor(deviations.length / 2)] || 0;
+    const consistency = clamp(1 - medianDeviation / medianGap, 0, 1);
+    const density = clamp(transitions.length / Math.max(4, values.length / medianGap), 0, 1);
+    const confidence = clamp(consistency * 0.75 + density * 0.25, 0, 1);
+    if (confidence < 0.50) {
+      return { frequencyHz: 0, confidence };
+    }
+
+    return {
+      frequencyHz: rate / (medianGap * 2),
+      confidence
+    };
+  }
+
+  function estimateFrequency(values, sampleRateHz) {
+    return analyzePeriodicSignal(values, sampleRateHz).frequencyHz;
   }
 
   function largestPowerOfTwo(value) {
@@ -572,6 +748,29 @@
     return power;
   }
 
+  function detrendForFft(values) {
+    if (!values.length) {
+      return [];
+    }
+
+    const size = values.length;
+    const center = (size - 1) / 2;
+    let sumY = 0;
+    let sumXY = 0;
+    let sumX2 = 0;
+    for (let index = 0; index < size; index++) {
+      const x = index - center;
+      const y = values[index];
+      sumY += y;
+      sumXY += x * y;
+      sumX2 += x * x;
+    }
+
+    const average = sumY / size;
+    const slope = sumX2 > 0 ? sumXY / sumX2 : 0;
+    return values.map((value, index) => value - (average + slope * (index - center)));
+  }
+
   function buildSpectrum(values, sampleRateHz) {
     const rate = Number(sampleRateHz || 0);
     if (values.length < 16 || rate <= 0) {
@@ -579,13 +778,12 @@
     }
 
     const size = largestPowerOfTwo(Math.min(values.length, 4096));
-    const source = values.slice(values.length - size);
-    const traceStats = statsFor(source);
+    const source = detrendForFft(values.slice(values.length - size));
     const real = new Array(size);
     const imag = new Array(size).fill(0);
     for (let index = 0; index < size; index++) {
       const windowValue = 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / Math.max(1, size - 1));
-      real[index] = (source[index] - traceStats.avg) * windowValue;
+      real[index] = source[index] * windowValue;
     }
 
     for (let index = 1, reverse = 0; index < size; index++) {
@@ -628,15 +826,63 @@
     let peakFrequencyHz = 0;
     let peakMagnitude = 0;
     for (let index = 1; index < size / 2; index++) {
-      const magnitude = 2 * Math.sqrt(real[index] * real[index] + imag[index] * imag[index]) / size;
       const frequencyHz = index * binHz;
+      const lowCutFactor = frequencyHz < fftLowCutHz
+        ? clamp(frequencyHz / Math.max(1, fftLowCutHz), 0, 1) ** 2
+        : 1;
+      const magnitude = lowCutFactor * 2 * Math.sqrt(real[index] * real[index] + imag[index] * imag[index]) / size;
       bins.push({ frequencyHz, magnitude });
       if (magnitude > peakMagnitude) {
         peakMagnitude = magnitude;
         peakFrequencyHz = frequencyHz;
       }
     }
-    return { bins, peakFrequencyHz, peakMagnitude, binHz };
+    return { bins, peakFrequencyHz, peakMagnitude, binHz, lowCutHz: fftLowCutHz };
+  }
+
+  function resetFftAverage(state) {
+    state.fftAverageBins = [];
+    state.fftAverageKey = "";
+    state.fftAverageCount = 0;
+  }
+
+  function averageSpectrum(state, spectrum) {
+    if (!spectrum.bins.length) {
+      resetFftAverage(state);
+      return spectrum;
+    }
+
+    const key = `${Math.round(Number(state.frameSampleRateHz || 0))}:${spectrum.bins.length}:${formatNumber(spectrum.binHz, 6)}`;
+    if (state.fftAverageKey !== key || state.fftAverageBins.length !== spectrum.bins.length) {
+      state.fftAverageKey = key;
+      state.fftAverageBins = spectrum.bins.map((bin) => bin.magnitude);
+      state.fftAverageCount = 1;
+    } else {
+      const alpha = 2 / (fftAverageDepth + 1);
+      state.fftAverageBins = spectrum.bins.map((bin, index) => (
+        state.fftAverageBins[index] * (1 - alpha) + bin.magnitude * alpha
+      ));
+      state.fftAverageCount = Math.min(fftAverageDepth, state.fftAverageCount + 1);
+    }
+
+    let peakFrequencyHz = 0;
+    let peakMagnitude = 0;
+    const bins = spectrum.bins.map((bin, index) => {
+      const magnitude = state.fftAverageBins[index] || 0;
+      if (bin.frequencyHz >= fftLowCutHz && magnitude > peakMagnitude) {
+        peakMagnitude = magnitude;
+        peakFrequencyHz = bin.frequencyHz;
+      }
+      return { ...bin, magnitude };
+    });
+
+    return {
+      ...spectrum,
+      bins,
+      peakFrequencyHz,
+      peakMagnitude,
+      averageCount: state.fftAverageCount
+    };
   }
 
   function canvasScope(canvas) {
@@ -725,7 +971,7 @@
     };
   }
 
-  function drawTrace(ctx, bounds, values, axis) {
+  function drawTrace(ctx, bounds, values, axis, style = channelStyles[1]) {
     if (values.length < 2) {
       return;
     }
@@ -734,9 +980,9 @@
     ctx.beginPath();
     ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
     ctx.clip();
-    ctx.shadowColor = "rgba(45, 228, 193, 0.26)";
+    ctx.shadowColor = style.shadow || "rgba(45, 228, 193, 0.26)";
     ctx.shadowBlur = 8;
-    ctx.strokeStyle = "#2de4c1";
+    ctx.strokeStyle = style.line || "#2de4c1";
     ctx.lineWidth = 1.7;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -744,6 +990,220 @@
     values.forEach((value, index) => {
       const x = bounds.left + bounds.width * index / Math.max(1, values.length - 1);
       const y = bounds.bottom - (value - axis.min) / span * bounds.height;
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function squareWaveDisplayInfo(values, summary) {
+    if (!values.length) {
+      return { active: false };
+    }
+
+    const traceStats = statsFor(values);
+    const frequencyHz = Number(summary?.frequencyHz || 0);
+    if (traceStats.vpp < 0.35 || frequencyHz < 1 || Number(summary?.periodicConfidence || 0) < 0.50) {
+      return { active: false };
+    }
+
+    const lowLimit = traceStats.min + traceStats.vpp * 0.30;
+    const highLimit = traceStats.min + traceStats.vpp * 0.70;
+    let lowCount = 0;
+    let highCount = 0;
+    for (const value of values) {
+      if (value <= lowLimit) {
+        lowCount += 1;
+      } else if (value >= highLimit) {
+        highCount += 1;
+      }
+    }
+
+    const plateauFraction = (lowCount + highCount) / values.length;
+    const lowFraction = lowCount / values.length;
+    const highFraction = highCount / values.length;
+    const active = plateauFraction >= 0.62 && lowFraction >= 0.12 && highFraction >= 0.12;
+    return {
+      active,
+      mid: traceStats.min + traceStats.vpp / 2,
+      hysteresis: Math.max(traceStats.vpp * 0.08, 0.012),
+      frequencyHz
+    };
+  }
+
+  function edgeAwareDisplayCondition(values, summary, sampleRateHz) {
+    const info = squareWaveDisplayInfo(values, summary);
+    if (!info.active || values.length < 16) {
+      return { values: values.slice(), active: false };
+    }
+
+    const output = values.slice();
+    const rate = Number(sampleRateHz || defaultSampleRateHz);
+    const samplesPerPeriod = info.frequencyHz > 0 ? rate / info.frequencyHz : 0;
+    const edgeGuard = clamp(Math.floor(samplesPerPeriod * 0.006), 2, 18);
+    const minSegmentLength = Math.max(8, edgeGuard * 3);
+
+    const segments = [];
+    let zone = values[0] >= info.mid ? 1 : -1;
+    let start = 0;
+    for (let index = 1; index < values.length; index++) {
+      const value = values[index];
+      if (zone > 0 && value < info.mid - info.hysteresis) {
+        segments.push({ start, end: index - 1, zone });
+        start = index;
+        zone = -1;
+      } else if (zone < 0 && value > info.mid + info.hysteresis) {
+        segments.push({ start, end: index - 1, zone });
+        start = index;
+        zone = 1;
+      }
+    }
+    segments.push({ start, end: values.length - 1, zone });
+
+    let conditionedSegments = 0;
+    for (const segment of segments) {
+      if (segment.end - segment.start + 1 < minSegmentLength) {
+        continue;
+      }
+
+      const safeStart = Math.min(segment.end, segment.start + edgeGuard);
+      const safeEnd = Math.max(safeStart, segment.end - edgeGuard);
+      const plateau = values.slice(safeStart, safeEnd + 1).sort((a, b) => a - b);
+      if (plateau.length < 4) {
+        continue;
+      }
+
+      const level = trimmedAverageFromSorted(plateau, 0.25, 0.75);
+      for (let index = safeStart; index <= safeEnd; index++) {
+        output[index] = values[index] * 0.035 + level * 0.965;
+      }
+      conditionedSegments += 1;
+    }
+
+    return {
+      values: output,
+      active: conditionedSegments >= 2
+    };
+  }
+
+  function buildDcColumns(values, targetCount) {
+    if (!values.length || targetCount <= 0) {
+      return [];
+    }
+
+    const sortedAll = values.slice().sort((a, b) => a - b);
+    const stableValue = trimmedAverageFromSorted(sortedAll, 0.40, 0.60);
+    const lowBand = sortedAll[Math.floor((sortedAll.length - 1) * 0.10)] ?? stableValue;
+    const highBand = sortedAll[Math.ceil((sortedAll.length - 1) * 0.90)] ?? stableValue;
+    const count = Math.min(targetCount, values.length);
+    return Array.from({ length: count }, () => ({
+      avg: stableValue,
+      low: lowBand,
+      high: highBand
+    }));
+  }
+
+  function trimmedAverageFromSorted(sorted, lowerQuantile, upperQuantile) {
+    if (!sorted.length) {
+      return 0;
+    }
+
+    const lower = Math.floor((sorted.length - 1) * clamp(lowerQuantile, 0, 1));
+    const upper = Math.ceil((sorted.length - 1) * clamp(upperQuantile, 0, 1));
+    let sum = 0;
+    let count = 0;
+    for (let index = lower; index <= upper; index++) {
+      sum += sorted[index];
+      count += 1;
+    }
+    return count > 0 ? sum / count : sorted[Math.floor(sorted.length / 2)];
+  }
+
+  function smoothDcColumns(columns, radius) {
+    if (columns.length < 3 || radius <= 0) {
+      return columns;
+    }
+
+    return columns.map((column, index) => {
+      let sumAvg = 0;
+      let sumLow = 0;
+      let sumHigh = 0;
+      let count = 0;
+      const start = Math.max(0, index - radius);
+      const end = Math.min(columns.length - 1, index + radius);
+      for (let sampleIndex = start; sampleIndex <= end; sampleIndex++) {
+        sumAvg += columns[sampleIndex].avg;
+        sumLow += columns[sampleIndex].low;
+        sumHigh += columns[sampleIndex].high;
+        count += 1;
+      }
+      return {
+        avg: sumAvg / count,
+        low: sumLow / count,
+        high: sumHigh / count
+      };
+    });
+  }
+
+  function shouldUseDcConditioning(summary, values) {
+    const frequencyHz = Number(summary.frequencyHz || 0);
+    const confidence = Number(summary.periodicConfidence || 0);
+    if (frequencyHz < 1) {
+      return true;
+    }
+    if ((summary.triggerLocked && confidence >= 0.50) || (frequencyHz >= 10 && confidence >= 0.50)) {
+      return false;
+    }
+
+    const traceStats = statsFor(values || []);
+    return traceStats.vpp < 1.2;
+  }
+
+  function drawDcConditionedTrace(ctx, bounds, columns, axis, style = channelStyles[0]) {
+    if (columns.length < 2) {
+      return;
+    }
+
+    const span = Math.max(0.000001, axis.max - axis.min);
+    const xFor = (index) => bounds.left + bounds.width * index / Math.max(1, columns.length - 1);
+    const yFor = (value) => bounds.bottom - (value - axis.min) / span * bounds.height;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+    ctx.clip();
+
+    ctx.fillStyle = style.fill || "rgba(45, 228, 193, 0.13)";
+    ctx.beginPath();
+    columns.forEach((column, index) => {
+      const x = xFor(index);
+      const y = yFor(column.high);
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    for (let index = columns.length - 1; index >= 0; index--) {
+      ctx.lineTo(xFor(index), yFor(columns[index].low));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowColor = style.shadow || "rgba(255, 213, 111, 0.22)";
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = style.line || "#ffd56f";
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    columns.forEach((column, index) => {
+      const x = xFor(index);
+      const y = yFor(column.avg);
       if (index === 0) {
         ctx.moveTo(x, y);
       } else {
@@ -851,15 +1311,43 @@
   }
 
   function drawYt(ctx, bounds, state) {
+    const channelWindows = state.displayChannelWindows?.length
+      ? state.displayChannelWindows
+      : [state.displayWindow];
+    const visibleChannels = channelWindows
+      .map((values, index) => ({ values: values || [], index }))
+      .filter((channel) => channel.values.length && state.channelVisibility?.[channel.index] !== false);
     const values = state.displayWindow;
-    if (!values.length) {
+    if (!values.length || !visibleChannels.length) {
       drawEmpty(ctx, bounds, "No capture");
       return;
     }
     const targetCount = Math.max(320, Math.min(2400, Math.floor(bounds.width * 1.4)));
-    const plotValues = resampleForDisplay(values, targetCount, state.sincInterpolation);
-    const axis = verticalAxisFor(plotValues, state);
     const summary = state.displaySummary;
+    const renderedChannels = visibleChannels.map((channel) => {
+      const dcConditioned = shouldUseDcConditioning(summary, channel.values);
+      const dcColumns = dcConditioned
+        ? buildDcColumns(channel.values, Math.max(180, Math.min(640, Math.floor(bounds.width * 0.62))))
+        : [];
+      const edgeConditioned = dcConditioned
+        ? { values: channel.values, active: false }
+        : edgeAwareDisplayCondition(channel.values, summary, state.frameSampleRateHz);
+      const plotValues = dcConditioned
+        ? dcColumns.flatMap((column) => [column.low, column.avg, column.high])
+        : edgeConditioned.active
+          ? linearResample(edgeConditioned.values, targetCount)
+          : resampleForDisplay(edgeConditioned.values, targetCount, state.sincInterpolation);
+      return {
+        ...channel,
+        dcConditioned,
+        dcColumns,
+        edgeConditioned,
+        plotValues,
+        style: channelStyles[channel.index] || channelStyles[0]
+      };
+    });
+    const axisValues = renderedChannels.flatMap((channel) => channel.plotValues);
+    const axis = verticalAxisFor(axisValues.length ? axisValues : values, state);
     drawGrid(ctx, bounds, [
       "0 s",
       formatDurationSeconds(summary.spanSeconds / 2),
@@ -898,13 +1386,33 @@
     ctx.lineTo(triggerX, bounds.bottom);
     ctx.stroke();
 
-    drawTrace(ctx, bounds, plotValues, axis);
+    for (const channel of renderedChannels) {
+      if (channel.dcConditioned && channel.dcColumns.length) {
+        drawDcConditionedTrace(ctx, bounds, channel.dcColumns, axis, channel.style);
+      } else {
+        drawTrace(ctx, bounds, channel.plotValues, axis, channel.style);
+      }
+    }
     drawAverageTooltip(ctx, bounds, state, axis);
+
+    let legendX = bounds.right - 8;
+    ctx.font = "800 11px Consolas, monospace";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    for (let index = renderedChannels.length - 1; index >= 0; index--) {
+      const channel = renderedChannels[index];
+      const label = channel.style.label || `CH${channel.index + 1}`;
+      ctx.fillStyle = channel.style.line;
+      ctx.fillText(label, legendX, bounds.top + 8);
+      legendX -= ctx.measureText(label).width + 14;
+    }
+
     ctx.fillStyle = summary.triggerLocked ? "#ffd56f" : "#9fb6c6";
     ctx.font = "700 11px Consolas, monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(summary.triggerLocked ? "TRIG" : "AUTO", bounds.left + 8, bounds.top + 8);
+    const primaryRendered = renderedChannels.find((channel) => channel.index === 0) || renderedChannels[0];
+    ctx.fillText(summary.triggerLocked ? (primaryRendered.edgeConditioned.active ? "TRIG DSP" : "TRIG") : "DC STABLE", bounds.left + 8, bounds.top + 8);
   }
 
   function drawFft(ctx, bounds, state) {
@@ -912,14 +1420,14 @@
       drawEmpty(ctx, bounds, "FFT waiting");
       return;
     }
-    const spectrum = buildSpectrum(state.displayWindow, state.frameSampleRateHz);
+    const spectrum = averageSpectrum(state, buildSpectrum(state.displayWindow, state.frameSampleRateHz));
     state.spectrum = spectrum;
     if (!spectrum.bins.length) {
       drawEmpty(ctx, bounds, "FFT waiting");
       return;
     }
     const maxFrequency = Number(state.frameSampleRateHz || 0) / 2;
-    const maxMagnitude = Math.max(spectrum.peakMagnitude * 1.25, 0.001);
+    const maxMagnitude = Math.max(spectrum.peakMagnitude * 1.25, 0.0005);
     drawGrid(ctx, bounds, ["0 Hz", formatFrequency(maxFrequency / 2), formatFrequency(maxFrequency)], [
       formatVoltage(maxMagnitude),
       formatVoltage(maxMagnitude * 0.75),
@@ -949,7 +1457,11 @@
     ctx.font = "700 11px Consolas, monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(`${formatFrequency(spectrum.peakFrequencyHz)} / ${formatVoltage(spectrum.peakMagnitude)}`, bounds.left + 8, bounds.top + 8);
+    ctx.fillText(
+      `${formatFrequency(spectrum.peakFrequencyHz)} / ${formatVoltage(spectrum.peakMagnitude)}  AC AVG ${spectrum.averageCount || 1}/${fftAverageDepth}`,
+      bounds.left + 8,
+      bounds.top + 8
+    );
     drawAverageTooltip(ctx, bounds, state);
   }
 
@@ -1095,7 +1607,7 @@
 
   function createShellMarkup() {
     const sampleRateOptions = [10000, 20000, 50000, 100000];
-    const sampleCountOptions = [512, 1024, 2048, 4096, 8192, 16384];
+    const sampleCountOptions = [512, 1024, 2048, 4096, 8192];
     const voltsPerDivOptions = ["auto", 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
 
     return `
@@ -1104,14 +1616,15 @@
           <div class="oscilloscope-topbar">
             <div class="oscilloscope-title-block">
               <p data-osc-device-label>TEKNISIHUB_STM32_OSC</p>
-              <h4 data-osc-run-title>STOP DROP</h4>
+              <h4 data-osc-run-title>STOP YT</h4>
             </div>
             <div class="oscilloscope-status-strip">
               <span data-osc-usb class="is-offline">USB OFF</span>
               <span data-osc-rate>100,0 kSa/s</span>
-              <span data-osc-points>2.048 pts</span>
-              <span data-osc-span>20,48 ms</span>
+              <span data-osc-points>8.192 pts</span>
+              <span data-osc-span>81,92 ms</span>
               <span data-osc-bits>12 bit</span>
+              <span data-osc-channel-count>1 CH</span>
             </div>
             <button type="button" id="oscScan" class="ghost oscilloscope-scan-button">
               <span class="material-symbols-outlined" aria-hidden="true">usb</span>
@@ -1119,20 +1632,21 @@
             </button>
           </div>
 
+          <div class="oscilloscope-waveform-wrap">
+            <canvas id="oscCanvas" class="oscilloscope-waveform" width="1200" height="520"></canvas>
+          </div>
+
           <div class="oscilloscope-readout-row">
             <span>FREQ <strong data-osc-freq>-</strong></span>
             <span>VPP <strong data-osc-vpp>-</strong></span>
             <span>RMS <strong data-osc-rms>-</strong></span>
             <span>AVG <strong data-osc-avg>-</strong></span>
+            <span>CH2 AVG <strong data-osc-ch2-avg>-</strong></span>
             <span>LOW <strong data-osc-low>-</strong></span>
             <span>REF <strong data-osc-ref>ABS</strong></span>
             <span>CORR <strong data-osc-correction>1.000x</strong></span>
             <span>TRIG <strong data-osc-trigger>-</strong></span>
-            <span>MODE <strong data-osc-mode>DROP</strong></span>
-          </div>
-
-          <div class="oscilloscope-waveform-wrap">
-            <canvas id="oscCanvas" class="oscilloscope-waveform" width="1200" height="520"></canvas>
+            <span>MODE <strong data-osc-mode>YT</strong></span>
           </div>
 
           <div class="oscilloscope-control-rail">
@@ -1155,7 +1669,7 @@
             <div class="oscilloscope-control-group">
               <p>Display</p>
               <div class="oscilloscope-mode-toggle">
-                <button type="button" id="oscModeYt" class="ghost">
+                <button type="button" id="oscModeYt" class="ghost is-active">
                   <span class="material-symbols-outlined" aria-hidden="true">show_chart</span>
                   <span>YT</span>
                 </button>
@@ -1167,7 +1681,7 @@
                   <span class="material-symbols-outlined" aria-hidden="true">scatter_plot</span>
                   <span>XY</span>
                 </button>
-                <button type="button" id="oscModeDrop" class="ghost is-active">
+                <button type="button" id="oscModeDrop" class="ghost">
                   <span class="material-symbols-outlined" aria-hidden="true">trending_down</span>
                   <span>DROP</span>
                 </button>
@@ -1175,6 +1689,14 @@
               <label class="oscilloscope-switch-row">
                 <input id="oscSinc" type="checkbox" checked>
                 <span>Sin(x)/x interpolation</span>
+              </label>
+              <label class="oscilloscope-switch-row">
+                <input id="oscShowCh1" type="checkbox" checked>
+                <span>CH1</span>
+              </label>
+              <label class="oscilloscope-switch-row">
+                <input id="oscShowCh2" type="checkbox" checked>
+                <span>CH2</span>
               </label>
               <button type="button" id="oscClearDrop" class="ghost">
                 <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
@@ -1262,6 +1784,41 @@
 
           <p class="oscilloscope-message" data-osc-message>OSC siap.</p>
         </section>
+
+        <div
+          id="oscRunConfirmModal"
+          class="catalog-modal hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="oscRunConfirmTitle"
+          aria-describedby="oscRunConfirmDescription"
+          tabindex="-1"
+        >
+          <div class="catalog-modal-card delete-confirm-modal-card">
+            <div class="delete-confirm-icon-shell" aria-hidden="true">
+              <span class="material-symbols-outlined">warning</span>
+            </div>
+            <div class="delete-confirm-copy">
+              <p class="label">Konfirmasi Run</p>
+              <h3 id="oscRunConfirmTitle">Pastikan probe</h3>
+              <p id="oscRunConfirmDescription">Pastikan probe fisik sama dengan selector probe sebelum mulai capture.</p>
+            </div>
+            <div class="delete-confirm-target">
+              <span class="material-symbols-outlined" aria-hidden="true">cable</span>
+              <strong id="oscRunConfirmTarget">Probe</strong>
+            </div>
+            <div class="delete-confirm-actions">
+              <button id="oscRunConfirmCancel" type="button" class="ghost">
+                <span class="material-symbols-outlined">close</span>
+                <span>Batal</span>
+              </button>
+              <button id="oscRunConfirmStart" type="button" class="catalog-delete-confirm-button">
+                <span class="material-symbols-outlined">play_arrow</span>
+                <span>Run</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -1274,6 +1831,7 @@
     let loopTimer = null;
     let loopGeneration = 0;
     let drawQueued = false;
+    let runConfirmResolver = null;
 
     function mountShell() {
       if (!mountedContainer) {
@@ -1292,6 +1850,8 @@
         modeDrop: mountedContainer.querySelector("#oscModeDrop"),
         clearDrop: mountedContainer.querySelector("#oscClearDrop"),
         sinc: mountedContainer.querySelector("#oscSinc"),
+        showCh1: mountedContainer.querySelector("#oscShowCh1"),
+        showCh2: mountedContainer.querySelector("#oscShowCh2"),
         probe: mountedContainer.querySelector("#oscProbe"),
         actualVoltage: mountedContainer.querySelector("#oscActualVoltage"),
         applyCorrection: mountedContainer.querySelector("#oscApplyCorrection"),
@@ -1302,6 +1862,12 @@
         triggerEdge: mountedContainer.querySelector("#oscTriggerEdge"),
         preTrigger: mountedContainer.querySelector("#oscPreTrigger"),
         triggerLevel: mountedContainer.querySelector("#oscTriggerLevel"),
+        runConfirmModal: mountedContainer.querySelector("#oscRunConfirmModal"),
+        runConfirmCancel: mountedContainer.querySelector("#oscRunConfirmCancel"),
+        runConfirmStart: mountedContainer.querySelector("#oscRunConfirmStart"),
+        runConfirmTitle: mountedContainer.querySelector("#oscRunConfirmTitle"),
+        runConfirmDescription: mountedContainer.querySelector("#oscRunConfirmDescription"),
+        runConfirmTarget: mountedContainer.querySelector("#oscRunConfirmTarget"),
         labels: {
           device: mountedContainer.querySelector("[data-osc-device-label]"),
           title: mountedContainer.querySelector("[data-osc-run-title]"),
@@ -1310,10 +1876,12 @@
           points: mountedContainer.querySelector("[data-osc-points]"),
           span: mountedContainer.querySelector("[data-osc-span]"),
           bits: mountedContainer.querySelector("[data-osc-bits]"),
+          channelCount: mountedContainer.querySelector("[data-osc-channel-count]"),
           freq: mountedContainer.querySelector("[data-osc-freq]"),
           vpp: mountedContainer.querySelector("[data-osc-vpp]"),
           rms: mountedContainer.querySelector("[data-osc-rms]"),
           avg: mountedContainer.querySelector("[data-osc-avg]"),
+          ch2Avg: mountedContainer.querySelector("[data-osc-ch2-avg]"),
           low: mountedContainer.querySelector("[data-osc-low]"),
           ref: mountedContainer.querySelector("[data-osc-ref]"),
           correction: mountedContainer.querySelector("[data-osc-correction]"),
@@ -1339,6 +1907,22 @@
       refs.sinc?.addEventListener("change", () => {
         state.sincInterpolation = Boolean(refs.sinc.checked);
         state.message = state.sincInterpolation ? "Sin(x)/x interpolation aktif." : "Interpolation linear aktif.";
+        updateInstrument();
+      });
+      refs.showCh1?.addEventListener("change", () => {
+        state.channelVisibility[0] = Boolean(refs.showCh1.checked);
+        if (!state.channelVisibility[0] && !state.channelVisibility[1]) {
+          state.channelVisibility[0] = true;
+          refs.showCh1.checked = true;
+        }
+        updateInstrument();
+      });
+      refs.showCh2?.addEventListener("change", () => {
+        state.channelVisibility[1] = Boolean(refs.showCh2.checked);
+        if (!state.channelVisibility[0] && !state.channelVisibility[1]) {
+          state.channelVisibility[1] = true;
+          refs.showCh2.checked = true;
+        }
         updateInstrument();
       });
       refs.probe?.addEventListener("change", () => {
@@ -1386,11 +1970,50 @@
         state.triggerLevelPercent = Number(refs.triggerLevel.value || 50);
         updateInstrument();
       });
+      refs.runConfirmCancel?.addEventListener("click", () => closeRunConfirmation(false));
+      refs.runConfirmStart?.addEventListener("click", () => closeRunConfirmation(true));
+      refs.runConfirmModal?.addEventListener("click", (event) => {
+        if (event.target === refs.runConfirmModal) {
+          closeRunConfirmation(false);
+        }
+      });
+      refs.runConfirmModal?.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeRunConfirmation(false);
+        }
+      });
     }
 
     function setText(element, value) {
       if (element) {
         element.textContent = value;
+      }
+    }
+
+    function syncSampleCountOptions() {
+      if (!refs.sampleCount) {
+        return;
+      }
+
+      const maxCount = Number(state.device?.maxSampleCount || 16384);
+      if (!Number.isFinite(maxCount) || maxCount <= 0) {
+        return;
+      }
+
+      let largestAllowed = null;
+      Array.from(refs.sampleCount.options).forEach((option) => {
+        const value = Number(option.value);
+        const allowed = Number.isFinite(value) && value <= maxCount;
+        option.disabled = !allowed;
+        if (allowed) {
+          largestAllowed = value;
+        }
+      });
+
+      if (largestAllowed !== null && Number(state.sampleCount) > maxCount) {
+        state.sampleCount = largestAllowed;
+        refs.sampleCount.value = String(largestAllowed);
       }
     }
 
@@ -1401,6 +2024,7 @@
     }
 
     function updateHud() {
+      syncSampleCountOptions();
       const labels = refs.labels || {};
       const device = state.device || {};
       const summary = state.displaySummary || emptySummary();
@@ -1409,6 +2033,13 @@
       const points = hasCapture ? Number(state.capture.sampleCount || state.sampleCount) : state.sampleCount;
       const spanSeconds = points / Math.max(1, rate);
       const modeLabel = state.displayMode.toUpperCase();
+      const channelCount = Number(state.capture?.channelCount || device.channelCount || 1);
+      const ch2Window = state.displayChannelWindows?.[1] || state.latestCaptureChannels?.[1] || [];
+      const ch2RelativeAverage = ch2Window.length ? statsFor(ch2Window).avg : NaN;
+      const ch2Reference = Array.isArray(state.referenceVoltages) ? Number(state.referenceVoltages[1]) : NaN;
+      const ch2Average = Number.isFinite(ch2RelativeAverage)
+        ? ch2RelativeAverage + (Number.isFinite(ch2Reference) ? ch2Reference : 0)
+        : NaN;
 
       setText(labels.device, device.deviceLabel || "TEKNISIHUB_STM32_OSC");
       setText(labels.title, `${state.isRunning ? "RUN" : "STOP"} ${modeLabel}`);
@@ -1419,10 +2050,12 @@
       setText(labels.points, `${formatNumber(points)} pts`);
       setText(labels.span, formatDurationSeconds(spanSeconds));
       setText(labels.bits, `${formatNumber(device.bits || 12)} bit`);
+      setText(labels.channelCount, `${formatNumber(channelCount)} CH`);
       setText(labels.freq, hasCapture ? formatFrequency(summary.frequencyHz) : "-");
       setText(labels.vpp, hasCapture ? formatVoltage(summary.peakToPeakVoltage) : "-");
       setText(labels.rms, hasCapture ? formatVoltage(summary.rmsVoltage) : "-");
       setText(labels.avg, hasCapture ? formatVoltage(averageTelemetry(state).absoluteAverage) : "-");
+      setText(labels.ch2Avg, hasCapture && channelCount >= 2 && Number.isFinite(ch2Average) ? formatVoltage(ch2Average) : "-");
       setText(labels.low, state.lowestDropVoltage !== null ? formatVoltage(state.lowestDropVoltage) : "-");
       setText(labels.ref, state.pendingRunReference
         ? `ZERO ${state.referenceWarmupValues.length}/${referenceWarmupFrames}`
@@ -1449,6 +2082,12 @@
           element.disabled = busy;
         }
       });
+      if (refs.showCh1) {
+        refs.showCh1.disabled = busy;
+      }
+      if (refs.showCh2) {
+        refs.showCh2.disabled = busy || channelCount < 2;
+      }
       if (refs.clearDrop) {
         refs.clearDrop.disabled = busy || state.voltageHistory.length === 0;
       }
@@ -1490,14 +2129,20 @@
     function clearCaptureMemory(message) {
       state.capture = null;
       state.frameBuffer = [];
+      state.channelFrameBuffers = [];
       state.latestCaptureVoltages = [];
+      state.latestCaptureChannels = [];
       state.displayWindow = [];
+      state.displayChannelWindows = [];
       state.spectrum = null;
+      resetFftAverage(state);
       state.voltageHistory = [];
       state.lowestDropVoltage = null;
       state.pendingRunReference = false;
       state.referenceWarmupValues = [];
+      state.referenceWarmupChannelValues = [];
       state.referenceVoltage = null;
+      state.referenceVoltages = null;
       state.lastRawStableVoltage = null;
       state.message = message;
       state.errorMessage = "";
@@ -1506,12 +2151,58 @@
 
     function resetDisplayMemoryOnly() {
       state.frameBuffer = [];
+      state.channelFrameBuffers = [];
       state.latestCaptureVoltages = [];
+      state.latestCaptureChannels = [];
       state.displayWindow = [];
+      state.displayChannelWindows = [];
       state.spectrum = null;
+      resetFftAverage(state);
       state.voltageHistory = [];
       state.lowestDropVoltage = null;
       state.referenceWarmupValues = [];
+      state.referenceWarmupChannelValues = [];
+    }
+
+    function probeConfirmName() {
+      return Number(state.probeAttenuation) === 10 ? "X10" : "X1";
+    }
+
+    function showRunConfirmation() {
+      if (!refs.runConfirmModal || runConfirmResolver) {
+        return Promise.resolve(false);
+      }
+
+      const probeName = probeConfirmName();
+      const profile = probeProfile(state.probeAttenuation);
+      setText(refs.runConfirmTitle, `Pastikan probe ${probeName}`);
+      setText(
+        refs.runConfirmDescription,
+        `Selector probe UI sekarang ${profile.label}. Pastikan switch fisik probe benar-benar ${probeName}, lalu mulai Run.`
+      );
+      setText(refs.runConfirmTarget, `Wajib sama: ${probeName}`);
+      refs.runConfirmModal.classList.remove("hidden");
+
+      return new Promise((resolve) => {
+        runConfirmResolver = resolve;
+        setTimeout(() => {
+          refs.runConfirmStart?.focus();
+        }, 0);
+      });
+    }
+
+    function closeRunConfirmation(confirmed) {
+      if (!refs.runConfirmModal || refs.runConfirmModal.classList.contains("hidden")) {
+        return;
+      }
+
+      refs.runConfirmModal.classList.add("hidden");
+      const resolver = runConfirmResolver;
+      runConfirmResolver = null;
+      if (resolver) {
+        resolver(Boolean(confirmed));
+      }
+      refs.run?.focus();
     }
 
     function clearDropHistory() {
@@ -1552,7 +2243,9 @@
       resetDisplayMemoryOnly();
       state.pendingRunReference = state.referenceVoltage !== null || (state.isRunning && state.autoReferenceOnRun);
       state.referenceWarmupValues = [];
+      state.referenceWarmupChannelValues = [];
       state.referenceVoltage = null;
+      state.referenceVoltages = null;
       state.errorMessage = "";
 
       if (state.capture) {
@@ -1622,23 +2315,32 @@
         message: result.message || state.device.message,
         identity: result.identity || state.device.identity,
         bits: result.bits || state.device.bits,
-        vrefMv: result.vrefMv || state.device.vrefMv
+        vrefMv: result.vrefMv || state.device.vrefMv,
+        channelCount: Number(result.channelCount || state.device.channelCount || 1)
       };
       state.probeAttenuation = Number(result.probeAttenuation || state.probeAttenuation) === 10 ? 10 : 1;
       if (refs.probe) {
         refs.probe.value = String(state.probeAttenuation);
       }
 
-      const rawVoltages = captureToVoltages(result);
+      const rawChannels = captureToVoltageChannels(result);
+      const rawVoltages = rawChannels[0] || [];
       state.lastRawStableVoltage = rawVoltages.length ? stableReferenceVoltage(rawVoltages) : state.lastRawStableVoltage;
-      const correctedRawVoltages = applyCorrectionGain(rawVoltages, state.voltageCorrectionGain);
+      const correctedRawChannels = rawChannels.map((channelValues) => applyCorrectionGain(channelValues, state.voltageCorrectionGain));
+      const correctedRawVoltages = correctedRawChannels[0] || [];
       if (state.pendingRunReference && state.autoReferenceOnRun && correctedRawVoltages.length) {
-        state.referenceWarmupValues.push(stableReferenceVoltage(correctedRawVoltages));
+        const stableChannels = correctedRawChannels.map((channelValues) => stableReferenceVoltage(channelValues));
+        state.referenceWarmupValues.push(stableChannels[0]);
+        state.referenceWarmupChannelValues.push(stableChannels);
         state.capture = null;
         state.frameBuffer = [];
+        state.channelFrameBuffers = [];
         state.latestCaptureVoltages = [];
+        state.latestCaptureChannels = [];
         state.displayWindow = [];
+        state.displayChannelWindows = [];
         state.spectrum = null;
+        resetFftAverage(state);
         state.voltageHistory = [];
         state.lowestDropVoltage = null;
         state.message = `Zeroing REF ${state.referenceWarmupValues.length}/${referenceWarmupFrames}...`;
@@ -1648,14 +2350,24 @@
         }
 
         state.referenceVoltage = stableReferenceVoltage(state.referenceWarmupValues);
+        const channelCount = Math.max(1, ...state.referenceWarmupChannelValues.map((values) => values.length));
+        state.referenceVoltages = Array.from({ length: channelCount }, (_item, channelIndex) => {
+          const channelWarmup = state.referenceWarmupChannelValues
+            .map((values) => values[channelIndex])
+            .filter((value) => Number.isFinite(Number(value)));
+          return stableReferenceVoltage(channelWarmup);
+        });
         state.referenceWarmupValues = [];
+        state.referenceWarmupChannelValues = [];
         state.pendingRunReference = false;
         state.capture = result;
       }
 
-      const voltages = applyDisplayReference(correctedRawVoltages, state.referenceVoltage);
+      const channelVoltages = applyDisplayReferences(correctedRawChannels, state.referenceVoltages ?? state.referenceVoltage);
+      const voltages = channelVoltages[0] || [];
+      state.latestCaptureChannels = channelVoltages;
       state.latestCaptureVoltages = voltages;
-      appendRecordBuffer(state, voltages, result.actualSampleRateHz || state.sampleRateHz);
+      appendChannelRecordBuffers(state, channelVoltages, result.actualSampleRateHz || state.sampleRateHz);
       appendVoltageHistory(state, voltages);
       if (countFrame) {
         state.framesCaptured += 1;
@@ -1702,12 +2414,18 @@
       if (state.autoReferenceOnRun) {
         state.pendingRunReference = true;
         state.referenceWarmupValues = [];
+        state.referenceWarmupChannelValues = [];
         state.referenceVoltage = null;
+        state.referenceVoltages = null;
         state.capture = null;
         state.frameBuffer = [];
+        state.channelFrameBuffers = [];
         state.latestCaptureVoltages = [];
+        state.latestCaptureChannels = [];
         state.displayWindow = [];
+        state.displayChannelWindows = [];
         state.voltageHistory = [];
+        resetFftAverage(state);
         state.lowestDropVoltage = null;
         state.message = `Zeroing REF 0/${referenceWarmupFrames}...`;
       } else {
@@ -1731,10 +2449,14 @@
       }
     }
 
-    function toggleContinuous() {
+    async function toggleContinuous() {
       if (state.isRunning) {
         stopContinuous("Run dihentikan.");
       } else {
+        const confirmed = await showRunConfirmation();
+        if (!confirmed || state.isRunning) {
+          return;
+        }
         startContinuous();
       }
     }
