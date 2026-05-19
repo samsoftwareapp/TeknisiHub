@@ -1211,6 +1211,8 @@ body.is-dark-mode .dashboard-topbar {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+  cursor: pointer;
+  text-decoration: none;
   box-shadow: none;
   border: 1px solid transparent;
   transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;

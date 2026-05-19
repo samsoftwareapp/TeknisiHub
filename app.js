@@ -750,6 +750,30 @@ const localWorkbenchViewKeys = new Set([
   settingsPage.viewKey
 ]);
 
+const documentTitleLabels = {
+  [dashboardHomePage.viewKey]: "Dashboard",
+  BIOS: "BIOS",
+  Boardview: "Boardview",
+  Schematics: "Schematics",
+  ProblemSolving: "Problem Solving",
+  Datasheets: "Datasheets",
+  [spiFlashPage.viewKey]: "SPI Flash",
+  [oscilloscopePage.viewKey]: "Oscilloscope",
+  [meAnalyzerPage.viewKey]: "ME Analyzer",
+  [uefiToolPage.viewKey]: "UEFI Tools",
+  [biosVendorDetectPage.viewKey]: "Deteksi Vendor BIOS",
+  [fileHashComparePage.viewKey]: "Cek Hash File",
+  [resistorCalculatorPage.viewKey]: "Resistor Kalkulator",
+  [lenovoBiosPatchPage.viewKey]: "Lenovo UEFI AutoPatcher",
+  [dell8Fc8Page.viewKey]: "Dell 8FC8",
+  [amiDecryptorPage.viewKey]: "AMI Decrytor & Unlocker",
+  [biosPasswordPage.viewKey]: "BIOS Unlock Password",
+  [microscopePage.viewKey]: "Microscope",
+  [alienServerPage.viewKey]: "Alien Server",
+  [boardViewerPage.viewKey]: "Boardviewer",
+  [settingsPage.viewKey]: "Pengaturan"
+};
+
 const viewHashMap = {
   [dashboardHomePage.viewKey]: "Dashboard",
   BIOS: "BIOS",
@@ -1681,7 +1705,46 @@ function hideWorkbench() {
   settingsPage.setVisible?.(false);
 }
 
+function getDocumentTitleLabel(viewKey = currentCatalogView) {
+  if (documentTitleLabels[viewKey]) {
+    return documentTitleLabels[viewKey];
+  }
+
+  if (isTelegramCatalogView(viewKey)) {
+    return getTelegramCatalogConfig(viewKey).displayName;
+  }
+
+  return toolViewMap[viewKey]?.title || "TeknisiHub";
+}
+
+function updateDocumentTitle(viewKey = currentCatalogView) {
+  const label = getDocumentTitleLabel(viewKey).trim();
+  document.title = label && label !== "TeknisiHub"
+    ? `${label} - TeknisiHub`
+    : "TeknisiHub";
+}
+
+function shouldHandleSidebarNavigationClick(event) {
+  if (!event || event.defaultPrevented) {
+    return true;
+  }
+
+  if (event.currentTarget?.classList?.contains("is-loading")) {
+    event.preventDefault();
+    return false;
+  }
+
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+    return false;
+  }
+
+  event.preventDefault();
+  return true;
+}
+
 function setActiveNav(targetKey) {
+  updateDocumentTitle(targetKey);
+
   const isToolView = targetKey.startsWith("tool_");
   const isBiosPatchView = targetKey === lenovoBiosPatchPage.viewKey
     || targetKey === dell8Fc8Page.viewKey
@@ -1737,7 +1800,10 @@ function setNavButtonLoading(button, loading) {
   }
 
   button.classList.toggle("is-loading", loading);
-  button.disabled = loading;
+  button.toggleAttribute("aria-disabled", loading);
+  if ("disabled" in button) {
+    button.disabled = loading;
+  }
 
   const icon = button.querySelector(".material-symbols-outlined");
   if (!icon) {
@@ -8318,137 +8384,221 @@ catalogEditorForm?.addEventListener("submit", async (event) => {
 catalogUploadTaskToggleButton?.addEventListener("click", toggleCatalogUploadTaskPanel);
 catalogUploadTaskCloseButton?.addEventListener("click", closeCatalogUploadTaskPanel);
 
-navBios?.addEventListener("click", () => {
+navBios?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash("BIOS");
   navigateTelegramCatalog("BIOS", navBios);
 });
 
-navBoardview?.addEventListener("click", () => {
+navBoardview?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash("Boardview");
   navigateTelegramCatalog("Boardview", navBoardview);
 });
 
-navSchematics?.addEventListener("click", () => {
+navSchematics?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash("Schematics");
   navigateTelegramCatalog("Schematics", navSchematics);
 });
 
-navProblemSolving?.addEventListener("click", () => {
+navProblemSolving?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash("ProblemSolving");
   navigateTelegramCatalog("ProblemSolving", navProblemSolving);
 });
 
-navDatasheets?.addEventListener("click", () => {
+navDatasheets?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash("Datasheets");
   navigateTelegramCatalog("Datasheets", navDatasheets);
 });
 
-navDashboard?.addEventListener("click", () => {
+navDashboard?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(dashboardHomePage.viewKey);
   currentCatalogView = dashboardHomePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolSpiFlash?.addEventListener("click", () => {
+toolSpiFlash?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(spiFlashPage.viewKey);
   currentCatalogView = spiFlashPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolOscilloscope?.addEventListener("click", () => {
+toolOscilloscope?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(oscilloscopePage.viewKey);
   currentCatalogView = oscilloscopePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolMeAnalyzer?.addEventListener("click", () => {
+toolMeAnalyzer?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(meAnalyzerPage.viewKey);
   currentCatalogView = meAnalyzerPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolUefi?.addEventListener("click", () => {
+toolUefi?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(uefiToolPage.viewKey);
   currentCatalogView = uefiToolPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolBiosVendorDetect?.addEventListener("click", () => {
+toolBiosVendorDetect?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(biosVendorDetectPage.viewKey);
   currentCatalogView = biosVendorDetectPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolFileHashCompare?.addEventListener("click", () => {
+toolFileHashCompare?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(fileHashComparePage.viewKey);
   currentCatalogView = fileHashComparePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolResistorCalculator?.addEventListener("click", () => {
+toolResistorCalculator?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(resistorCalculatorPage.viewKey);
   currentCatalogView = resistorCalculatorPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolDumpBiosLenovo?.addEventListener("click", () => {
+toolDumpBiosLenovo?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(lenovoBiosPatchPage.viewKey);
   currentCatalogView = lenovoBiosPatchPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolDell8Fc8?.addEventListener("click", () => {
+toolDell8Fc8?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(dell8Fc8Page.viewKey);
   currentCatalogView = dell8Fc8Page.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolAmiDecryptor?.addEventListener("click", () => {
+toolAmiDecryptor?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(amiDecryptorPage.viewKey);
   currentCatalogView = amiDecryptorPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolBiosPassword?.addEventListener("click", () => {
+toolBiosPassword?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(biosPasswordPage.viewKey);
   currentCatalogView = biosPasswordPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolMicroscope?.addEventListener("click", () => {
+toolMicroscope?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(microscopePage.viewKey);
   currentCatalogView = microscopePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolAlienServer?.addEventListener("click", () => {
+toolAlienServer?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(alienServerPage.viewKey);
   currentCatalogView = alienServerPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-toolOther?.addEventListener("click", () => {
+toolOther?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(boardViewerPage.viewKey);
   currentCatalogView = boardViewerPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
 
-navSettings?.addEventListener("click", () => {
+navSettings?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
   updateViewHash(settingsPage.viewKey);
   currentCatalogView = settingsPage.viewKey;
   catalogItems = catalogCache;

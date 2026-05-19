@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202605190416">
+  <link rel="stylesheet" href="styles.css?v=202605200001">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -267,30 +267,30 @@
             <div class="sidebar-card">
               <p class="label">Navigasi</p>
               <nav class="sidebar-nav">
-                <button id="navDashboard" type="button" class="sidebar-nav-button">
+                <a id="navDashboard" href="#Dashboard" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">dashboard</span>
                   <span>Dashboard</span>
-                </button>
-                <button id="navBios" type="button" class="sidebar-nav-button">
+                </a>
+                <a id="navBios" href="#BIOS" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">memory</span>
                   <span>BIOS</span>
-                </button>
-                <button id="navBoardview" type="button" class="sidebar-nav-button">
+                </a>
+                <a id="navBoardview" href="#Boardview" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">developer_board</span>
                   <span>Boardview</span>
-                </button>
-                <button id="navSchematics" type="button" class="sidebar-nav-button">
+                </a>
+                <a id="navSchematics" href="#Schematics" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">schema</span>
                   <span>Schematics</span>
-                </button>
-                <button id="navProblemSolving" type="button" class="sidebar-nav-button">
+                </a>
+                <a id="navProblemSolving" href="#ProblemSolving" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">psychology</span>
                   <span>Problem Solving</span>
-                </button>
-                <button id="navDatasheets" type="button" class="sidebar-nav-button">
+                </a>
+                <a id="navDatasheets" href="#Datasheets" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">picture_as_pdf</span>
                   <span>Datasheets</span>
-                </button>
+                </a>
                 <details id="navTools" class="sidebar-dropdown" open>
                   <summary>
                     <span class="summary-left">
@@ -300,27 +300,27 @@
                     <span class="material-symbols-outlined">expand_more</span>
                   </summary>
                   <div class="sidebar-dropdown-menu">
-                    <button id="toolSpiFlash" type="button" class="sidebar-nav-button is-active">
+                    <a id="toolSpiFlash" href="#SpiFlash" class="sidebar-nav-button is-active">
                       <span>SPI Flash</span>
-                    </button>
-                    <button id="toolOscilloscope" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolOscilloscope" href="#Oscilloscope" class="sidebar-nav-button">
                       <span>Oscilloscope</span>
-                    </button>
-                    <button id="toolMeAnalyzer" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolMeAnalyzer" href="#MeAnalyzer" class="sidebar-nav-button">
                       <span>ME Analyzer</span>
-                    </button>
-                    <button id="toolUefi" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolUefi" href="#UefiTools" class="sidebar-nav-button">
                       <span>UEFI Tools</span>
-                    </button>
-                    <button id="toolBiosVendorDetect" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolBiosVendorDetect" href="#BiosVendorDetect" class="sidebar-nav-button">
                       <span>Deteksi Vendor BIOS</span>
-                    </button>
-                    <button id="toolFileHashCompare" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolFileHashCompare" href="#FileHashCompare" class="sidebar-nav-button">
                       <span>Cek Hash File</span>
-                    </button>
-                    <button id="toolResistorCalculator" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolResistorCalculator" href="#ResistorCalculator" class="sidebar-nav-button">
                       <span>Resistor Kalkulator</span>
-                    </button>
+                    </a>
                     <details id="toolBiosPatchGroup" class="sidebar-subdropdown">
                       <summary>
                         <span class="summary-left">
@@ -329,35 +329,35 @@
                         <span class="material-symbols-outlined">expand_more</span>
                       </summary>
                       <div class="sidebar-subdropdown-menu">
-                        <button id="toolDumpBiosLenovo" type="button" class="sidebar-nav-button sidebar-nav-button-subitem">
+                        <a id="toolDumpBiosLenovo" href="#DumpBiosLenovo" class="sidebar-nav-button sidebar-nav-button-subitem">
                           <span>Lenovo UEFI AutoPatcher</span>
-                        </button>
-                        <button id="toolDell8Fc8" type="button" class="sidebar-nav-button sidebar-nav-button-subitem">
+                        </a>
+                        <a id="toolDell8Fc8" href="#Dell8Fc8" class="sidebar-nav-button sidebar-nav-button-subitem">
                           <span>Dell 8FC8</span>
-                        </button>
-                        <button id="toolAmiDecryptor" type="button" class="sidebar-nav-button sidebar-nav-button-subitem">
+                        </a>
+                        <a id="toolAmiDecryptor" href="#AmiDecryptor" class="sidebar-nav-button sidebar-nav-button-subitem">
                           <span>AMI Decrytor &amp; Unlocker</span>
-                        </button>
+                        </a>
                       </div>
                     </details>
-                    <button id="toolBiosPassword" type="button" class="sidebar-nav-button">
+                    <a id="toolBiosPassword" href="#BiosPassword" class="sidebar-nav-button">
                       <span>BIOS Unlock Password</span>
-                    </button>
-                    <button id="toolMicroscope" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolMicroscope" href="#Microscope" class="sidebar-nav-button">
                       <span>Microscope</span>
-                    </button>
-                    <button id="toolAlienServer" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolAlienServer" href="#AlienServer" class="sidebar-nav-button">
                       <span>Alien Server</span>
-                    </button>
-                    <button id="toolOther" type="button" class="sidebar-nav-button">
+                    </a>
+                    <a id="toolOther" href="#Boardviewer" class="sidebar-nav-button">
                       <span>Boardviewer</span>
-                    </button>
+                    </a>
                   </div>
                 </details>
-                <button id="navSettings" type="button" class="sidebar-nav-button sidebar-nav-bottom">
+                <a id="navSettings" href="#Settings" class="sidebar-nav-button sidebar-nav-bottom">
                   <span class="material-symbols-outlined">settings</span>
                   <span>Pengaturan</span>
-                </button>
+                </a>
               </nav>
             </div>
 
@@ -736,7 +736,7 @@
 
   <script src="service-config.js?v=202605110643"></script>
   <script src="pages/spi-flash/page.js?v=202605152323"></script>
-    <script src="pages/oscilloscope/page.js?v=202605190430"></script>
+    <script src="pages/oscilloscope/page.js?v=202605200001"></script>
   <script src="pages/me-analyzer/page.js?v=202605110643"></script>
   <script src="pages/uefi-tool/page.js?v=202605110643"></script>
   <script src="pages/bios-vendor-detect/page.js?v=202605110643"></script>
@@ -751,6 +751,6 @@
   <script src="pages/boardviewer/page.js?v=202605110643"></script>
   <script src="pages/dashboard-home/page.js?v=202605131000"></script>
   <script src="pages/settings/page.js?v=202605110643"></script>
-    <script src="app.js?v=202605160010"></script>
+    <script src="app.js?v=202605200001"></script>
 </body>
 </html>

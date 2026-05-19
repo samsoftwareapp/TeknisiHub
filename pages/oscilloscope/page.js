@@ -3070,7 +3070,15 @@
         }
         mountedContainer.classList.toggle("hidden", !visible);
         if (!visible) {
+          const shouldTurnCalPadOff = state.calPadEnabled;
           stopContinuous("Run dihentikan.", { silent: true });
+          if (shouldTurnCalPadOff) {
+            setCalPadEnabled(false, { silent: true }).catch((error) => {
+              state.errorMessage = `OSC disembunyikan, tetapi CAL PAD gagal dimatikan: ${error?.message || "unknown"}`;
+              notify(state.errorMessage, "warning");
+              updateInstrument();
+            });
+          }
           return;
         }
         requestDraw();
