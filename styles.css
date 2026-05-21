@@ -252,7 +252,7 @@ body.quote-intro-open {
 
 .shell {
   flex: 1;
-  width: min(1380px, calc(100% - 32px));
+  width: min(1260px, calc(100% - 32px));
   margin: 0 auto;
   padding: 48px 0 64px;
   display: grid;
@@ -260,7 +260,7 @@ body.quote-intro-open {
 }
 
 .site-footer {
-  width: min(1380px, calc(100% - 32px));
+  width: min(1260px, calc(100% - 32px));
   margin: 0 auto 24px;
   padding: 18px 22px;
   display: flex;
@@ -302,30 +302,22 @@ body.quote-intro-open {
 .site-footer-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .site-footer-link {
   flex-shrink: 0;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
   color: var(--deep);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 50px;
-  padding: 13px 18px;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
   text-decoration: none;
-  box-shadow: none;
 }
 
 .site-footer-link:hover {
-  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent-strong);
 }
 
 body.is-dark-mode .site-footer {
@@ -334,9 +326,16 @@ body.is-dark-mode .site-footer {
   box-shadow: 0 24px 60px rgba(2, 8, 16, 0.34);
 }
 
-body.is-dark-mode .site-footer-link:hover,
 body.is-dark-mode .site-footer-button:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .site-footer-link {
+  color: rgba(228, 240, 251, 0.78);
+}
+
+body.is-dark-mode .site-footer-link:hover {
+  color: var(--accent);
 }
 
 .hero,
@@ -951,6 +950,61 @@ h1 {
   margin-top: 18px;
 }
 
+.login-logo-shell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 168px;
+  margin: -2px 0 0;
+  pointer-events: none;
+}
+
+.login-logo-frame {
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  width: min(178px, 34vw);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(31, 97, 139, 0.16);
+  border-radius: 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(244, 252, 255, 0.64)),
+    rgba(255, 255, 255, 0.58);
+  box-shadow:
+    0 18px 38px rgba(16, 72, 117, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.login-logo-frame img {
+  display: block;
+  width: 116%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 18px rgba(16, 72, 117, 0.12));
+}
+
+.login-copy {
+  margin: 0 0 2px;
+  color: var(--muted);
+  text-align: left;
+}
+
+body.is-dark-mode .login-logo-frame {
+  border-color: rgba(126, 166, 199, 0.18);
+  background:
+    linear-gradient(180deg, rgba(17, 31, 48, 0.94), rgba(9, 20, 34, 0.82)),
+    rgba(10, 24, 36, 0.78);
+  box-shadow:
+    0 20px 42px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.is-dark-mode .login-logo-frame img {
+  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.34));
+}
+
 .phone-input-group {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -972,8 +1026,18 @@ h1 {
 }
 
 .remember-checkline {
+  align-items: center;
   font-size: 0.95rem;
   color: var(--muted);
+}
+
+.remember-checkline input {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.remember-checkline span {
+  line-height: 1.25;
 }
 
 .verification-phone-card {
@@ -1137,6 +1201,9 @@ body.is-dark-mode .dashboard-topbar {
   padding: 10px 12px;
   border-radius: 14px;
   color: #fff;
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.15;
   text-decoration: none;
   background: rgba(255, 255, 255, 0.08);
 }
@@ -1211,11 +1278,20 @@ body.is-dark-mode .dashboard-topbar {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.15;
   cursor: pointer;
   text-decoration: none;
   box-shadow: none;
   border: 1px solid transparent;
   transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+}
+
+.sidebar-nav-button .material-symbols-outlined,
+.sidebar-dropdown summary .material-symbols-outlined,
+.sidebar-subdropdown summary .material-symbols-outlined {
+  font-size: 1.02rem;
 }
 
 .sidebar-nav-button:hover,
@@ -1251,6 +1327,9 @@ body.is-dark-mode .dashboard-topbar {
   padding: 12px;
   cursor: pointer;
   color: #fff;
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.15;
   border: 1px solid transparent;
   transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
 }
@@ -1286,6 +1365,9 @@ body.is-dark-mode .dashboard-topbar {
   padding: 10px 12px;
   cursor: pointer;
   color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.15;
   border: 1px solid transparent;
   transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
 }
@@ -3812,6 +3894,62 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
 
 .spi-file-field input {
   padding: 0;
+}
+
+.spi-file-picker-control {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.spi-file-picker-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--deep);
+  font-size: 0.86rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.spi-file-selected-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spi-file-selected-name.has-file {
+  color: var(--deep);
+}
+
+.spi-file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.spi-file-input:disabled {
+  cursor: not-allowed;
+}
+
+.spi-file-picker-control:focus-within .spi-file-picker-button,
+.spi-file-picker-control:hover .spi-file-picker-button {
+  box-shadow: 0 0 0 3px rgba(35, 140, 202, 0.12);
 }
 
 .spi-action-grid {
@@ -6465,6 +6603,128 @@ body.is-dark-mode .microscope-debug-log {
   font-size: 0.86rem;
 }
 
+body:not(.is-dark-mode) .oscilloscope-scope-panel {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: #f5fbfd;
+  box-shadow: 0 18px 44px rgba(16, 72, 117, 0.12);
+}
+
+body:not(.is-dark-mode) .oscilloscope-topbar {
+  border-bottom-color: rgba(31, 97, 139, 0.14);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+body:not(.is-dark-mode) .oscilloscope-title-block p,
+body:not(.is-dark-mode) .oscilloscope-control-group p {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .oscilloscope-title-block h4,
+body:not(.is-dark-mode) .oscilloscope-status-strip strong,
+body:not(.is-dark-mode) .oscilloscope-readout-row strong,
+body:not(.is-dark-mode) .oscilloscope-trigger-box strong {
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .oscilloscope-status-strip span,
+body:not(.is-dark-mode) .oscilloscope-readout-row span,
+body:not(.is-dark-mode) .oscilloscope-trigger-box span {
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .oscilloscope-status-strip .is-online {
+  border-color: rgba(21, 128, 111, 0.24);
+  color: #0b7b69;
+  background: rgba(30, 190, 160, 0.12);
+}
+
+body:not(.is-dark-mode) .oscilloscope-status-strip .is-offline {
+  border-color: rgba(198, 107, 34, 0.24);
+  color: #b15324;
+  background: rgba(255, 152, 94, 0.14);
+}
+
+body:not(.is-dark-mode) .oscilloscope-workbench,
+body:not(.is-dark-mode) .oscilloscope-main-stack,
+body:not(.is-dark-mode) .oscilloscope-waveform-wrap,
+body:not(.is-dark-mode) .oscilloscope-waveform {
+  background: #f5fbfd;
+}
+
+body:not(.is-dark-mode) .oscilloscope-readout-row {
+  border-color: rgba(31, 97, 139, 0.12);
+  background: #eaf5f8;
+}
+
+body:not(.is-dark-mode) .oscilloscope-side-controls,
+body:not(.is-dark-mode) .oscilloscope-control-rail,
+body:not(.is-dark-mode) .oscilloscope-channel-strip {
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+body:not(.is-dark-mode) .oscilloscope-side-controls .oscilloscope-control-group,
+body:not(.is-dark-mode) .oscilloscope-control-group {
+  border-color: rgba(31, 97, 139, 0.14);
+}
+
+body:not(.is-dark-mode) .oscilloscope-control-group label,
+body:not(.is-dark-mode) .oscilloscope-channel-row label,
+body:not(.is-dark-mode) .oscilloscope-channel-note,
+body:not(.is-dark-mode) .oscilloscope-message {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .oscilloscope-control-group select,
+body:not(.is-dark-mode) .oscilloscope-control-group input[type="number"],
+body:not(.is-dark-mode) .oscilloscope-control-group input[type="range"],
+body:not(.is-dark-mode) .oscilloscope-channel-row select,
+body:not(.is-dark-mode) .oscilloscope-channel-row input[type="number"],
+body:not(.is-dark-mode) .oscilloscope-channel-row input[type="range"] {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: rgba(245, 251, 253, 0.94);
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .oscilloscope-control-group input[type="range"]::-webkit-slider-runnable-track,
+body:not(.is-dark-mode) .oscilloscope-channel-row input[type="range"]::-webkit-slider-runnable-track {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: rgba(31, 97, 139, 0.14);
+}
+
+body:not(.is-dark-mode) .oscilloscope-control-group input[type="range"]::-moz-range-track,
+body:not(.is-dark-mode) .oscilloscope-channel-row input[type="range"]::-moz-range-track {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: rgba(31, 97, 139, 0.14);
+}
+
+body:not(.is-dark-mode) .oscilloscope-control-group .ghost,
+body:not(.is-dark-mode) .oscilloscope-channel-row .ghost,
+body:not(.is-dark-mode) .oscilloscope-scan-button {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: rgba(255, 255, 255, 0.82);
+  color: #164e7d;
+}
+
+body:not(.is-dark-mode) .oscilloscope-mode-toggle .ghost.is-active,
+body:not(.is-dark-mode) .oscilloscope-run-button.is-active {
+  border-color: rgba(21, 128, 111, 0.28);
+  color: #0b7b69;
+  background: rgba(30, 190, 160, 0.14);
+}
+
+body:not(.is-dark-mode) .oscilloscope-channel-row {
+  border-color: rgba(31, 97, 139, 0.14);
+  background: rgba(245, 251, 253, 0.76);
+}
+
+body:not(.is-dark-mode) .oscilloscope-channel-row p {
+  color: #537490;
+}
+
 body.is-dark-mode .oscilloscope-scope-panel {
   border-color: rgba(118, 151, 169, 0.2);
 }
@@ -6895,6 +7155,1850 @@ button.ghost {
   box-shadow: none;
 }
 
+.spi-scope-theme {
+  overflow: hidden;
+  display: block;
+  border: 1px solid rgba(118, 151, 169, 0.24);
+  border-radius: 8px;
+  background: #07111a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.spi-scope-panel {
+  overflow: hidden;
+  background: #07111a;
+}
+
+.spi-scope-topbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(118, 151, 169, 0.18);
+  background: #101a24;
+}
+
+.spi-scope-title-block p,
+.spi-scope-theme .label,
+.spi-scope-theme .spi-card-head .label {
+  margin: 0;
+  color: #8fb0c6;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.spi-scope-title-block h4 {
+  margin: 2px 0 0;
+  color: #f3fbff;
+  font-size: 1.02rem;
+  line-height: 1.15;
+}
+
+.spi-scope-status-strip {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.spi-scope-status-strip span,
+.spi-scope-theme .spi-inline-meta span,
+.spi-scope-theme .spi-mini-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 28px;
+  max-width: 190px;
+  padding: 5px 9px;
+  border: 1px solid rgba(118, 151, 169, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #a9bfce;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.spi-scope-status-strip strong,
+.spi-scope-theme .spi-inline-meta strong,
+.spi-scope-theme .spi-mini-badge {
+  min-width: 0;
+  overflow: hidden;
+  color: #f4fbff;
+  text-overflow: ellipsis;
+}
+
+.spi-scope-status-strip .is-online {
+  border-color: rgba(45, 228, 193, 0.35);
+  color: #82efd3;
+  background: rgba(45, 228, 193, 0.12);
+}
+
+.spi-scope-status-strip .is-offline {
+  border-color: rgba(255, 121, 96, 0.35);
+  color: #ffb09f;
+  background: rgba(255, 121, 96, 0.12);
+}
+
+.spi-scope-theme .ghost {
+  justify-content: center;
+  border-color: rgba(118, 151, 169, 0.24);
+  background: #0b1c28;
+  color: #edf9ff;
+}
+
+.spi-scope-theme .ghost:hover,
+.spi-scope-theme .ghost:focus-visible {
+  border-color: rgba(45, 228, 193, 0.38);
+  background: rgba(45, 228, 193, 0.15);
+  color: #86f3d4;
+  box-shadow: none;
+}
+
+.spi-scope-theme button:disabled,
+.spi-scope-theme select:disabled,
+.spi-scope-theme input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  filter: grayscale(0.18);
+}
+
+.spi-scope-theme .spi-layout,
+.spi-scope-theme .spi-bottom-grid {
+  gap: 12px;
+  padding: 12px;
+  background: #07111a;
+}
+
+.spi-scope-theme .spi-bottom-grid {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.spi-scope-theme .spi-card {
+  min-width: 0;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 151, 169, 0.2);
+  background: rgba(13, 23, 32, 0.96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.spi-scope-theme .spi-card.is-success {
+  border-color: rgba(45, 228, 193, 0.32);
+  background:
+    linear-gradient(180deg, rgba(45, 228, 193, 0.08), rgba(13, 23, 32, 0.96)),
+    rgba(13, 23, 32, 0.96);
+}
+
+.spi-scope-theme .spi-card.is-failed {
+  border-color: rgba(255, 121, 96, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 121, 96, 0.1), rgba(13, 23, 32, 0.96)),
+    rgba(13, 23, 32, 0.96);
+}
+
+.spi-scope-theme .spi-card.is-success .label,
+.spi-scope-theme .spi-card.is-success h4,
+.spi-scope-theme .spi-card.is-success p,
+.spi-scope-theme .spi-card.is-success strong,
+.spi-scope-theme .spi-card.is-success span,
+.spi-scope-theme .spi-card.is-failed .label,
+.spi-scope-theme .spi-card.is-failed h4,
+.spi-scope-theme .spi-card.is-failed p,
+.spi-scope-theme .spi-card.is-failed strong,
+.spi-scope-theme .spi-card.is-failed span {
+  color: inherit;
+}
+
+.spi-scope-theme .spi-card-head {
+  align-items: center;
+  margin: -2px 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(118, 151, 169, 0.14);
+}
+
+.spi-scope-theme .spi-card-head h4 {
+  margin: 2px 0 0;
+  color: #f3fbff;
+  font-size: 1rem;
+}
+
+.spi-scope-theme .spi-device-select,
+.spi-scope-theme .spi-form-grid label,
+.spi-scope-theme .spi-auto-toggle,
+.spi-scope-theme .note {
+  gap: 7px;
+  padding: 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(118, 151, 169, 0.14);
+  background: rgba(7, 17, 26, 0.72);
+  box-shadow: none;
+  color: #a8bdcc;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.spi-scope-theme .spi-form-grid label input,
+.spi-scope-theme .spi-form-grid label select,
+.spi-scope-theme .spi-form-grid label textarea {
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid rgba(118, 151, 169, 0.22);
+  border-radius: 7px;
+  background: #07111a;
+  color: #edf9ff;
+  box-shadow: none;
+}
+
+.spi-scope-theme .spi-form-grid label input[type="file"] {
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #a8bdcc;
+}
+
+.spi-scope-theme .spi-file-input,
+.spi-scope-theme .spi-file-input:disabled {
+  opacity: 0;
+  color: transparent;
+}
+
+.spi-scope-theme .spi-file-picker-button {
+  border: 1px solid rgba(118, 151, 169, 0.24);
+  background: #0b1c28;
+  color: #edf9ff;
+}
+
+.spi-scope-theme .spi-file-selected-name {
+  color: #8fb0c6;
+}
+
+.spi-scope-theme .spi-file-selected-name.has-file {
+  color: #f4fbff;
+}
+
+.spi-scope-theme .spi-file-picker-control:focus-within .spi-file-picker-button,
+.spi-scope-theme .spi-file-picker-control:hover .spi-file-picker-button {
+  border-color: rgba(45, 228, 193, 0.38);
+  background: rgba(45, 228, 193, 0.15);
+  color: #86f3d4;
+  box-shadow: none;
+}
+
+.spi-scope-theme .spi-form-grid label input:focus,
+.spi-scope-theme .spi-form-grid label select:focus,
+.spi-scope-theme .spi-form-grid label textarea:focus {
+  border-color: rgba(45, 228, 193, 0.42);
+  box-shadow: 0 0 0 3px rgba(45, 228, 193, 0.12);
+  outline: none;
+}
+
+.spi-scope-theme .spi-device-combobox-trigger {
+  min-height: 44px;
+  color: #edf9ff;
+}
+
+.spi-scope-theme .spi-device-combobox-copy small,
+.spi-scope-theme .spi-device-combobox-option-copy small,
+.spi-scope-theme .spi-auto-toggle-copy small,
+.spi-scope-theme .spi-action-copy small,
+.spi-scope-theme .spi-note,
+.spi-scope-theme .spi-verify-subtitle {
+  color: #8fb0c6;
+}
+
+.spi-scope-theme .spi-device-combobox-menu {
+  border-radius: 8px;
+  border-color: rgba(118, 151, 169, 0.2);
+  background: #101a24;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.36);
+}
+
+.spi-scope-theme .spi-device-combobox-option {
+  min-height: 48px;
+  border-radius: 7px;
+  background: rgba(7, 17, 26, 0.78);
+  color: #edf9ff;
+}
+
+.spi-scope-theme .spi-device-combobox-option:hover,
+.spi-scope-theme .spi-device-combobox-option:focus-visible,
+.spi-scope-theme .spi-device-combobox-option.is-selected {
+  border-color: rgba(45, 228, 193, 0.32);
+  background: rgba(45, 228, 193, 0.12);
+}
+
+.spi-scope-theme .spi-device-combobox-option .material-symbols-outlined {
+  color: #2de4c1;
+}
+
+.spi-scope-theme .spi-inline-meta {
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.spi-scope-theme .spi-note,
+.spi-scope-theme .spi-log-list p {
+  margin: 12px 0 0;
+  color: #a9bfce;
+  line-height: 1.5;
+}
+
+.spi-scope-theme .spi-driver-link {
+  color: #86f3d4;
+}
+
+.spi-scope-theme .spi-auto-toggle {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  margin-bottom: 10px;
+}
+
+.spi-scope-theme .spi-auto-toggle input {
+  accent-color: #2de4c1;
+}
+
+.spi-scope-theme .spi-action-grid-primary button,
+.spi-scope-theme .spi-action-grid-secondary button {
+  border-radius: 7px;
+  border: 1px solid rgba(118, 151, 169, 0.22);
+  background: #0b1c28;
+  color: #edf9ff;
+  box-shadow: none;
+}
+
+.spi-scope-theme .spi-action-grid-primary button {
+  min-height: 68px;
+}
+
+.spi-scope-theme .spi-action-grid-primary button:hover,
+.spi-scope-theme .spi-action-grid-primary button:focus-visible {
+  border-color: rgba(255, 213, 111, 0.34);
+  background: rgba(255, 213, 111, 0.12);
+  color: #ffe39a;
+}
+
+.spi-scope-theme .spi-action-copy strong,
+.spi-scope-theme .spi-auto-toggle-copy strong,
+.spi-scope-theme .spi-device-combobox-copy strong,
+.spi-scope-theme .spi-device-combobox-option-copy strong,
+.spi-scope-theme .detail-grid strong {
+  color: #f4fbff;
+}
+
+.spi-scope-theme .spi-hex-preview-shell {
+  border-radius: 8px;
+  border-color: rgba(118, 151, 169, 0.2);
+  background: #06111a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.spi-scope-theme .spi-hex-preview-chrome,
+.spi-scope-theme .spi-hex-preview-head {
+  background: #101a24;
+}
+
+.spi-scope-theme .spi-hex-preview-chrome {
+  border-bottom: 1px solid rgba(118, 151, 169, 0.16);
+}
+
+.spi-scope-theme .spi-hex-preview-caption {
+  color: #8fb0c6;
+  letter-spacing: 0;
+}
+
+.spi-scope-theme .spi-hex-preview-scroll {
+  max-height: 460px;
+}
+
+.spi-scope-theme .spi-hex-preview-body {
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent var(--spi-hex-side-padding),
+      rgba(45, 228, 193, 0.06) var(--spi-hex-side-padding),
+      rgba(45, 228, 193, 0.06) calc(var(--spi-hex-side-padding) + var(--spi-hex-offset-col)),
+      transparent calc(var(--spi-hex-side-padding) + var(--spi-hex-offset-col))
+    );
+}
+
+.spi-scope-theme .spi-log-list p {
+  border: 1px solid rgba(118, 151, 169, 0.14);
+  border-radius: 7px;
+  background: rgba(7, 17, 26, 0.72);
+}
+
+body.is-dark-mode .spi-scope-theme,
+body.is-dark-mode .spi-scope-theme .spi-card,
+body.is-dark-mode .spi-scope-theme .spi-device-select,
+body.is-dark-mode .spi-scope-theme .spi-form-grid label,
+body.is-dark-mode .spi-scope-theme .spi-auto-toggle {
+  border-color: rgba(118, 151, 169, 0.2);
+  background-color: #07111a;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: #f5fbfd;
+  box-shadow: 0 18px 44px rgba(16, 72, 117, 0.12);
+}
+
+body:not(.is-dark-mode) .spi-scope-panel,
+body:not(.is-dark-mode) .spi-scope-theme .spi-layout,
+body:not(.is-dark-mode) .spi-scope-theme .spi-bottom-grid {
+  background: #f5fbfd;
+}
+
+body:not(.is-dark-mode) .spi-scope-topbar {
+  border-bottom-color: rgba(31, 97, 139, 0.14);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+body:not(.is-dark-mode) .spi-scope-title-block p,
+body:not(.is-dark-mode) .spi-scope-theme .label,
+body:not(.is-dark-mode) .spi-scope-theme .spi-card-head .label {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-title-block h4,
+body:not(.is-dark-mode) .spi-scope-theme .spi-card-head h4,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-copy strong,
+body:not(.is-dark-mode) .spi-scope-theme .spi-auto-toggle-copy strong,
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-copy strong,
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-option-copy strong,
+body:not(.is-dark-mode) .spi-scope-theme .detail-grid strong,
+body:not(.is-dark-mode) .spi-scope-status-strip strong,
+body:not(.is-dark-mode) .spi-scope-theme .spi-inline-meta strong,
+body:not(.is-dark-mode) .spi-scope-theme .spi-mini-badge {
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-scope-status-strip span,
+body:not(.is-dark-mode) .spi-scope-theme .spi-inline-meta span,
+body:not(.is-dark-mode) .spi-scope-theme .spi-mini-badge {
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-status-strip .is-online {
+  border-color: rgba(21, 128, 111, 0.24);
+  color: #0b7b69;
+  background: rgba(30, 190, 160, 0.12);
+}
+
+body:not(.is-dark-mode) .spi-scope-status-strip .is-offline {
+  border-color: rgba(198, 107, 34, 0.24);
+  color: #b15324;
+  background: rgba(255, 152, 94, 0.14);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-card {
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-card.is-success {
+  border-color: rgba(21, 128, 111, 0.24);
+  background:
+    linear-gradient(180deg, rgba(30, 190, 160, 0.12), rgba(255, 255, 255, 0.78)),
+    rgba(255, 255, 255, 0.78);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-card.is-failed {
+  border-color: rgba(198, 107, 34, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 152, 94, 0.14), rgba(255, 255, 255, 0.78)),
+    rgba(255, 255, 255, 0.78);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-select,
+body:not(.is-dark-mode) .spi-scope-theme .spi-form-grid label,
+body:not(.is-dark-mode) .spi-scope-theme .spi-auto-toggle,
+body:not(.is-dark-mode) .spi-scope-theme .note {
+  border-color: rgba(31, 97, 139, 0.14);
+  background: rgba(245, 251, 253, 0.76);
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-form-grid label input,
+body:not(.is-dark-mode) .spi-scope-theme .spi-form-grid label select,
+body:not(.is-dark-mode) .spi-scope-theme .spi-form-grid label textarea {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: rgba(245, 251, 253, 0.94);
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .ghost,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-secondary button,
+body:not(.is-dark-mode) .spi-scope-theme .spi-file-picker-button {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: rgba(255, 255, 255, 0.82);
+  color: #164e7d;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .ghost:hover,
+body:not(.is-dark-mode) .spi-scope-theme .ghost:focus-visible,
+body:not(.is-dark-mode) .spi-scope-theme .spi-file-picker-control:focus-within .spi-file-picker-button,
+body:not(.is-dark-mode) .spi-scope-theme .spi-file-picker-control:hover .spi-file-picker-button {
+  border-color: rgba(21, 128, 111, 0.28);
+  background: rgba(30, 190, 160, 0.14);
+  color: #0b7b69;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button:hover,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button:focus-visible {
+  border-color: rgba(191, 124, 28, 0.28);
+  background: rgba(255, 213, 111, 0.22);
+  color: #8a5a00;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-trigger {
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-copy small,
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-option-copy small,
+body:not(.is-dark-mode) .spi-scope-theme .spi-auto-toggle-copy small,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-copy small,
+body:not(.is-dark-mode) .spi-scope-theme .spi-note,
+body:not(.is-dark-mode) .spi-scope-theme .spi-verify-subtitle,
+body:not(.is-dark-mode) .spi-scope-theme .spi-file-selected-name {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-file-selected-name.has-file {
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-menu {
+  border-color: rgba(31, 97, 139, 0.16);
+  background: #f5fbfd;
+  box-shadow: 0 18px 40px rgba(16, 72, 117, 0.18);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-option {
+  border-color: rgba(31, 97, 139, 0.14);
+  background: rgba(255, 255, 255, 0.78);
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-shell {
+  border-color: rgba(31, 97, 139, 0.16);
+  background: #f5fbfd;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-chrome,
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-head {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-chrome {
+  border-bottom-color: rgba(31, 97, 139, 0.14);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-caption {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-body {
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent var(--spi-hex-side-padding),
+      rgba(39, 199, 213, 0.10) var(--spi-hex-side-padding),
+      rgba(39, 199, 213, 0.10) calc(var(--spi-hex-side-padding) + var(--spi-hex-offset-col)),
+      transparent calc(var(--spi-hex-side-padding) + var(--spi-hex-offset-col))
+    );
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-log-list p {
+  border-color: rgba(31, 97, 139, 0.14);
+  background: rgba(245, 251, 253, 0.76);
+  color: #537490;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) {
+  gap: 12px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-workbench-shell,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-shell,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-calculator-shell {
+  gap: 12px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-workbench-hero {
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top right, rgba(45, 228, 193, 0.16), transparent 32%),
+    linear-gradient(135deg, #0b1c28, #123a60);
+  box-shadow: 0 12px 30px rgba(12, 34, 54, 0.16);
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-workbench-hero h3 {
+  margin-bottom: 4px;
+  font-size: 1.12rem;
+  line-height: 1.18;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-workbench-copy {
+  max-width: 82ch;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-workbench-badge-row,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-inline-meta,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-actions,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .microscope-actions,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .microscope-panel-actions,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-panel-actions {
+  gap: 8px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-status-pill,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-mini-badge,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-badge,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-chip,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-footer-chip {
+  padding: 6px 9px;
+  font-size: 0.76rem;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-layout,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-bottom-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-form-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-action-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-stats-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-band-list,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .alien-server-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-shell,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-sidebar,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-inspector,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-vendor-detect-candidate-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-vendor-detect-notes,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-result-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-pattern-grid {
+  gap: 10px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-card {
+  padding: 14px;
+  border-radius: 8px;
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+body.is-dark-mode.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-card {
+  border-color: rgba(118, 151, 169, 0.2);
+  background: rgba(7, 17, 26, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-card-head {
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(31, 97, 139, 0.12);
+}
+
+body.is-dark-mode.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-card-head {
+  border-bottom-color: rgba(118, 151, 169, 0.16);
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-card-head h4 {
+  font-size: 1rem;
+  line-height: 1.18;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .label,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-card-head .label {
+  font-size: 0.72rem;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-form-grid label,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .component-equivalent-search-box {
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-form-grid label input,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-form-grid label select,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-form-grid label textarea,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-input,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-searchbar input {
+  min-height: 42px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-input {
+  min-height: 78px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-stat-card,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-band-card,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-vendor-detect-candidate-card,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-vendor-detect-notes p,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-result-card,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-pattern-card,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-panel,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-stage-card,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-supported-formats,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .microscope-debug-panel,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .note,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-log-list p,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .lenovo-bios-patch-notes p {
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-stat-card {
+  gap: 9px;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-stat-card .material-symbols-outlined {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 1.05rem;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-stat-card p:last-child,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-panel p,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-vendor-detect-pattern,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-note,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .note {
+  font-size: 0.82rem;
+  line-height: 1.42;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .ghost,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) button {
+  min-height: 38px;
+  border-radius: 8px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-action-grid-primary button {
+  min-height: 62px;
+  padding: 10px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .spi-action-grid-secondary button {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-band-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-band-count-row,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-quick-chip-row,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-supported-format-list,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-chip-list,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-vendor-detect-candidate-badges,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-actions-list,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-example-row {
+  gap: 7px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-band-chip,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-vendor-detect-confidence,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .bios-password-example-button {
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-highlight-value {
+  font-size: clamp(1.35rem, 1.15rem + 0.7vw, 2rem);
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .detail-grid,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .resistor-detail-grid {
+  gap: 7px 10px;
+  margin-top: 10px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .me-analyzer-console,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .me-analyzer-empty,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-console,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-warnings {
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-console {
+  max-height: 520px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-searchbar {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-table thead th,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .uefi-tool-table tbody td {
+  padding: 8px 9px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-card {
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-copy {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-panel {
+  box-shadow: none;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .boardviewer-preview-stage-card {
+  gap: 10px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .alien-server-frame-shell,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .alien-server-frame {
+  height: 360px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .alien-server-frame-shell-tall,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .alien-server-frame-tall {
+  height: 520px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .alien-server-frame-shell,
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .microscope-viewport {
+  border-radius: 8px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .microscope-preview-card {
+  gap: 10px;
+}
+
+body.is-tool-workbench-view .spi-workbench:not(#spiFlashWorkbench):not(#oscilloscopeWorkbench):not(.hidden) .microscope-viewport {
+  min-height: 360px;
+}
+
+body.is-compact-shell-view .dashboard {
+  margin-top: 14px;
+  gap: 12px;
+}
+
+body.is-compact-shell-view .dashboard-topbar {
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top right, rgba(45, 228, 193, 0.16), transparent 32%),
+    linear-gradient(135deg, #0b1c28, #123a60);
+  box-shadow: 0 12px 30px rgba(12, 34, 54, 0.16);
+}
+
+body.is-compact-shell-view .dashboard-topbar-copy {
+  gap: 4px;
+}
+
+body.is-compact-shell-view .dashboard-topbar h2 {
+  font-size: 1.18rem;
+  line-height: 1.18;
+}
+
+body.is-compact-shell-view .dashboard-topbar .dashboard-subtitle {
+  margin-top: 2px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+body.is-compact-shell-view .dashboard-chip {
+  font-size: 0.82rem;
+}
+
+body.is-compact-shell-view .dashboard-actions,
+body.is-compact-shell-view .dashboard-action-buttons {
+  gap: 8px;
+}
+
+body.is-compact-shell-view .dashboard-actions .ghost {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-shell-view .dashboard-layout {
+  grid-template-columns: minmax(0, 242px) minmax(0, 1fr);
+  gap: 12px;
+}
+
+body.is-compact-shell-view .dashboard-sidebar,
+body.is-compact-shell-view .dashboard-main,
+body.is-compact-shell-view .sidebar-nav,
+body.is-compact-shell-view .sidebar-dropdown-menu,
+body.is-compact-shell-view .sidebar-subdropdown-menu,
+body.is-compact-shell-view .access-list {
+  gap: 8px;
+}
+
+body.is-compact-shell-view .sidebar-card {
+  padding: 14px;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 57, 92, 0.14);
+}
+
+body.is-compact-shell-view .sidebar-nav a,
+body.is-compact-shell-view .sidebar-link,
+body.is-compact-shell-view .sidebar-nav-button {
+  min-height: 35px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+body.is-compact-shell-view .sidebar-dropdown,
+body.is-compact-shell-view .sidebar-subdropdown {
+  border-radius: 8px;
+}
+
+body.is-compact-shell-view .sidebar-dropdown summary,
+body.is-compact-shell-view .sidebar-subdropdown summary {
+  min-height: 35px;
+  padding: 7px 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+body.is-compact-shell-view .sidebar-nav-button .material-symbols-outlined,
+body.is-compact-shell-view .sidebar-dropdown summary .material-symbols-outlined,
+body.is-compact-shell-view .sidebar-subdropdown summary .material-symbols-outlined {
+  font-size: 0.98rem;
+}
+
+body.is-compact-shell-view .sidebar-nav-button-subitem {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 0.84rem;
+}
+
+body.is-compact-shell-view .access-list li {
+  gap: 8px;
+}
+
+body.is-catalog-workbench-view .catalog {
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+body.is-dark-mode.is-catalog-workbench-view .catalog {
+  border-color: rgba(118, 151, 169, 0.2);
+  background: rgba(7, 17, 26, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.is-catalog-workbench-view .catalog-head {
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(31, 97, 139, 0.12);
+}
+
+body.is-dark-mode.is-catalog-workbench-view .catalog-head {
+  border-bottom-color: rgba(118, 151, 169, 0.16);
+}
+
+body.is-catalog-workbench-view .catalog-head h3 {
+  font-size: 1.06rem;
+  line-height: 1.18;
+}
+
+body.is-catalog-workbench-view .catalog-subtitle {
+  margin-top: 4px;
+  font-size: 0.86rem;
+  line-height: 1.42;
+}
+
+body.is-catalog-workbench-view .catalog-toolbar,
+body.is-catalog-workbench-view .catalog-toolbar-actions,
+body.is-catalog-workbench-view .catalog-card-actions,
+body.is-catalog-workbench-view .catalog-context-actions,
+body.is-catalog-workbench-view .catalog-inline-meta {
+  gap: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-search {
+  min-height: 42px;
+  min-width: min(460px, 100%);
+  padding: 0 10px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-search input {
+  min-height: 40px;
+  font-size: 0.92rem;
+}
+
+body.is-catalog-workbench-view .catalog-search-status,
+body.is-catalog-workbench-view .catalog-count,
+body.is-catalog-workbench-view .catalog-category,
+body.is-catalog-workbench-view .catalog-access {
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+}
+
+body.is-catalog-workbench-view .catalog-list {
+  gap: 10px;
+}
+
+body.is-catalog-workbench-view .catalog-card {
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+body.is-dark-mode.is-catalog-workbench-view .catalog-card {
+  border-color: rgba(118, 151, 169, 0.2);
+  background: rgba(13, 23, 32, 0.96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.is-catalog-workbench-view .catalog-card h4 {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+body.is-catalog-workbench-view .catalog-card-top {
+  gap: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-meta-grid {
+  gap: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-meta-grid div {
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-meta-grid dt {
+  margin-bottom: 4px;
+  font-size: 0.68rem;
+}
+
+body.is-catalog-workbench-view .catalog-meta-grid dd,
+body.is-catalog-workbench-view .catalog-file-row {
+  font-size: 0.84rem;
+}
+
+body.is-catalog-workbench-view .catalog-file-row,
+body.is-catalog-workbench-view .catalog-flash-chip-device,
+body.is-catalog-workbench-view .catalog-boardview-viewer {
+  min-height: 36px;
+  padding: 6px 9px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-action-button,
+body.is-catalog-workbench-view .catalog-download-button,
+body.is-catalog-workbench-view .catalog-view-button,
+body.is-catalog-workbench-view .catalog-card-actions .ghost {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-share-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0;
+}
+
+body.is-catalog-workbench-view .catalog-context-panel,
+body.is-catalog-workbench-view .catalog-empty {
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-empty {
+  min-height: 160px;
+}
+
+body.is-catalog-workbench-view .catalog-shimmer-pill {
+  height: 28px;
+}
+
+body.is-catalog-workbench-view .catalog-shimmer-title {
+  height: 22px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-shimmer-meta {
+  height: 52px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-shimmer-row {
+  height: 32px;
+}
+
+body.is-catalog-workbench-view .catalog-shimmer-button {
+  height: 38px;
+  border-radius: 8px;
+}
+
+body.is-catalog-workbench-view .catalog-pagination .ghost {
+  min-height: 38px;
+  min-width: 150px;
+  border-radius: 8px;
+}
+
+body.is-dashboard-workbench-view #dashboardHomeWorkbench {
+  gap: 12px;
+}
+
+body.is-dashboard-workbench-view #dashboardHomeWorkbench .spi-card,
+body.is-settings-workbench-view #settingsWorkbench .spi-card {
+  padding: 14px;
+  border-radius: 8px;
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+body.is-dark-mode.is-dashboard-workbench-view #dashboardHomeWorkbench .spi-card,
+body.is-dark-mode.is-settings-workbench-view #settingsWorkbench .spi-card {
+  border-color: rgba(118, 151, 169, 0.2);
+  background: rgba(7, 17, 26, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.is-dashboard-workbench-view .dashboard-home-status-grid,
+body.is-dashboard-workbench-view .dashboard-home-main-grid,
+body.is-dashboard-workbench-view .dashboard-home-action-grid,
+body.is-dashboard-workbench-view .dashboard-home-check-list,
+body.is-dashboard-workbench-view .dashboard-home-kv-list,
+body.is-dashboard-workbench-view .dashboard-home-catalog-grid,
+body.is-settings-workbench-view #settingsWorkbench .settings-layout,
+body.is-settings-workbench-view #settingsWorkbench .catalog-list {
+  gap: 10px;
+}
+
+body.is-dashboard-workbench-view .dashboard-home-status-card,
+body.is-dashboard-workbench-view .dashboard-home-check-item,
+body.is-dashboard-workbench-view .dashboard-home-kv,
+body.is-dashboard-workbench-view .dashboard-home-action-button,
+body.is-dashboard-workbench-view .dashboard-home-catalog-item,
+body.is-settings-workbench-view .settings-toggle-card,
+body.is-settings-workbench-view .settings-inline-meta code,
+body.is-settings-workbench-view #settingsWorkbench .catalog-card {
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-dashboard-workbench-view .dashboard-home-panel {
+  gap: 10px;
+}
+
+body.is-dashboard-workbench-view .dashboard-home-section-head {
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(31, 97, 139, 0.12);
+}
+
+body.is-dark-mode.is-dashboard-workbench-view .dashboard-home-section-head {
+  border-bottom-color: rgba(118, 151, 169, 0.16);
+}
+
+body.is-dashboard-workbench-view .dashboard-home-section-head h4,
+body.is-settings-workbench-view #settingsWorkbench .spi-card-head h4 {
+  font-size: 1rem;
+  line-height: 1.18;
+}
+
+body.is-dashboard-workbench-view .dashboard-home-status-card {
+  gap: 9px;
+}
+
+body.is-dashboard-workbench-view .dashboard-home-status-card .material-symbols-outlined,
+body.is-dashboard-workbench-view .dashboard-home-check-item .material-symbols-outlined,
+body.is-dashboard-workbench-view .dashboard-home-catalog-item > .material-symbols-outlined {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 1.05rem;
+}
+
+body.is-dashboard-workbench-view .dashboard-home-action-button {
+  min-height: 64px;
+  gap: 9px;
+}
+
+body.is-dashboard-workbench-view .dashboard-home-action-button em,
+body.is-dashboard-workbench-view .dashboard-home-catalog-item em {
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+
+body.is-settings-workbench-view #settingsWorkbench {
+  gap: 12px;
+}
+
+body.is-settings-workbench-view #settingsWorkbench .spi-card-head {
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(31, 97, 139, 0.12);
+}
+
+body.is-dark-mode.is-settings-workbench-view #settingsWorkbench .spi-card-head {
+  border-bottom-color: rgba(118, 151, 169, 0.16);
+}
+
+body.is-settings-workbench-view .settings-toggle-card {
+  gap: 10px;
+}
+
+body.is-settings-workbench-view .settings-toggle-card p,
+body.is-settings-workbench-view .settings-maintenance-copy,
+body.is-settings-workbench-view #settingsWorkbench .spi-note {
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+body.is-settings-workbench-view .settings-inline-meta {
+  margin-top: 10px;
+  gap: 6px;
+}
+
+body.is-settings-workbench-view .settings-actions {
+  margin-top: 10px;
+}
+
+body.is-settings-workbench-view .settings-actions button,
+body.is-settings-workbench-view .settings-actions .ghost {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-settings-workbench-view #settingsWorkbench .catalog-card {
+  gap: 8px;
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+body.is-dark-mode.is-settings-workbench-view #settingsWorkbench .catalog-card {
+  border-color: rgba(118, 151, 169, 0.2);
+  background: rgba(13, 23, 32, 0.96);
+}
+
+body.is-compact-shell-view .catalog-modal-card {
+  padding: 18px;
+  border-radius: 8px;
+}
+
+body.is-compact-shell-view .catalog-modal-head {
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+body.is-compact-shell-view .catalog-editor-form,
+body.is-compact-shell-view .catalog-editor-metadata-grid,
+body.is-compact-shell-view .catalog-additional-files,
+body.is-compact-shell-view .catalog-analysis-panel,
+body.is-compact-shell-view .catalog-analysis-list {
+  gap: 10px;
+}
+
+body.is-compact-shell-view .catalog-editor-primary-file,
+body.is-compact-shell-view .catalog-readonly-field,
+body.is-compact-shell-view .catalog-form-field,
+body.is-compact-shell-view .catalog-additional-files,
+body.is-compact-shell-view .catalog-analysis-panel,
+body.is-compact-shell-view .catalog-analysis-grid div,
+body.is-compact-shell-view .catalog-analysis-item,
+body.is-compact-shell-view .catalog-editor-upload-progress,
+body.is-compact-shell-view .catalog-additional-file-row {
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-shell-view .catalog-editor-form input[type="file"],
+body.is-compact-shell-view .catalog-editor-form input[type="file"]::file-selector-button,
+body.is-compact-shell-view .catalog-editor-form input[type="file"]::-webkit-file-upload-button,
+body.is-compact-shell-view .catalog-additional-file-row .ghost {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-shell-view .catalog-editor-actions {
+  margin-top: 8px;
+}
+
+body.is-compact-ui {
+  --shadow: 0 14px 34px rgba(16, 72, 117, 0.12);
+}
+
+body.is-dark-mode.is-compact-ui {
+  --shadow: 0 18px 44px rgba(2, 8, 16, 0.34);
+}
+
+body.is-compact-ui .shell {
+  width: min(1260px, calc(100% - 24px));
+  padding: 18px 0 28px;
+  gap: 12px;
+}
+
+body.is-compact-ui .hero,
+body.is-compact-ui .panel,
+body.is-compact-ui .site-footer {
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+body.is-compact-ui .hero {
+  padding: 14px;
+}
+
+body.is-compact-ui .panel {
+  padding: 14px;
+}
+
+body.is-compact-ui .hero::before {
+  opacity: 0.58;
+}
+
+body.is-compact-ui .site-footer {
+  width: min(1260px, calc(100% - 24px));
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+body.is-compact-ui .site-footer-copy {
+  gap: 3px;
+}
+
+body.is-compact-ui .site-footer-text {
+  font-size: 0.86rem;
+  line-height: 1.42;
+}
+
+body.is-compact-ui .site-footer-actions {
+  gap: 8px;
+}
+
+body.is-compact-ui .site-footer-button {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .site-footer-link {
+  font-size: 0.84rem;
+}
+
+body.is-compact-ui h1 {
+  margin-bottom: 8px;
+  font-size: clamp(1.8rem, 3.8vw, 3.2rem);
+  line-height: 1;
+}
+
+body.is-compact-ui .lede {
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+body.is-compact-ui .eyebrow,
+body.is-compact-ui .label {
+  margin-bottom: 6px;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+body.is-compact-ui .status-card,
+body.is-compact-ui .panel-head,
+body.is-compact-ui .facts,
+body.is-compact-ui .actions {
+  gap: 10px;
+}
+
+body.is-compact-ui .status-card {
+  align-items: center;
+}
+
+body.is-compact-ui .status-card-actions {
+  gap: 6px;
+}
+
+body.is-compact-ui .service-version-row {
+  gap: 8px;
+  margin: -2px 0 5px;
+}
+
+body.is-compact-ui .service-version,
+body.is-compact-ui .service-platform-note,
+body.is-compact-ui .service-update-notice,
+body.is-compact-ui .update-progress-meta {
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+body.is-compact-ui .hero-download,
+body.is-compact-ui .hero-secondary-action {
+  min-height: 38px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .service-update-notice,
+body.is-compact-ui .update-progress,
+body.is-compact-ui .error-message,
+body.is-compact-ui .join-hint {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .update-progress {
+  gap: 8px;
+}
+
+body.is-compact-ui .update-progress-head {
+  margin-bottom: 8px;
+}
+
+body.is-compact-ui .update-progress-track {
+  height: 8px;
+}
+
+body.is-compact-ui .facts {
+  margin-top: 12px;
+}
+
+body.is-compact-ui .facts div {
+  min-width: 150px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .badge {
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+
+body.is-compact-ui .form,
+body.is-compact-ui .agreement {
+  gap: 8px;
+  margin-top: 10px;
+}
+
+body.is-compact-ui .login-logo-shell {
+  min-height: 142px;
+  margin: -2px 0 0;
+}
+
+body.is-compact-ui .login-logo-frame {
+  width: min(148px, 30vw);
+  border-radius: 26px;
+}
+
+body.is-compact-ui .login-copy {
+  font-size: 0.9rem;
+  line-height: 1.38;
+}
+
+body.is-compact-ui .phone-input-group {
+  gap: 8px;
+}
+
+body.is-compact-ui input,
+body.is-compact-ui select,
+body.is-compact-ui textarea {
+  min-height: 42px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+}
+
+body.is-compact-ui textarea {
+  min-height: 96px;
+}
+
+body.is-compact-ui input:focus,
+body.is-compact-ui select:focus,
+body.is-compact-ui textarea:focus {
+  box-shadow:
+    0 0 0 3px rgba(35, 140, 202, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+body.is-dark-mode.is-compact-ui input:focus,
+body.is-dark-mode.is-compact-ui select:focus,
+body.is-dark-mode.is-compact-ui textarea:focus {
+  box-shadow:
+    0 0 0 3px rgba(86, 168, 220, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body.is-compact-ui .phone-prefix {
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .checkline {
+  gap: 8px;
+  font-size: 0.9rem;
+  line-height: 1.38;
+}
+
+body.is-compact-ui .checkline input,
+body.is-compact-ui .remember-checkline input,
+body.is-compact-ui .join-option input,
+body.is-compact-ui .settings-toggle-card input {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+}
+
+body.is-compact-ui button,
+body.is-compact-ui button.ghost {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  gap: 8px;
+}
+
+body.is-compact-ui .floating-utility-stack {
+  right: 12px;
+  bottom: calc(12px + var(--floating-utility-offset, 0px));
+  gap: 8px;
+}
+
+body.is-compact-ui .floating-utility-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .service-activity-float {
+  left: 8px;
+  bottom: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .join-flow,
+body.is-compact-ui .join-hint,
+body.is-compact-ui .verification-phone-card {
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .join-flow h2 {
+  font-size: 1.2rem;
+}
+
+body.is-compact-ui .join-option {
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .toast-container {
+  top: 12px;
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  gap: 8px;
+}
+
+body.is-compact-ui .toast {
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .toast-message {
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+body.is-compact-ui .toast-close {
+  min-height: 0;
+  padding: 0;
+}
+
+body.is-compact-ui .catalog-modal {
+  padding: 14px;
+}
+
+body.is-compact-ui .catalog-modal-card,
+body.is-compact-ui .about-modal-card,
+body.is-compact-ui .delete-confirm-modal-card,
+body.is-compact-ui .problem-solving-modal-card,
+body.is-compact-ui .previous-versions-modal-card,
+body.is-compact-ui .catalog-ai-suggestion-modal-card {
+  border-radius: 8px;
+}
+
+body.is-compact-ui .catalog-modal-card {
+  padding: 18px;
+  max-height: calc(100vh - 28px);
+}
+
+body.is-compact-ui .catalog-modal-head {
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+}
+
+body.is-compact-ui .delete-confirm-modal-card {
+  gap: 12px;
+}
+
+body.is-compact-ui .delete-confirm-icon-shell {
+  width: 58px;
+  height: 58px;
+}
+
+body.is-compact-ui .delete-confirm-icon-shell .material-symbols-outlined {
+  font-size: 1.7rem;
+}
+
+body.is-compact-ui .delete-confirm-copy {
+  gap: 6px;
+}
+
+body.is-compact-ui .delete-confirm-copy h3 {
+  font-size: 1.24rem;
+}
+
+body.is-compact-ui .delete-confirm-copy p {
+  font-size: 0.88rem;
+  line-height: 1.42;
+}
+
+body.is-compact-ui .delete-confirm-target,
+body.is-compact-ui .delete-confirm-meta-item,
+body.is-compact-ui .catalog-ai-suggestion-reasoning,
+body.is-compact-ui .catalog-ai-suggestion-sources,
+body.is-compact-ui .catalog-ai-suggestion-source-link,
+body.is-compact-ui .previous-version-item,
+body.is-compact-ui .previous-versions-empty,
+body.is-compact-ui .problem-solving-viewer-content {
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .delete-confirm-meta,
+body.is-compact-ui .delete-confirm-actions,
+body.is-compact-ui .catalog-ai-suggestion-source-list,
+body.is-compact-ui .previous-versions-list,
+body.is-compact-ui .about-support-links {
+  gap: 8px;
+}
+
+body.is-compact-ui .previous-version-text,
+body.is-compact-ui .about-modal-body p,
+body.is-compact-ui .catalog-ai-suggestion-reasoning p {
+  font-size: 0.88rem;
+  line-height: 1.42;
+}
+
+body.is-compact-ui .about-modal-logo {
+  margin-bottom: 12px;
+}
+
+body.is-compact-ui .about-modal-logo img {
+  width: min(96px, 28vw);
+}
+
+body.is-compact-ui .catalog-upload-task-panel {
+  right: 12px;
+  bottom: 12px;
+  width: min(344px, calc(100vw - 24px));
+}
+
+body.is-compact-ui .catalog-upload-task-card {
+  border-radius: 8px;
+}
+
+body.is-compact-ui .catalog-upload-task-head {
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+body.is-compact-ui .catalog-upload-task-body,
+body.is-compact-ui .catalog-upload-task-list {
+  gap: 8px;
+}
+
+body.is-compact-ui .catalog-upload-task-body {
+  padding: 0 10px 10px;
+}
+
+body.is-compact-ui .catalog-upload-task-item {
+  padding: 10px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .catalog-upload-task-file {
+  gap: 9px;
+}
+
+body.is-compact-ui .catalog-upload-task-file-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 1.05rem;
+}
+
+body.is-compact-ui .catalog-upload-task-copy strong {
+  font-size: 0.9rem;
+}
+
+body.is-compact-ui .catalog-upload-task-copy span {
+  font-size: 0.78rem;
+}
+
+body.is-compact-ui .catalog-upload-task-progress {
+  margin-top: 8px;
+  height: 5px;
+}
+
+body.is-compact-ui .quote-intro-modal {
+  padding: 14px;
+}
+
+body.is-compact-ui .quote-intro-card {
+  width: min(900px, 100%);
+  min-height: min(540px, calc(100vh - 28px));
+  padding: 20px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .quote-intro-content {
+  width: min(520px, 100%);
+  gap: 16px;
+}
+
+body.is-compact-ui .quote-intro-badge {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  letter-spacing: 0;
+}
+
+body.is-compact-ui .quote-intro-copy {
+  gap: 10px;
+}
+
+body.is-compact-ui .quote-intro-copy h2 {
+  font-size: clamp(1.75rem, 3vw, 2.6rem);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+body.is-compact-ui .quote-intro-body,
+body.is-compact-ui .quote-intro-einstein {
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+body.is-compact-ui .quote-intro-body p,
+body.is-compact-ui .quote-intro-einstein p {
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+body.is-compact-ui .quote-intro-einstein footer {
+  font-size: 0.76rem;
+  letter-spacing: 0;
+}
+
+body.is-compact-ui .quote-intro-footer {
+  gap: 10px;
+}
+
+body.is-compact-ui .quote-intro-enter-button {
+  min-height: 40px;
+  padding-inline: 12px;
+}
+
+body.is-compact-ui .quote-intro-close {
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+}
+
+@media (max-width: 1180px) {
+  .spi-scope-topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .spi-scope-status-strip {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .spi-scope-theme .spi-layout,
+  .spi-scope-theme .spi-bottom-grid {
+    padding: 10px;
+  }
+
+  .spi-scope-status-strip span {
+    max-width: 100%;
+  }
+}
+
 .catalog-delete-confirm-button {
   background: linear-gradient(135deg, #ef6f57, #cb3f35);
   box-shadow: 0 14px 28px rgba(203, 63, 53, 0.24);
@@ -6983,6 +9087,19 @@ body.is-dark-mode .file-hash-compare-result-card.is-different h4 {
   width: 18px;
   height: 18px;
   margin-top: 3px;
+}
+
+.remember-checkline {
+  align-items: center;
+}
+
+.remember-checkline input {
+  align-self: center;
+  margin-top: 0;
+}
+
+.remember-checkline span {
+  line-height: 1;
 }
 
 .hidden {

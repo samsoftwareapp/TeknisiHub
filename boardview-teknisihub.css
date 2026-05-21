@@ -2591,6 +2591,292 @@ body[data-theme="light"] .tool-btn.active .tool-svg-icon {
 body[data-theme="light"] .tool-btn.active .tool-svg-icon {
   color: #1d4ed8;
 }
+
+/* TeknisiHub compact UI refresh */
+body.is-compact-viewer {
+  --panel-radius: 8px;
+  --compact-gap: 8px;
+}
+
+body.is-compact-viewer .app-shell {
+  grid-template-columns: minmax(0, 1fr) 286px;
+}
+
+body.is-compact-viewer .sidebar {
+  background: rgba(7, 17, 26, 0.94);
+  border-left-color: rgba(118, 151, 169, 0.2);
+}
+
+body[data-theme="light"].is-compact-viewer .sidebar {
+  background: rgba(245, 251, 253, 0.94);
+  border-left-color: rgba(31, 97, 139, 0.16);
+}
+
+body.is-compact-viewer .viewer-area {
+  background: #07111a;
+}
+
+body[data-theme="light"].is-compact-viewer .viewer-area {
+  background: #f5fbfd;
+}
+
+body.is-compact-viewer .toolbar {
+  min-height: 44px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom-color: rgba(118, 151, 169, 0.18);
+  background: #101a24;
+}
+
+body[data-theme="light"].is-compact-viewer .toolbar {
+  border-bottom-color: rgba(31, 97, 139, 0.14);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+body.is-compact-viewer .tool-cluster {
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--panel-radius);
+}
+
+body.is-compact-viewer .tool-btn,
+body.is-compact-viewer .topbar-pill,
+body.is-compact-viewer .support-link,
+body.is-compact-viewer .support-toolbar-btn,
+body.is-compact-viewer .support-fab-text,
+body.is-compact-viewer .status-action-btn,
+body.is-compact-viewer .sb-search-btns button,
+body.is-compact-viewer .sb-tab,
+body.is-compact-viewer .inspector-mode-tab,
+body.is-compact-viewer .inspector-mini-tab,
+body.is-compact-viewer .sb-side-btns button,
+body.is-compact-viewer .action-tab,
+body.is-compact-viewer .support-close,
+body.is-compact-viewer .contact-send-btn {
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: var(--panel-radius);
+}
+
+body.is-compact-viewer .tool-btn.icon-only {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+body.is-compact-viewer .tool-btn.has-label {
+  gap: 6px;
+}
+
+body.is-compact-viewer .tool-btn[data-state]::after {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 0.62rem;
+}
+
+body.is-compact-viewer .hint,
+body.is-compact-viewer .perf-badge,
+body.is-compact-viewer .muted.small,
+body.is-compact-viewer .support-copy,
+body.is-compact-viewer .support-desc,
+body.is-compact-viewer .support-note,
+body.is-compact-viewer .status {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+body.is-compact-viewer .sb-zone-top,
+body.is-compact-viewer .sb-tabs-wrap,
+body.is-compact-viewer .sb-status-bar {
+  padding: 10px;
+}
+
+body.is-compact-viewer .sb-zone-top,
+body.is-compact-viewer .sb-tabs-wrap,
+body.is-compact-viewer .sb-tab-panel,
+body.is-compact-viewer .inspector-mode-pane,
+body.is-compact-viewer .inspector-linked-data,
+body.is-compact-viewer .sb-match-section,
+body.is-compact-viewer .sb-tab-toolbar,
+body.is-compact-viewer .sb-full-list,
+body.is-compact-viewer .sb-net-detail,
+body.is-compact-viewer .contact-form {
+  gap: var(--compact-gap);
+}
+
+body.is-compact-viewer .sb-brand-row {
+  gap: 8px;
+}
+
+body.is-compact-viewer .app-title-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--panel-radius);
+}
+
+body.is-compact-viewer .sb-title-compact {
+  font-size: 0.98rem !important;
+  letter-spacing: 0 !important;
+}
+
+body.is-compact-viewer .sidebar-version-text,
+body.is-compact-viewer .topbar-role-badge {
+  min-height: 24px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  letter-spacing: 0;
+}
+
+body.is-compact-viewer .auth-panel,
+body.is-compact-viewer .login-note,
+body.is-compact-viewer .upload-note,
+body.is-compact-viewer .results,
+body.is-compact-viewer .scroll-list,
+body.is-compact-viewer .inspector-table-shell,
+body.is-compact-viewer .sb-tab-bar,
+body.is-compact-viewer .inspector-mode-tabbar,
+body.is-compact-viewer .inspector-mini-tabbar,
+body.is-compact-viewer .sb-stats-dl > div,
+body.is-compact-viewer .action-card,
+body.is-compact-viewer .aboutme-card,
+body.is-compact-viewer .support-tier,
+body.is-compact-viewer .support-links-block,
+body.is-compact-viewer .contact-status,
+body.is-compact-viewer .metrics-panel,
+body.is-compact-viewer .metrics-item,
+body.is-compact-viewer .minimap-shell,
+body.is-compact-viewer .canvas-tooltip {
+  border-radius: var(--panel-radius);
+}
+
+body.is-compact-viewer .auth-panel,
+body.is-compact-viewer .upload-note,
+body.is-compact-viewer .results,
+body.is-compact-viewer .support-tier,
+body.is-compact-viewer .support-links-block,
+body.is-compact-viewer .metrics-item,
+body.is-compact-viewer .canvas-tooltip {
+  padding: 9px 10px;
+}
+
+body.is-compact-viewer .sb-search-row,
+body.is-compact-viewer .sb-search-btns,
+body.is-compact-viewer .sb-user-strip,
+body.is-compact-viewer .sb-tab-bar,
+body.is-compact-viewer .inspector-mode-tabbar,
+body.is-compact-viewer .inspector-mini-tabbar,
+body.is-compact-viewer .inspector-table-head,
+body.is-compact-viewer .sb-section-head,
+body.is-compact-viewer .sb-side-btns,
+body.is-compact-viewer .action-card-tabs,
+body.is-compact-viewer .support-tier-grid,
+body.is-compact-viewer .aboutme-partners,
+body.is-compact-viewer .aboutme-links {
+  gap: var(--compact-gap);
+}
+
+body.is-compact-viewer input[type="text"],
+body.is-compact-viewer input[type="password"],
+body.is-compact-viewer textarea,
+body.is-compact-viewer .sb-search-input,
+body.is-compact-viewer .sb-filter-input,
+body.is-compact-viewer .contact-input,
+body.is-compact-viewer .contact-textarea {
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: var(--panel-radius);
+  font-size: 0.86rem;
+}
+
+body.is-compact-viewer .contact-textarea {
+  min-height: 88px;
+}
+
+body.is-compact-viewer .inspector-grid-table thead th,
+body.is-compact-viewer .inspector-grid-table tbody td {
+  padding: 7px 8px;
+}
+
+body.is-compact-viewer .sb-status-bar {
+  gap: 8px;
+  border-top-color: rgba(118, 151, 169, 0.18);
+}
+
+body[data-theme="light"].is-compact-viewer .sb-status-bar {
+  border-top-color: rgba(31, 97, 139, 0.14);
+}
+
+body.is-compact-viewer .minimap-shell {
+  right: 12px;
+  bottom: 64px;
+  width: 200px;
+  padding: 8px;
+}
+
+body.is-compact-viewer #minimap-canvas {
+  border-radius: 6px;
+}
+
+body.is-compact-viewer .floating-actions {
+  right: 12px;
+  bottom: 12px;
+  gap: 8px;
+}
+
+body.is-compact-viewer .action-card {
+  width: min(360px, calc(100vw - 24px));
+  padding: 10px;
+}
+
+body.is-compact-viewer .action-card-header,
+body.is-compact-viewer .action-panel,
+body.is-compact-viewer .aboutme-card,
+body.is-compact-viewer .aboutme-card-head {
+  gap: var(--compact-gap);
+}
+
+body.is-compact-viewer .support-amount {
+  font-size: 0.92rem;
+}
+
+body.is-compact-viewer .support-title {
+  font-size: 0.84rem;
+}
+
+body.is-compact-viewer .support-desc {
+  margin-top: 3px;
+}
+
+body.is-compact-viewer .mini-fab {
+  min-height: 36px;
+  padding: 7px 9px;
+  border-radius: var(--panel-radius);
+}
+
+body.is-compact-viewer .aboutme-logo-shell img {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--panel-radius);
+}
+
+body.is-compact-viewer .metrics-modal-card,
+body.is-compact-viewer .support-legal-card {
+  border-radius: var(--panel-radius);
+  padding: 14px;
+}
+
+@media (max-width: 980px) {
+  body.is-compact-viewer .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  body.is-compact-viewer .sidebar {
+    height: 50vh;
+  }
+}
 /* =========================================================== */
 
 /* ===========================================================
@@ -3023,4 +3309,50 @@ body[data-theme="light"] .aboutme-links a {
   font-style: italic;
 }
 /* --------------------------------------------------------------------------- */
+
+/* Final compact pass keeps later viewer-specific rules aligned with TeknisiHub. */
+body.is-compact-viewer .sidebar,
+body.is-compact-viewer .toolbar,
+body.is-compact-viewer .tool-cluster,
+body.is-compact-viewer .tool-btn,
+body.is-compact-viewer .sb-search-input,
+body.is-compact-viewer .sb-search-btns button,
+body.is-compact-viewer .sb-tab,
+body.is-compact-viewer .inspector-mode-tab,
+body.is-compact-viewer .inspector-mini-tab,
+body.is-compact-viewer .status-action-btn,
+body.is-compact-viewer .action-card,
+body.is-compact-viewer .support-tier,
+body.is-compact-viewer .mini-fab,
+body.is-compact-viewer .aboutme-card,
+body.is-compact-viewer .contact-input,
+body.is-compact-viewer .contact-textarea,
+body.is-compact-viewer .contact-send-btn {
+  border-radius: 8px;
+}
+
+body.is-compact-viewer .tool-btn,
+body.is-compact-viewer .sb-search-btns button,
+body.is-compact-viewer .sb-tab,
+body.is-compact-viewer .inspector-mode-tab,
+body.is-compact-viewer .inspector-mini-tab,
+body.is-compact-viewer .status-action-btn,
+body.is-compact-viewer .contact-send-btn {
+  min-height: 34px;
+  padding: 7px 9px;
+}
+
+body.is-compact-viewer .toolbar {
+  min-height: 44px;
+  padding: 8px 10px;
+  gap: 8px;
+}
+
+body.is-compact-viewer .sb-zone-top,
+body.is-compact-viewer .sb-tabs-wrap,
+body.is-compact-viewer .sb-status-bar,
+body.is-compact-viewer .action-card,
+body.is-compact-viewer .aboutme-card {
+  padding: 10px;
+}
 

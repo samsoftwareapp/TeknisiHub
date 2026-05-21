@@ -1101,10 +1101,46 @@
     };
   }
 
+  function getOscilloscopeCanvasPalette() {
+    const isDarkMode = Boolean(globalScope.document?.body?.classList?.contains("is-dark-mode"));
+    if (isDarkMode) {
+      return {
+        background: "#06111a",
+        grid: "#173246",
+        label: "#9db5c8",
+        empty: "#91aabc",
+        guide: "rgba(226, 238, 246, 0.34)",
+        trigger: "rgba(151, 174, 190, 0.38)",
+        lockedTrigger: "rgba(255, 205, 91, 0.68)",
+        triggerLabel: "#9fb6c6",
+        tooltipBackground: "rgba(8, 20, 30, 0.92)",
+        tooltipText: "#f7fbff",
+        tooltipMuted: "#9fb6c8",
+        tooltipShadow: "rgba(0, 0, 0, 0.32)"
+      };
+    }
+
+    return {
+      background: "#f5fbfd",
+      grid: "rgba(43, 101, 139, 0.24)",
+      label: "#416982",
+      empty: "#537490",
+      guide: "rgba(31, 97, 139, 0.26)",
+      trigger: "rgba(68, 101, 122, 0.36)",
+      lockedTrigger: "rgba(191, 124, 28, 0.68)",
+      triggerLabel: "#55758b",
+      tooltipBackground: "rgba(255, 255, 255, 0.94)",
+      tooltipText: "#123a60",
+      tooltipMuted: "#537490",
+      tooltipShadow: "rgba(16, 72, 117, 0.18)"
+    };
+  }
+
   function drawGrid(ctx, bounds, xLabels, yLabels) {
-    ctx.fillStyle = "#06111a";
+    const palette = getOscilloscopeCanvasPalette();
+    ctx.fillStyle = palette.background;
     ctx.fillRect(0, 0, bounds.canvasWidth, bounds.canvasHeight);
-    ctx.strokeStyle = "#173246";
+    ctx.strokeStyle = palette.grid;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let column = 0; column <= 10; column++) {
@@ -1119,7 +1155,7 @@
     }
     ctx.stroke();
 
-    ctx.fillStyle = "#9db5c8";
+    ctx.fillStyle = palette.label;
     ctx.font = "11px Consolas, monospace";
     ctx.textBaseline = "middle";
     yLabels.forEach((label, index) => {
@@ -1399,7 +1435,7 @@
 
   function drawEmpty(ctx, bounds, message) {
     drawGrid(ctx, bounds, ["0 s", "", ""], ["", "", "", "", ""]);
-    ctx.fillStyle = "#91aabc";
+    ctx.fillStyle = getOscilloscopeCanvasPalette().empty;
     ctx.font = "700 14px Inter, Segoe UI, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -1454,7 +1490,7 @@
       const avgY = bounds.bottom - (telemetry.relativeAverage - axis.min) / span * bounds.height;
       if (avgY >= bounds.top && avgY <= bounds.bottom) {
         ctx.save();
-        ctx.strokeStyle = "rgba(255, 213, 111, 0.68)";
+        ctx.strokeStyle = palette.lockedTrigger;
         ctx.setLineDash([7, 5]);
         ctx.beginPath();
         ctx.moveTo(bounds.left, avgY);
@@ -1467,10 +1503,10 @@
     }
 
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.32)";
+    ctx.shadowColor = palette.tooltipShadow;
     ctx.shadowBlur = 14;
     roundedRect(ctx, boxX, boxY, boxWidth, boxHeight, 8);
-    ctx.fillStyle = "rgba(8, 20, 30, 0.92)";
+    ctx.fillStyle = palette.tooltipBackground;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = "rgba(255, 213, 111, 0.55)";
@@ -1483,11 +1519,11 @@
     ctx.textBaseline = "top";
     ctx.fillText("AVG", boxX + 12, boxY + 8);
 
-    ctx.fillStyle = "#f7fbff";
+    ctx.fillStyle = palette.tooltipText;
     ctx.font = "900 18px Consolas, monospace";
     ctx.fillText(mainLabel, boxX + 12, boxY + 23);
 
-    ctx.fillStyle = "#9fb6c8";
+    ctx.fillStyle = palette.tooltipMuted;
     ctx.font = "700 10px Consolas, monospace";
     ctx.fillText(subLabel, boxX + 12, boxY + 45);
     ctx.restore();
@@ -1585,6 +1621,7 @@
     });
     const primaryRendered = renderedChannels.find((channel) => channel.index === 0) || renderedChannels[0];
     const axis = primaryRendered?.axis || verticalAxisFor(values, state, 0);
+    const palette = getOscilloscopeCanvasPalette();
     drawGrid(ctx, bounds, [
       "0 s",
       formatDurationSeconds(summary.spanSeconds / 2),
@@ -1600,7 +1637,7 @@
     const span = Math.max(0.000001, axis.max - axis.min);
     const zeroY = bounds.bottom - (0 - axis.min) / span * bounds.height;
     if (zeroY >= bounds.top && zeroY <= bounds.bottom) {
-      ctx.strokeStyle = "rgba(226, 238, 246, 0.34)";
+      ctx.strokeStyle = palette.guide;
       ctx.beginPath();
       ctx.moveTo(bounds.left, zeroY);
       ctx.lineTo(bounds.right, zeroY);
@@ -1609,7 +1646,7 @@
 
     const triggerY = bounds.bottom - (summary.triggerLevel - axis.min) / span * bounds.height;
     if (triggerY >= bounds.top && triggerY <= bounds.bottom) {
-      ctx.strokeStyle = summary.triggerLocked ? "rgba(255, 205, 91, 0.68)" : "rgba(151, 174, 190, 0.38)";
+      ctx.strokeStyle = summary.triggerLocked ? palette.lockedTrigger : palette.trigger;
       ctx.beginPath();
       ctx.moveTo(bounds.left, triggerY);
       ctx.lineTo(bounds.right, triggerY);
@@ -1617,7 +1654,7 @@
     }
 
     const triggerX = bounds.left + bounds.width * clamp(Number(state.preTriggerPercent || 50), 10, 90) / 100;
-    ctx.strokeStyle = summary.triggerLocked ? "rgba(255, 205, 91, 0.68)" : "rgba(151, 174, 190, 0.38)";
+    ctx.strokeStyle = summary.triggerLocked ? palette.lockedTrigger : palette.trigger;
     ctx.beginPath();
     ctx.moveTo(triggerX, bounds.top);
     ctx.lineTo(triggerX, bounds.bottom);
@@ -1635,7 +1672,7 @@
       text: channel.style.label || `CH${channel.index + 1}`
     })));
 
-    ctx.fillStyle = summary.triggerLocked ? "#ffd56f" : "#9fb6c6";
+    ctx.fillStyle = summary.triggerLocked ? "#ffd56f" : palette.triggerLabel;
     ctx.font = "700 11px Consolas, monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
@@ -1803,6 +1840,7 @@
     const firstMs = Math.min(...channelHistories.map((channel) => channel.history[0].timeMs));
     const lastMs = Math.max(...channelHistories.map((channel) => channel.history[channel.history.length - 1].timeMs));
     const spanSeconds = Math.max(0, (lastMs - firstMs) / 1000);
+    const palette = getOscilloscopeCanvasPalette();
     drawGrid(ctx, bounds, [
       `-${formatDurationSeconds(spanSeconds)}`,
       formatDurationSeconds(spanSeconds / 2),
@@ -1818,7 +1856,7 @@
     const span = Math.max(0.000001, axis.max - axis.min);
     const zeroY = bounds.bottom - (0 - axis.min) / span * bounds.height;
     if (zeroY >= bounds.top && zeroY <= bounds.bottom) {
-      ctx.strokeStyle = "rgba(226, 238, 246, 0.34)";
+      ctx.strokeStyle = palette.guide;
       ctx.beginPath();
       ctx.moveTo(bounds.left, zeroY);
       ctx.lineTo(bounds.right, zeroY);
@@ -2182,6 +2220,7 @@
     let loopGeneration = 0;
     let drawQueued = false;
     let runConfirmResolver = null;
+    let themeListenerBound = false;
 
     function mountShell() {
       if (!mountedContainer) {
@@ -2257,6 +2296,17 @@
       };
       bindEvents();
       updateInstrument();
+    }
+
+    function bindThemeListener() {
+      if (themeListenerBound || !globalScope.document?.addEventListener) {
+        return;
+      }
+
+      themeListenerBound = true;
+      globalScope.document.addEventListener("teknisihub:themechange", () => {
+        requestDraw();
+      });
     }
 
     function bindEvents() {
@@ -3062,6 +3112,7 @@
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;
         notify = typeof options.notify === "function" ? options.notify : notify;
+        bindThemeListener();
         mountShell();
       },
       setVisible(visible) {

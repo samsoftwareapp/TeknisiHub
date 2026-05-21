@@ -352,3 +352,91 @@
     max-height: none;
   }
 }
+
+.db-editor-body.is-compact-ui .db-editor-shell {
+  width: min(1680px, calc(100% - 24px));
+  padding: 14px 0 24px;
+  gap: 12px;
+}
+
+.db-editor-body.is-compact-ui .db-editor-hero,
+.db-editor-body.is-compact-ui .db-meta-card,
+.db-editor-body.is-compact-ui .db-editor-toolbar,
+.db-editor-body.is-compact-ui .db-editor-grid-card,
+.db-editor-body.is-compact-ui .db-help-card {
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+.db-editor-body.is-compact-ui .db-editor-hero {
+  align-items: center;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.db-editor-body.is-compact-ui .db-editor-hero h1 {
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  line-height: 1.1;
+}
+
+.db-editor-body.is-compact-ui .db-editor-subtitle {
+  margin-top: 6px;
+  font-size: 0.88rem;
+  line-height: 1.42;
+}
+
+.db-editor-body.is-compact-ui .db-editor-actions,
+.db-editor-body.is-compact-ui .db-editor-toolbar,
+.db-editor-body.is-compact-ui .db-editor-tabs,
+.db-editor-body.is-compact-ui .db-editor-meta,
+.db-editor-body.is-compact-ui .db-editor-help {
+  gap: 10px;
+}
+
+.db-editor-body.is-compact-ui .db-meta-card,
+.db-editor-body.is-compact-ui .db-help-card,
+.db-editor-body.is-compact-ui .db-editor-toolbar {
+  padding: 10px;
+}
+
+.db-editor-body.is-compact-ui .db-editor-tabs {
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.db-editor-body.is-compact-ui .db-editor-tabs button,
+.db-editor-body.is-compact-ui .db-editor-actions button,
+.db-editor-body.is-compact-ui .db-editor-row-actions button {
+  min-height: 36px;
+  padding: 7px 9px;
+  border-radius: 8px;
+}
+
+.db-editor-body.is-compact-ui .db-editor-search {
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+
+.db-editor-body.is-compact-ui .db-editor-message,
+.db-editor-body.is-compact-ui .db-help-card p:last-child {
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.db-editor-body.is-compact-ui .db-editor-table-wrap {
+  max-height: calc(100vh - 238px);
+}
+
+.db-editor-body.is-compact-ui .db-editor-table th,
+.db-editor-body.is-compact-ui .db-editor-table td {
+  padding: 7px 8px;
+}
+
+.db-editor-body.is-compact-ui .db-editor-cell-input,
+.db-editor-body.is-compact-ui .db-editor-cell-select {
+  min-height: 34px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+}

@@ -45,6 +45,8 @@
   };
 
   const disabledDeviceSelections = new Set(["CH347"]);
+  let latestSpiFlashFailureSignature = "";
+  let latestSpiFlashFailureTimestamp = 0;
 
   function isTeknisiHubFlasherDevice(deviceType) {
     const normalizedDevice = String(deviceType || "").trim().toUpperCase();
@@ -233,7 +235,114 @@
     return Date.now() - Math.max(0, fallbackOffset);
   }
 
-  function reportActionProgressTasks(state, busy, deviceBusy, progressWidth, reportTask) {
+  function normalizeSpiFlashTaskActionName(value) {
+    const rawText = String(value || "").trim();
+    const normalized = rawText
+      .toLowerCase()
+      .replace(/\b(sedang|selesai|sukses|gagal|error|failed|completed|running|progress)\b/g, " ")
+      .replace(/\b\d+%\b/g, " ")
+      .replace(/[._-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const normalizedTokens = normalized.split(/\s+/).filter(Boolean);
+    const hasEne = normalizedTokens.includes("ene");
+    const hasIte = normalizedTokens.includes("ite");
+    const prefix = hasEne ? "ENE " : hasIte ? "ITE " : "";
+
+    if ((hasEne || hasIte) && normalized.includes("detect")) {
+      return `Detect ${hasEne ? "ENE" : "ITE"}`;
+    }
+
+    if (
+      normalized.includes("erase+write+verify") ||
+      normalized.includes("write flow") ||
+      normalized.includes("auto flow") ||
+      (normalized.includes("erase") && normalized.includes("write") && normalized.includes("verify"))
+    ) {
+      return `${prefix}Erase+Write+Verify`.trim();
+    }
+
+    if (
+      normalized.includes("read+verify") ||
+      normalized.includes("read verify")
+    ) {
+      return `${prefix}Read+Verify`.trim();
+    }
+
+    if (
+      normalized.includes("smartid") ||
+      normalized.includes("jedec") ||
+      (normalized.includes("detect") && !hasEne && !hasIte)
+    ) {
+      return "SmartID";
+    }
+
+    if (normalized.includes("verify")) {
+      return `${prefix}Verify`.trim();
+    }
+
+    if (normalized.includes("erase")) {
+      return `${prefix}Erase`.trim();
+    }
+
+    if (normalized.includes("write")) {
+      return `${prefix}Write`.trim();
+    }
+
+    if (normalized.includes("read")) {
+      return `${prefix}Read`.trim();
+    }
+
+    if (normalized.includes("connect") || normalized.includes("koneksi")) {
+      return "Connect";
+    }
+
+    if (normalized.includes("proses") || normalized.includes("operasi")) {
+      return "Proses";
+    }
+
+    return rawText || "SPI Flash";
+  }
+
+  function createSpiFlashTaskTitle(actionName, stage) {
+    const normalizedAction = normalizeSpiFlashTaskActionName(actionName);
+    const normalizedStage = String(stage || "").trim().toLowerCase();
+    if (normalizedStage === "running") {
+      return `Sedang ${normalizedAction}...`;
+    }
+
+    if (normalizedStage === "completed") {
+      return `${normalizedAction} selesai`;
+    }
+
+    if (normalizedStage === "failed") {
+      return `${normalizedAction} gagal`;
+    }
+
+    if (normalizedStage === "cancelled") {
+      return `${normalizedAction} batal`;
+    }
+
+    return normalizedAction;
+  }
+
+  function getStableSpiFlashFailureTimestamp(signature) {
+    const normalizedSignature = String(signature || "").trim();
+    if (!normalizedSignature) {
+      latestSpiFlashFailureSignature = "";
+      latestSpiFlashFailureTimestamp = 0;
+      return Date.now();
+    }
+
+    if (normalizedSignature !== latestSpiFlashFailureSignature) {
+      latestSpiFlashFailureSignature = normalizedSignature;
+      latestSpiFlashFailureTimestamp = Date.now();
+    }
+
+    return latestSpiFlashFailureTimestamp || Date.now();
+  }
+
+  function reportActionProgressTasks(state, busy, deviceBusy, progressWidth, reportTask, activeTaskOperationLabel = "") {
     if (typeof reportTask !== "function") {
       return;
     }
@@ -243,7 +352,7 @@
       : [])
       .slice()
       .sort((left, right) => (right.sequence || 0) - (left.sequence || 0));
-    const activeOperation = String(state.activeOperation || "").trim();
+    const activeOperation = String(activeTaskOperationLabel || state.activeOperation || "").trim();
     const hasActiveOperation = (busy || deviceBusy) && !isIdleOperationLabel(activeOperation);
     const lowerActiveOperation = activeOperation.toLowerCase();
     const shouldShowCurrentResult =
@@ -264,7 +373,7 @@
       reportTask({
         operationId: "spi-flash-active",
         source: "spi-flash",
-        fileName: activeOperation,
+        fileName: createSpiFlashTaskTitle(activeOperation, "running"),
         displayName: "SPI Flash",
         icon: "progress_activity",
         message: activeMeta,
@@ -288,7 +397,7 @@
       reportTask({
         operationId: `spi-flash-history-${entry.sequence}`,
         source: "spi-flash",
-        fileName: entry.actionLabel || "SPI Flash action",
+        fileName: createSpiFlashTaskTitle(entry.actionLabel || "SPI Flash action", "completed"),
         displayName: "SPI Flash",
         icon: getActionProgressIcon(entry.actionLabel),
         message: `${createActionProgressMeta(entry)} - ${formatDurationLabel(entry.durationMilliseconds)}`,
@@ -311,7 +420,7 @@
       reportTask({
         operationId: `spi-flash-result-${resultKey}`,
         source: "spi-flash",
-        fileName: activeOperation,
+        fileName: createSpiFlashTaskTitle(activeOperation, "completed"),
         displayName: "SPI Flash",
         icon: getActionProgressIcon(activeOperation),
         message: activeMeta,
@@ -325,14 +434,15 @@
     }
 
     if (failedMessage) {
-      const timestamp = Date.now();
       const failedTitle = activeOperation && !isIdleOperationLabel(activeOperation)
         ? activeOperation
         : "Proses gagal";
+      const failureSignature = `${failedTitle}|${failedMessage}`;
+      const timestamp = getStableSpiFlashFailureTimestamp(failureSignature);
       reportTask({
         operationId: `spi-flash-failed-${failedMessage.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80)}`,
         source: "spi-flash",
-        fileName: failedTitle,
+        fileName: createSpiFlashTaskTitle(failedTitle, "failed"),
         displayName: "SPI Flash",
         icon: getActionProgressIcon(failedTitle),
         message: failedMessage,
@@ -344,6 +454,8 @@
         updatedAt: timestamp,
         sortKey: timestamp
       });
+    } else {
+      getStableSpiFlashFailureTimestamp("");
     }
   }
 
@@ -643,7 +755,7 @@
         loading: true,
         headingMarkup: `
           <span class="material-symbols-outlined is-spinning">progress_activity</span>
-          <span>${escapeHtml(state.activeOperation || "Memproses...")}</span>
+          <span>${escapeHtml(createSpiFlashTaskTitle(state.activeOperation || "Proses", "running"))}</span>
         `
       };
     }
@@ -654,26 +766,23 @@
       hasExplicitMismatchFailure;
 
     const successLabel =
-      activeOperation.includes("read + verify selesai") ? "Read + Verify sukses" :
-      activeOperation.includes("read selesai") ? "Read sukses" :
-      activeOperation.includes("write flow selesai") ? "Erase + Write + Verify sukses" :
-      activeOperation.includes("write selesai") ? "Write sukses" :
-      activeOperation.includes("chip erase selesai") || activeOperation.includes("erase selesai") ? "Erase sukses" :
-      activeOperation.includes("verify selesai") ? "Verify sukses" :
-      "";
+      activeOperation.includes("read + verify selesai") ||
+      activeOperation.includes("read selesai") ||
+      activeOperation.includes("write flow selesai") ||
+      activeOperation.includes("write selesai") ||
+      activeOperation.includes("chip erase selesai") ||
+      activeOperation.includes("erase selesai") ||
+      activeOperation.includes("verify selesai") ||
+      activeOperation.includes("auto flow selesai") ||
+      (activeOperation.includes("detect") && activeOperation.includes("selesai"))
+        ? createSpiFlashTaskTitle(state.activeOperation, "completed")
+        : "";
 
     if (isError) {
-      const errorLabel =
-        activeOperation.includes("read") ? "Read error" :
-        activeOperation.includes("write") ? "Write error" :
-        activeOperation.includes("erase") ? "Erase error" :
-        activeOperation.includes("verify") ? "Verify error" :
-        "Status error";
-
       return {
         toneClass: " is-failed",
         loading: false,
-        headingMarkup: escapeHtml(errorLabel)
+        headingMarkup: escapeHtml(createSpiFlashTaskTitle(state.activeOperation || "Proses", "failed"))
       };
     }
 
@@ -801,6 +910,7 @@
     return `
       ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
       <div class="spi-action-grid spi-action-grid-primary">
+        ${createActionButton("detect", "radar", "SmartID", "JEDEC", actionDisableAttr)}
         ${createActionButton("read", "download", "Read", readActionSummary, actionDisableAttr)}
         ${createActionButton("erase", "ink_eraser", "Erase", "Erase", actionDisableAttr)}
         ${createActionButton("write", "upload", "Write", writeActionSummary, actionDisableAttr)}
@@ -817,33 +927,6 @@
         </button>
       </div>
     `;
-  }
-
-  function getStm32TargetKind(state) {
-    const vendor = String(state?.chipVendor || "").trim().toUpperCase();
-    const model = String(state?.chipModel || "").trim().toUpperCase();
-    if (vendor === "ENE" || model.includes("ENE ")) {
-      return "ene";
-    }
-
-    if (vendor === "ITE" || model.includes("ITE ")) {
-      return "ite";
-    }
-
-    return "spi";
-  }
-
-  function resolveStm32CommonAction(state, action) {
-    const targetKind = getStm32TargetKind(state);
-    if (targetKind === "ene") {
-      return `ene-${action}`;
-    }
-
-    if (targetKind === "ite") {
-      return `ite-${action}`;
-    }
-
-    return action;
   }
 
   function resolveActionTaskLabel(action, autoProcessEnabled, selectedDevice = state.selectedDevice) {
@@ -910,12 +993,7 @@
   }
 
   function createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
-    const targetKind = getStm32TargetKind(state);
-    const targetLabel = targetKind === "ene"
-      ? "ENE"
-      : targetKind === "ite"
-        ? "ITE"
-        : "SPI";
+    const targetLabel = "SPI";
 
     return `
       ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
@@ -923,10 +1001,10 @@
         ${createActionButton("detect", "radar", "SmartID", "SPI JEDEC", actionDisableAttr)}
         ${createActionButton("ene-detect", "memory", "Detect ENE", "KBC/EC", actionDisableAttr)}
         ${createActionButton("ite-detect", "memory", "Detect ITE", "KBC/EC", actionDisableAttr)}
-        ${createActionButton(resolveStm32CommonAction(state, "read"), "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr)}
-        ${createActionButton(resolveStm32CommonAction(state, "write"), "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr)}
-        ${createActionButton(resolveStm32CommonAction(state, "verify"), "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
-        ${createActionButton(resolveStm32CommonAction(state, "erase"), "ink_eraser", "Erase", `${targetLabel} erase`, actionDisableAttr)}
+        ${createActionButton("read", "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr)}
+        ${createActionButton("write", "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr)}
+        ${createActionButton("verify", "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
+        ${createActionButton("erase", "ink_eraser", "Erase", `${targetLabel} erase`, actionDisableAttr)}
       </div>
       <div class="spi-action-grid spi-action-grid-secondary">
         <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
@@ -983,15 +1061,41 @@
     const availableDevices = getEnabledDeviceEntries();
     const selectedDeviceLabel = resolveSelectedDeviceLabel(state.selectedDevice);
     const selectedDeviceSubtext = resolveSelectedDeviceSubtext(state.selectedDevice, deviceBusy);
+    const scopeStatusTitle = deviceBusy
+      ? "CONNECTING"
+      : busy
+        ? String(state.activeOperation || "BUSY").toUpperCase()
+        : state.selectedDevice
+          ? "READY SPI"
+          : "SELECT DEVICE";
+    const scopeUsbState = state.selectedDevice
+      ? isDeviceConnected ? "USB ON" : "USB OFF"
+      : "NO DEVICE";
     const actionPadMarkup = isTeknisiHubFlasherDevice(state.selectedDevice)
       ? createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr)
       : createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr);
 
     return `
-      <div class="spi-workbench-shell${busy ? " is-busy" : ""}">
+      <div class="spi-workbench-shell spi-scope-theme scoppy-scope${busy ? " is-busy" : ""}">
       ${busy ? `
         <div class="spi-busy-overlay" id="spiBusyOverlay" aria-hidden="true"></div>
       ` : ""}
+      <section class="spi-scope-panel">
+        <div class="spi-scope-topbar">
+          <div class="spi-scope-title-block">
+            <p>${escapeHtml(state.selectedDevice ? selectedDeviceLabel : "TEKNISIHUB_SPI")}</p>
+            <h4>${escapeHtml(scopeStatusTitle)}</h4>
+          </div>
+          <div class="spi-scope-status-strip">
+            <span class="${isDeviceConnected ? "is-online" : "is-offline"}">${escapeHtml(scopeUsbState)}</span>
+            <span>JEDEC <strong>${escapeHtml(state.jedec || "-")}</strong></span>
+            <span>CHIP <strong>${escapeHtml(state.chipModel || "-")}</strong></span>
+            <span>SIZE <strong>${escapeHtml(state.chipCapacity || "-")}</strong></span>
+            <span>PROG <strong>${escapeHtml(`${formatInteger(progressWidth)}%`)}</strong></span>
+            <span>MODE <strong>${autoProcessEnabled ? "AUTO" : "MANUAL"}</strong></span>
+          </div>
+        </div>
+      </section>
       ${state.errorMessage ? `
         <section class="spi-card">
           <div class="spi-card-head">
@@ -1055,7 +1159,6 @@
             <span>Clock <strong>${escapeHtml(profile.speed)}</strong></span>
             <span>Page size <strong>${escapeHtml(pageLabel)}</strong></span>
           </div>
-          <p class="spi-note">${escapeHtml(profile.note)}</p>
           ${showDriverPanel ? `
             <p class="spi-driver-link-row">
               <a href="#" class="spi-driver-link" data-spi-install-driver="1">${escapeHtml(driverInstallLabel)}</a>
@@ -1069,10 +1172,6 @@
               <p class="label">Chip Profile</p>
               <h4>Parameter flash</h4>
             </div>
-            <button type="button" class="ghost" data-spi-action="detect"${actionDisableAttr}>
-              <span class="material-symbols-outlined">radar</span>
-              <span>${isTeknisiHubFlasherDevice(state.selectedDevice) ? "SmartID" : "Detect JEDEC"}</span>
-            </button>
           </div>
           <div class="spi-form-grid">
             <label>
@@ -1115,8 +1214,23 @@
               <input data-field="length" type="text" value="${escapeHtml(state.length)}" placeholder="0x00800000"${disableAttr}>
             </label>
             <label class="spi-file-field">
-              Source File
-              <input id="spiFlashFileInput" type="file" accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr"${disableAttr}>
+              <span>Source File</span>
+              <span class="spi-file-picker-control">
+                <span class="spi-file-picker-button">Pilih File</span>
+                <span
+                  id="spiFlashSelectedFileName"
+                  class="spi-file-selected-name${state.fileName ? " has-file" : ""}"
+                  title="${escapeHtml(fileNameLabel)}"
+                >${escapeHtml(fileNameLabel)}</span>
+                <input
+                  id="spiFlashFileInput"
+                  class="spi-file-input"
+                  type="file"
+                  accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr"
+                  aria-describedby="spiFlashSelectedFileName"
+                  ${disableAttr}
+                >
+              </span>
             </label>
             ${showStm32SpeedField ? `
               <label>
@@ -1209,6 +1323,7 @@
     let busy = false;
     let deviceBusy = false;
     let deviceMenuOpen = false;
+    let activeTaskOperationLabel = "";
     let sessionPollTimer = null;
     let sessionPollInFlight = false;
     let hexViewRequestToken = 0;
@@ -1580,14 +1695,19 @@
         return;
       }
 
+      const renderState = busy && activeTaskOperationLabel
+        ? { ...state, activeOperation: activeTaskOperationLabel }
+        : state;
+
       reportActionProgressTasks(
-        state,
+        renderState,
         busy,
         deviceBusy,
-        Math.max(0, Math.min(100, Number(state.progress) || 0)),
-        reportTask
+        Math.max(0, Math.min(100, Number(renderState.progress) || 0)),
+        reportTask,
+        activeTaskOperationLabel
       );
-      mountedContainer.innerHTML = createWorkbenchMarkup(state, busy, deviceBusy, deviceMenuOpen, hexView);
+      mountedContainer.innerHTML = createWorkbenchMarkup(renderState, busy, deviceBusy, deviceMenuOpen, hexView);
 
       const busyOverlay = mountedContainer.querySelector("#spiBusyOverlay");
       if (busyOverlay) {
@@ -1828,6 +1948,7 @@
 
       busy = true;
       deviceMenuOpen = false;
+      activeTaskOperationLabel = String(options.activeOperation || "").trim();
       if (options.activeOperation) {
         state.activeOperation = options.activeOperation;
         state.progress = 0;
@@ -1853,6 +1974,7 @@
         stopSessionPolling();
         await refreshSessionSilently();
         busy = false;
+        activeTaskOperationLabel = "";
         render();
       }
     }

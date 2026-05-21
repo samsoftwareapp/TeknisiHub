@@ -1,4 +1,6 @@
-﻿const serviceBaseUrl = window.resolveTeknisiHubServiceBaseUrl();
+const serviceBaseUrl = window.resolveTeknisiHubServiceBaseUrl();
+
+document.body.classList.add("is-compact-ui", "is-compact-shell-view");
 
 const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
@@ -374,6 +376,12 @@ let googleAuthTabAwaitingResult = false;
 let authStatusPollTimerId = 0;
 let authStatusPollInFlight = false;
 let activeToastSignature = "";
+const localNotificationSoundState = {
+  lastSignature: "",
+  lastPlayedAt: 0
+};
+const localNotificationSoundCooldownMs = 1800;
+const localNotificationSameSoundCooldownMs = 3500;
 let lastAutoFilledOtpNoticeCode = "";
 let currentChannelRole = "";
 let currentBiosChannelRole = "";
@@ -492,7 +500,7 @@ dashboardHomePage.mount?.({
 
 spiFlashPage.mount?.({
   container: spiFlashWorkbench,
-  notify: (message, tone) => setNotice(message, tone),
+  notify: (message, tone) => setNotice(message, tone, { sound: false }),
   reportTask: (task) => {
     if (!task?.remove && !task?.deleted) {
       catalogUploadTaskDismissed = false;
@@ -1746,6 +1754,28 @@ function setActiveNav(targetKey) {
   updateDocumentTitle(targetKey);
 
   const isToolView = targetKey.startsWith("tool_");
+  const isCatalogView = ["BIOS", "Boardview", "Schematics", "ProblemSolving", "Datasheets"].includes(targetKey);
+  const isDashboardView = targetKey === dashboardHomePage.viewKey;
+  const isSettingsView = targetKey === settingsPage.viewKey;
+  const isCompactShellView = true;
+
+  document.body.classList.toggle("is-compact-shell-view", isCompactShellView);
+  document.body.classList.toggle("is-catalog-workbench-view", isCatalogView);
+  document.body.classList.toggle("is-dashboard-workbench-view", isDashboardView);
+  document.body.classList.toggle("is-settings-workbench-view", isSettingsView);
+  if (isCompactShellView) {
+    document.body.dataset.activeWorkbenchView = targetKey;
+  } else {
+    delete document.body.dataset.activeWorkbenchView;
+  }
+
+  document.body.classList.toggle("is-tool-workbench-view", isToolView);
+  if (isToolView) {
+    document.body.dataset.activeToolView = targetKey;
+  } else {
+    delete document.body.dataset.activeToolView;
+  }
+
   const isBiosPatchView = targetKey === lenovoBiosPatchPage.viewKey
     || targetKey === dell8Fc8Page.viewKey
     || targetKey === amiDecryptorPage.viewKey;
@@ -3411,6 +3441,9 @@ function applyThemeMode(mode, options = {}) {
   const resolvedMode = mode === "dark" ? "dark" : "light";
   document.body.classList.toggle("is-dark-mode", resolvedMode === "dark");
   updateThemeToggleButton(resolvedMode);
+  document.dispatchEvent(new CustomEvent("teknisihub:themechange", {
+    detail: { mode: resolvedMode }
+  }));
 
   if (!shouldPersist) {
     return;
@@ -4335,29 +4368,43 @@ function isCatalogUploadTaskWaitingStage(stage) {
   return ["idle", "preparing", "waiting", "waiting-selection"].includes(String(stage || "").toLowerCase());
 }
 
-function isCatalogUploadTaskAttentionStage(stage) {
-  return ["failed", "cancelled", "waiting-selection"].includes(String(stage || "").toLowerCase());
+function shouldSkipCatalogUploadTaskSound(task = {}) {
+  return String(task.source || "").toLowerCase() === "spi-flash";
 }
 
-function getCatalogUploadTaskSortGroup(task) {
-  const stage = String(task?.stage || "").toLowerCase();
-  if (task?.active) {
-    return 40;
+function resolveCatalogUploadTaskSoundKind(existingTask = {}, nextTask = {}) {
+  if (!nextTask.operationId || shouldSkipCatalogUploadTaskSound(nextTask)) {
+    return "";
   }
 
-  if (stage === "waiting-selection") {
-    return 35;
+  const previousStage = String(existingTask.stage || "").toLowerCase();
+  const nextStage = String(nextTask.stage || "").toLowerCase();
+  const wasActive = Boolean(existingTask.active);
+  const isNewTask = !existingTask.operationId;
+
+  if (["failed", "cancelled"].includes(nextStage) || nextTask.lastError) {
+    return nextStage === "cancelled" ? "warning" : "error";
   }
 
-  if (stage === "failed" || stage === "cancelled") {
-    return 30;
+  if (nextStage === "completed" || (nextTask.success && !nextTask.active)) {
+    return previousStage === "completed" ? "" : "success";
   }
 
-  if (stage === "completed") {
-    return 20;
+  if ((isNewTask || !wasActive) && nextTask.active) {
+    return "start";
   }
 
-  return 10;
+  return "";
+}
+
+function maybePlayCatalogUploadTaskSound(existingTask = {}, nextTask = {}) {
+  const kind = resolveCatalogUploadTaskSoundKind(existingTask, nextTask);
+  if (!kind) {
+    return;
+  }
+
+  const reason = nextTask.lastError || nextTask.message || nextTask.fileName || nextTask.displayName || "Task TeknisiHub";
+  queueLocalNotificationSound(kind, reason);
 }
 
 function getCatalogUploadTaskSortValue(task) {
@@ -4366,11 +4413,6 @@ function getCatalogUploadTaskSortValue(task) {
 
 function getCatalogUploadTaskEntries() {
   return Array.from(catalogUploadTasks.values()).sort((left, right) => {
-    const groupDelta = getCatalogUploadTaskSortGroup(right) - getCatalogUploadTaskSortGroup(left);
-    if (groupDelta !== 0) {
-      return groupDelta;
-    }
-
     const sortDelta = getCatalogUploadTaskSortValue(right) - getCatalogUploadTaskSortValue(left);
     if (sortDelta !== 0) {
       return sortDelta;
@@ -4385,15 +4427,9 @@ function trimCatalogUploadTasks() {
     return;
   }
 
-  let removableTasks = Array.from(catalogUploadTasks.values())
-    .filter((task) => !task.active && !isCatalogUploadTaskAttentionStage(task.stage))
+  const removableTasks = Array.from(catalogUploadTasks.values())
+    .filter((task) => !task.active)
     .sort((left, right) => getCatalogUploadTaskSortValue(left) - getCatalogUploadTaskSortValue(right));
-
-  if (removableTasks.length === 0) {
-    removableTasks = Array.from(catalogUploadTasks.values())
-      .filter((task) => !task.active)
-      .sort((left, right) => getCatalogUploadTaskSortValue(left) - getCatalogUploadTaskSortValue(right));
-  }
 
   while (catalogUploadTasks.size > maxCatalogUploadTasks && removableTasks.length > 0) {
     const removableTask = removableTasks.shift();
@@ -4425,6 +4461,10 @@ function formatCatalogUploadTaskSummary(tasks) {
 
   if (activeCount > 0) {
     return `${activeCount} proses berjalan`;
+  }
+
+  if (completedCount > 0 && failedCount > 0) {
+    return `${completedCount} selesai, ${failedCount} perlu dicek`;
   }
 
   if (waitingCount > 0) {
@@ -4615,6 +4655,7 @@ function upsertCatalogUploadTask(taskUpdate = {}) {
     sortKey
   };
 
+  maybePlayCatalogUploadTaskSound(existingTask, nextTask);
   catalogUploadTasks.set(operationId, nextTask);
   trimCatalogUploadTasks();
   renderCatalogUploadTasks();
@@ -4937,7 +4978,56 @@ function persistRememberedPhone() {
   localStorage.setItem(rememberedPhoneStorageKey, normalized);
 }
 
-function setNotice(message, toneOrWarning = false) {
+function normalizeLocalNotificationSoundKind(toneOrKind = "") {
+  const normalized = String(toneOrKind || "").trim().toLowerCase();
+  if (["error", "failed", "gagal", "danger"].includes(normalized)) {
+    return "error";
+  }
+
+  if (["warning", "warn", "batal", "cancelled", "cancel"].includes(normalized)) {
+    return "warning";
+  }
+
+  if (["start", "running", "progress", "loading"].includes(normalized)) {
+    return "start";
+  }
+
+  if (["info", "neutral"].includes(normalized)) {
+    return "info";
+  }
+
+  return "success";
+}
+
+function queueLocalNotificationSound(toneOrKind, reason = "") {
+  const kind = normalizeLocalNotificationSoundKind(toneOrKind);
+  const normalizedReason = String(reason || "").trim().slice(0, 240);
+  const signature = `${kind}:${normalizedReason}`;
+  const now = Date.now();
+  const elapsedSinceLastSound = now - localNotificationSoundState.lastPlayedAt;
+  if (
+    elapsedSinceLastSound < localNotificationSoundCooldownMs ||
+    (
+      signature === localNotificationSoundState.lastSignature &&
+      elapsedSinceLastSound < localNotificationSameSoundCooldownMs
+    )
+  ) {
+    return;
+  }
+
+  localNotificationSoundState.lastSignature = signature;
+  localNotificationSoundState.lastPlayedAt = now;
+
+  fetch(`${serviceBaseUrl}/notifications/sound/${encodeURIComponent(kind)}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ reason: normalizedReason })
+  }).catch(() => {});
+}
+
+function setNotice(message, toneOrWarning = false, options = {}) {
   if (!toastContainer) {
     return;
   }
@@ -4969,6 +5059,9 @@ function setNotice(message, toneOrWarning = false) {
     return;
   }
 
+  if (options.sound !== false) {
+    queueLocalNotificationSound(tone, message);
+  }
   activeToastSignature = signature;
   const toast = document.createElement("div");
   toast.className = `toast is-${tone}`;
