@@ -4136,11 +4136,58 @@ async function copyTextToClipboard(text) {
 
 const COPY_SESSION_DEFAULT_LABEL = 'Copy Session';
 
-function setCopySessionButtonFeedback() {
+function setCopySessionButtonFeedback(stateName = '', label = COPY_SESSION_DEFAULT_LABEL) {
   if (!copySessionButtonEl) return;
   copySessionButtonEl.classList.remove('is-success', 'is-error');
+  if (stateName === 'success') copySessionButtonEl.classList.add('is-success');
+  if (stateName === 'error') copySessionButtonEl.classList.add('is-error');
   const labelEl = copySessionButtonEl.querySelector('.mini-fab-label');
-  if (labelEl) labelEl.textContent = COPY_SESSION_DEFAULT_LABEL;
+  if (labelEl) labelEl.textContent = label || COPY_SESSION_DEFAULT_LABEL;
+}
+
+function getBoardviewPromptContext() {
+  const selectedPartName = String(state.selectedPart?.name || '').trim();
+  const selectedNetName = String(state.selectedNet || state.inspectorNet || '').trim();
+  const selectedPinName = String(state.selectedPin?.name || '').trim();
+  const visibleSide = String(state.visibleSide || '').trim();
+  const boardName = String(
+    state.board?.title ||
+    state.board?.name ||
+    state.board?.fileName ||
+    state.board?.sourceName ||
+    document.title ||
+    'Boardview'
+  ).trim();
+  const lines = [`- Board/file: ${boardName}`];
+  if (visibleSide) lines.push(`- Tampilan aktif: ${visibleSide}`);
+  if (selectedPartName) lines.push(`- Komponen dipilih: ${selectedPartName}`);
+  if (selectedPinName) lines.push(`- Pin dipilih: ${selectedPinName}`);
+  if (selectedNetName) lines.push(`- Net dipilih: ${selectedNetName}`);
+  return lines.join('\n');
+}
+
+function buildBoardviewAiPrompt(sessionLink) {
+  return `Session Boardview:
+${sessionLink}
+
+Konteks aktif:
+${getBoardviewPromptContext()}
+
+Prompt AI:
+Kamu adalah asisten teknisi motherboard. Baca native-session boardview dari link di atas sebelum memberi arahan. Gunakan data boardview untuk lokasi komponen, sisi top/bottom, pin, net, koneksi, dan area ukur. Jangan mengarang nilai resistor, tegangan normal, pin IC, atau nama rail; kalau data itu tidak ada di boardview, minta session schematic/datasheet atau hasil ukur user.
+
+1. Cara Baca
+- Identifikasi dulu bentuk board, sisi komponen, reference designator, pin, net, koneksi sekitar komponen yang relevan, dan jalur yang perlu ditelusuri.
+- Saat menyebut komponen, tulis reference designator persis dari boardview, sisi board, pin/net yang dicek, dan lokasi relatif yang bisa ditemukan user.
+- Bedakan data boardview dengan asumsi. Boardview membantu lokasi dan koneksi; nilai ohm/tegangan harus dari schematic, datasheet, marking komponen, atau hasil ukur.
+
+2. Aturan Kerja Step By Step
+- Mulai dari gejala user. Kalau gejala belum jelas, tanya singkat dulu.
+- Beri satu langkah cek utama per balasan, bukan daftar panjang sekaligus.
+- Untuk contoh kasus "tidak mau ngecas", gunakan boardview untuk mencari dan mengarahkan lokasi cek berurutan: DC jack/adaptor input, fuse/proteksi, MOSFET input, charger IC, resistor sense/divider, signal ACDET/ACOK/ACIN, SMBus baterai, lalu jalur BAT+/charging path.
+- Contoh gaya kerja: setelah membaca boardview, simpulkan lokasi komponen yang perlu dicek, misalnya "cek R126 di sisi top dekat charger IC" hanya jika R126 memang ada dan relevan di boardview. Tunggu jawaban user, lalu lanjut ke cek berikutnya berdasarkan hasil ukur.
+- Format jawaban setiap langkah: Dugaan, Lokasi boardview, Komponen/Pin/Net yang dicek, Cara ukur, Nilai acuan jika tersedia, Arti jika normal, Arti jika tidak normal, Pertanyaan untuk user.
+- Jangan langsung menyuruh ganti IC. Buktikan dulu dengan pengukuran bertahap.`;
 }
 
 async function handleCopySessionLink() {
@@ -4151,13 +4198,15 @@ async function handleCopySessionLink() {
     return;
   }
   try {
-    const copied = await copyTextToClipboard(sessionLink);
+    const copied = await copyTextToClipboard(buildBoardviewAiPrompt(sessionLink));
     if (!copied) throw new Error('Clipboard copy returned false.');
     setCopySessionButtonFeedback('success', 'Copied');
-    setStatus(`Session link copied: ${sessionLink}`);
+    setStatus(`Session prompt copied: ${sessionLink}`);
+    window.setTimeout(() => setCopySessionButtonFeedback(), 1400);
   } catch (error) {
     setCopySessionButtonFeedback('error', 'Copy Failed');
     setStatus('Gagal menyalin session link ke clipboard.', true);
+    window.setTimeout(() => setCopySessionButtonFeedback(), 1600);
   }
 }
 

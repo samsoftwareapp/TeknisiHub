@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TeknisiHub Schematics</title>
+  <link rel="icon" type="image/png" href="./assets/HubLogo.png">
+  <link rel="stylesheet" href="./schematics-teknisihub.css?v=202605220003">
+</head>
+<body>
+  <main class="schematic-shell">
+    <header class="schematic-topbar">
+      <a class="schematic-brand" href="./index.html?catalog=schematics" aria-label="TeknisiHub">
+        <img src="./assets/HubLogo.png" alt="">
+        <span>
+          <strong>TeknisiHub Schematics</strong>
+          <small id="schematicFileName">Menyiapkan session...</small>
+        </span>
+      </a>
+      <div class="schematic-actions">
+        <button id="copySessionButton" type="button">Copy Session</button>
+      </div>
+    </header>
+
+    <section id="schematicViewerWrap" class="schematic-viewer-wrap">
+      <div id="schematicFrames" class="schematic-frames"></div>
+      <div id="schematicError" class="schematic-error hidden"></div>
+    </section>
+  </main>
+
+  <script src="./service-config.js?v=202605220001"></script>
+  <script src="./schematics-teknisihub.js?v=202605220005"></script>
+</body>
+</html>

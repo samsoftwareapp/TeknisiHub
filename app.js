@@ -3781,7 +3781,7 @@ function resolveLocalServiceUrl(pathOrUrl) {
   return `${serviceBaseUrl}${rawValue.startsWith("/") ? rawValue : `/${rawValue}`}`;
 }
 
-function getPreparedSchematicsViewUrls(messageId, result = {}) {
+function getPreparedSchematicsFileIndexes(messageId, result = {}) {
   const responseUrls = Array.isArray(result?.nextActionUrls)
     ? result.nextActionUrls
     : [];
@@ -3791,7 +3791,27 @@ function getPreparedSchematicsViewUrls(messageId, result = {}) {
     ? [result.nextActionUrl]
     : [`/catalog/schematics/${messageId}/view`];
 
-  return [...new Set(actionUrls.map(resolveLocalServiceUrl).filter(Boolean))];
+  const indexes = actionUrls
+    .map((actionUrl, fallbackIndex) => {
+      try {
+        const parsedUrl = new URL(actionUrl, serviceBaseUrl);
+        const fileIndex = Number(parsedUrl.searchParams.get("fileIndex") || 0);
+        return Number.isFinite(fileIndex) && fileIndex >= 0
+          ? Math.floor(fileIndex)
+          : fallbackIndex;
+      } catch {
+        return fallbackIndex;
+      }
+    })
+    .filter((fileIndex) => Number.isFinite(fileIndex) && fileIndex >= 0);
+
+  return [...new Set(indexes.length > 0 ? indexes : [0])];
+}
+
+function getPreparedSchematicsViewUrls(messageId, result = {}) {
+  const fileIndexes = getPreparedSchematicsFileIndexes(messageId, result);
+  const targetUrl = buildSchematicsTeknisiHubUrl(messageId, fileIndexes);
+  return targetUrl ? [targetUrl] : [];
 }
 
 function openPreparedSchematicsViewTabs(messageId, result = {}) {
@@ -3800,6 +3820,7 @@ function openPreparedSchematicsViewTabs(messageId, result = {}) {
   }
 
   const targetUrls = getPreparedSchematicsViewUrls(messageId, result);
+  const fileIndexes = getPreparedSchematicsFileIndexes(messageId, result);
   let blockedCount = 0;
 
   targetUrls.forEach((targetUrl) => {
@@ -3810,13 +3831,10 @@ function openPreparedSchematicsViewTabs(messageId, result = {}) {
   });
 
   if (blockedCount > 0) {
-    const blockedMessage = targetUrls.length > 1
-      ? `Schematics sudah siap, tetapi browser memblokir ${blockedCount} dari ${targetUrls.length} tab baru. Izinkan pop-up lalu klik Lihat lagi.`
-      : "Schematics sudah siap, tetapi browser memblokir tab baru. Izinkan pop-up lalu klik Lihat lagi.";
-    throw new Error(blockedMessage);
+    throw new Error("Schematics sudah siap, tetapi browser memblokir tab viewer baru. Izinkan pop-up lalu klik Lihat lagi.");
   }
 
-  return targetUrls.length;
+  return fileIndexes.length;
 }
 
 function openPreparedDatasheetsViewTab(messageId) {
@@ -6316,11 +6334,51 @@ function updateBoardviewOpenActionAvailability(target) {
 
 function buildBoardviewTeknisiHubUrl(sessionId) {
   const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
-  targetUrl.searchParams.set("v", "20260518a");
+  targetUrl.searchParams.set("v", "20260522a");
   if (sessionId) {
     targetUrl.searchParams.set("sessionId", sessionId);
   }
   targetUrl.searchParams.set("source", "catalog_boardview");
+  return targetUrl.toString();
+}
+
+function buildSchematicsSessionId(messageId, fileIndex = 0) {
+  const normalizedMessageId = Number(messageId || 0);
+  const normalizedFileIndex = Math.max(0, Number(fileIndex || 0));
+  return normalizedMessageId > 0
+    ? `catalog-schematics-${normalizedMessageId}-${normalizedFileIndex}`
+    : "";
+}
+
+function normalizeSchematicsFileIndexes(fileIndexes = [0]) {
+  const rawIndexes = Array.isArray(fileIndexes) ? fileIndexes : [fileIndexes];
+  const normalizedIndexes = rawIndexes
+    .map((fileIndex) => Math.max(0, Number(fileIndex || 0)))
+    .filter((fileIndex) => Number.isFinite(fileIndex))
+    .map((fileIndex) => Math.floor(fileIndex));
+  return [...new Set(normalizedIndexes.length > 0 ? normalizedIndexes : [0])];
+}
+
+function buildSchematicsTeknisiHubUrl(messageId, fileIndexes = [0]) {
+  const normalizedMessageId = Number(messageId || 0);
+  const normalizedFileIndexes = normalizeSchematicsFileIndexes(fileIndexes);
+  const sessionIds = normalizedFileIndexes
+    .map((fileIndex) => buildSchematicsSessionId(normalizedMessageId, fileIndex))
+    .filter(Boolean);
+  const sessionId = sessionIds[0] || "";
+  const targetUrl = new URL("schematics-teknisihub.html", window.location.href);
+  targetUrl.searchParams.set("v", "20260522e");
+  if (normalizedMessageId > 0) {
+    targetUrl.searchParams.set("messageId", String(normalizedMessageId));
+  }
+  if (sessionId) {
+    targetUrl.searchParams.set("sessionId", sessionId);
+  }
+  if (sessionIds.length > 1) {
+    targetUrl.searchParams.set("sessionIds", sessionIds.join(","));
+  }
+  targetUrl.searchParams.set("fileIndexes", normalizedFileIndexes.join(","));
+  targetUrl.searchParams.set("source", "catalog_schematics");
   return targetUrl.toString();
 }
 
@@ -7743,7 +7801,7 @@ if (catalogList) {
         }
 
         setNotice(result.message || (openedTabCount > 1
-          ? `${openedTabCount} file Schematics dibuka di tab baru.`
+          ? `${openedTabCount} file Schematics dibuka dalam satu viewer.`
           : "Schematics siap dibuka."));
         shouldRefreshCatalog = markSchematicsItemHasLocalCache(messageId);
       } catch (error) {

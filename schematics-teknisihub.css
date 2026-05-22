@@ -1,0 +1,254 @@
+:root {
+  color-scheme: light;
+  --bg: #eaf3f8;
+  --panel: #f8fbfd;
+  --bar: #ffffff;
+  --text: #12324c;
+  --muted: #5e7487;
+  --line: rgba(38, 89, 125, 0.18);
+  --accent: #167f8f;
+  --accent-soft: rgba(25, 156, 171, 0.12);
+  --danger: #b42335;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.schematic-shell {
+  width: 100%;
+  height: 100vh;
+  min-height: 520px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--panel);
+}
+
+.schematic-topbar {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bar);
+}
+
+.schematic-brand {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.schematic-brand img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.schematic-brand span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.schematic-brand strong,
+.schematic-brand small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schematic-brand strong {
+  font-size: 0.93rem;
+  line-height: 1.15;
+}
+
+.schematic-brand small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.schematic-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.schematic-actions button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 11px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.76);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.schematic-actions button {
+  cursor: pointer;
+}
+
+.schematic-actions button:hover,
+.schematic-actions button:focus-visible {
+  border-color: rgba(22, 127, 143, 0.38);
+  color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.schematic-actions button.is-copied {
+  border-color: rgba(22, 127, 143, 0.48);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.schematic-viewer-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: #202124;
+}
+
+.schematic-frames {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  gap: 1px;
+  background: #14171b;
+}
+
+.schematic-frames.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.schematic-frames.is-multiple {
+  grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr));
+}
+
+.schematic-frame-panel {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  background: #202124;
+}
+
+.schematic-frames.is-multiple .schematic-frame-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.schematic-frame-title {
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: #f1f7fb;
+  background: #2b2c2f;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.schematic-frame-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schematic-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: block;
+  border: 0;
+  background: #202124;
+}
+
+.schematic-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--danger);
+  background: var(--panel);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #07111a;
+    --panel: #0a1622;
+    --bar: #101d29;
+    --text: #f1f7fb;
+    --muted: #9bb0c1;
+    --line: rgba(145, 170, 190, 0.22);
+    --accent: #5fd2dd;
+    --accent-soft: rgba(95, 210, 221, 0.13);
+    --danger: #ff98a7;
+  }
+
+  .schematic-actions button {
+    background: rgba(255, 255, 255, 0.055);
+  }
+}
+
+@media (max-width: 760px) {
+  .schematic-topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .schematic-actions {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .schematic-frames.is-multiple {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .schematic-frames.is-multiple .schematic-frame-panel {
+    min-height: calc(100vh - 116px);
+  }
+}
