@@ -65,6 +65,62 @@ body.quote-intro-open {
   overflow: hidden;
 }
 
+.code-signing-warning {
+  width: min(1180px, calc(100% - 24px));
+  margin: 12px auto 0;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(198, 107, 34, 0.28);
+  border-radius: 18px;
+  background: rgba(255, 246, 232, 0.9);
+  color: #7a3f12;
+  box-shadow: 0 14px 34px rgba(92, 52, 13, 0.12);
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.code-signing-warning > .material-symbols-outlined {
+  flex: 0 0 auto;
+  color: var(--warning);
+}
+
+.code-signing-warning-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.code-signing-warning-copy strong {
+  font-size: 0.95rem;
+}
+
+.code-signing-warning-copy span {
+  font-size: 0.88rem;
+}
+
+.code-signing-warning a {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 9px 12px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--warning), #d9923b);
+  text-decoration: none;
+  font-size: 0.86rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+body.is-dark-mode .code-signing-warning {
+  background: rgba(51, 35, 17, 0.88);
+  border-color: rgba(240, 180, 93, 0.32);
+  color: #ffe1bd;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28);
+}
+
 .quote-intro-modal {
   position: fixed;
   inset: 0;
@@ -9112,6 +9168,25 @@ a {
 }
 
 @media (max-width: 720px) {
+  .code-signing-warning {
+    width: calc(100% - 20px);
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .code-signing-warning-copy {
+    flex: 1 1 calc(100% - 42px);
+  }
+
+  .code-signing-warning a {
+    width: 100%;
+    margin-left: 0;
+    text-align: center;
+  }
+
   .hero,
   .panel,
   .site-footer {

@@ -13,6 +13,16 @@
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <div id="codeSigningWarning" class="code-signing-warning hidden" role="status" aria-live="polite">
+    <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+    <div class="code-signing-warning-copy">
+      <strong>Publisher TeknisiHub belum terpasang di Windows</strong>
+      <span id="codeSigningWarningText">Jalankan installer EXE TeknisiHub terbaru sekali sebagai administrator.</span>
+    </div>
+    <a id="codeSigningWarningLink" href="https://drive.google.com/file/d/1w-bq0FkHn5VdG3Z2BrRQqLlfuMU8ojB5/view?usp=drive_link" target="_blank" rel="noopener noreferrer">
+      Download installer
+    </a>
+  </div>
   <div
     id="introQuoteModal"
     class="quote-intro-modal hidden"

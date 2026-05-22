@@ -4,6 +4,9 @@ document.body.classList.add("is-compact-ui", "is-compact-shell-view");
 
 const serviceStatus = document.getElementById("serviceStatus");
 const serviceVersion = document.getElementById("serviceVersion");
+const codeSigningWarning = document.getElementById("codeSigningWarning");
+const codeSigningWarningText = document.getElementById("codeSigningWarningText");
+const codeSigningWarningLink = document.getElementById("codeSigningWarningLink");
 const serviceTrafficIndicator = document.getElementById("serviceTrafficIndicator");
 const serviceApiActivity = document.getElementById("serviceApiActivity");
 const themeToggleButton = document.getElementById("themeToggleButton");
@@ -4106,6 +4109,35 @@ function setServiceConnectivityStatus(isConnected) {
   serviceStatus.classList.toggle("is-disconnected", !isConnected);
 }
 
+function applyCodeSigningWarning(health) {
+  if (!codeSigningWarning) {
+    return;
+  }
+
+  const codeSigning = health?.codeSigning;
+  const shouldWarn = Boolean(codeSigning) && codeSigning.trusted === false;
+  if (!shouldWarn) {
+    toggleElement(codeSigningWarning, false);
+    return;
+  }
+
+  const action = (codeSigning.recommendedAction || "").trim() ||
+    "Jalankan installer EXE TeknisiHub terbaru sekali sebagai administrator.";
+  const detail = (codeSigning.message || "").trim();
+  if (codeSigningWarningText) {
+    codeSigningWarningText.textContent = detail
+      ? `${detail} ${action}`
+      : action;
+  }
+
+  if (codeSigningWarningLink) {
+    const installerUrl = health?.update?.installerUrl || health?.update?.downloadUrl || defaultDownloadLocalServiceUrl;
+    codeSigningWarningLink.href = installerUrl || defaultDownloadLocalServiceUrl || "#";
+  }
+
+  toggleElement(codeSigningWarning, true);
+}
+
 function updateServiceTrafficIndicator() {
   if (!serviceTrafficIndicator) {
     return;
@@ -5914,6 +5946,7 @@ async function refreshStatus(options = {}) {
     health = await fetchJson(healthUrl);
     setServiceConnectivityStatus(true);
     setText(serviceVersion, `Versi: ${health.version || "unknown"}`);
+    applyCodeSigningWarning(health);
 
     if (applyUpdateRequirement(health)) {
       return health;
@@ -5926,6 +5959,7 @@ async function refreshStatus(options = {}) {
     stopCatalogUploadTaskSync();
     closeCatalogEventStream();
     clearCatalogRealtimeReloads();
+    applyCodeSigningWarning(null);
     setServiceConnectivityStatus(false);
     setText(serviceVersion, "Versi: offline");
     setServiceUpdateNotice("");
