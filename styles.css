@@ -9390,3 +9390,61 @@ a {
     right: 14px;
   }
 }
+
+.universal-dmi-variant-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.universal-dmi-variant-strip span,
+.universal-dmi-cleanme {
+  border: 1px solid rgba(20, 184, 166, 0.22);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.universal-dmi-cleanme {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+
+.universal-dmi-raw {
+  margin-top: 12px;
+}
+
+.universal-dmi-raw summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.universal-dmi-raw pre {
+  max-height: 320px;
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #d8f5ee;
+  font: 0.78rem/1.45 Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+}
+
+.universal-dmi-source-actions,
+.universal-dmi-patch-actions {
+  margin-top: 12px;
+}
+
+body.is-dark-mode .universal-dmi-variant-strip span,
+body.is-dark-mode .universal-dmi-cleanme {
+  border-color: rgba(45, 212, 191, 0.2);
+  background: rgba(20, 184, 166, 0.08);
+}

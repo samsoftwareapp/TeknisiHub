@@ -66,6 +66,7 @@ const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const oscilloscopeWorkbench = document.getElementById("oscilloscopeWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
+const universalDmiWorkbench = document.getElementById("universalDmiWorkbench");
 const biosVendorDetectWorkbench = document.getElementById("biosVendorDetectWorkbench");
 const fileHashCompareWorkbench = document.getElementById("fileHashCompareWorkbench");
 const resistorCalculatorWorkbench = document.getElementById("resistorCalculatorWorkbench");
@@ -165,6 +166,7 @@ const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolOscilloscope = document.getElementById("toolOscilloscope");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
+const toolUniversalDmi = document.getElementById("toolUniversalDmi");
 const toolBiosVendorDetect = document.getElementById("toolBiosVendorDetect");
 const toolFileHashCompare = document.getElementById("toolFileHashCompare");
 const toolResistorCalculator = document.getElementById("toolResistorCalculator");
@@ -229,6 +231,17 @@ const uefiToolPage = window.teknisiHubPages?.uefiTool || {
   eyebrow: "UEFI Tools",
   title: "UEFI Tools",
   subtitle: "Utility lokal untuk analisa manual struktur firmware UEFI.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const universalDmiPage = window.teknisiHubPages?.universalDmi || {
+  viewKey: "tool_universal_dmi",
+  eyebrow: "Universal DMI",
+  title: "Universal DMI Tools",
+  subtitle: "Read dan patch DMI BIOS lewat engine C# native TeknisiHub.",
   items: [],
   mount() {},
   setVisible() {},
@@ -527,6 +540,11 @@ uefiToolPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+universalDmiPage.mount?.({
+  container: universalDmiWorkbench,
+  notify: (message, tone) => setNotice(message, tone)
+});
+
 biosVendorDetectPage.mount?.({
   container: biosVendorDetectWorkbench,
   notify: (message) => setNotice(message)
@@ -674,6 +692,12 @@ const toolViewMap = {
     subtitle: uefiToolPage.subtitle,
     channelLink: null
   },
+  [universalDmiPage.viewKey]: {
+    eyebrow: universalDmiPage.eyebrow,
+    title: universalDmiPage.title,
+    subtitle: universalDmiPage.subtitle,
+    channelLink: null
+  },
   [biosVendorDetectPage.viewKey]: {
     eyebrow: biosVendorDetectPage.eyebrow,
     title: biosVendorDetectPage.title,
@@ -748,6 +772,7 @@ const localWorkbenchViewKeys = new Set([
   oscilloscopePage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
+  universalDmiPage.viewKey,
   biosVendorDetectPage.viewKey,
   fileHashComparePage.viewKey,
   resistorCalculatorPage.viewKey,
@@ -772,6 +797,7 @@ const documentTitleLabels = {
   [oscilloscopePage.viewKey]: "Oscilloscope",
   [meAnalyzerPage.viewKey]: "ME Analyzer",
   [uefiToolPage.viewKey]: "UEFI Tools",
+  [universalDmiPage.viewKey]: "Universal DMI",
   [biosVendorDetectPage.viewKey]: "Deteksi Vendor BIOS",
   [fileHashComparePage.viewKey]: "Cek Hash File",
   [resistorCalculatorPage.viewKey]: "Resistor Kalkulator",
@@ -796,6 +822,7 @@ const viewHashMap = {
   [oscilloscopePage.viewKey]: "Oscilloscope",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
+  [universalDmiPage.viewKey]: "UniversalDmi",
   [biosVendorDetectPage.viewKey]: "BiosVendorDetect",
   [fileHashComparePage.viewKey]: "FileHashCompare",
   [resistorCalculatorPage.viewKey]: "ResistorCalculator",
@@ -826,6 +853,8 @@ const hashRouteMap = {
   uefitools: uefiToolPage.viewKey,
   tooluefitools: uefiToolPage.viewKey,
   tooluefi: uefiToolPage.viewKey,
+  universaldmi: universalDmiPage.viewKey,
+  tooluniversaldmi: universalDmiPage.viewKey,
   biosvendordetect: biosVendorDetectPage.viewKey,
   toolbiosvendordetect: biosVendorDetectPage.viewKey,
   filehashcompare: fileHashComparePage.viewKey,
@@ -870,6 +899,7 @@ function getViewButton(viewKey) {
     [oscilloscopePage.viewKey]: toolOscilloscope,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
+    [universalDmiPage.viewKey]: toolUniversalDmi,
     [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
     [resistorCalculatorPage.viewKey]: toolResistorCalculator,
@@ -1620,6 +1650,7 @@ function showWorkbenchOnly(viewKey) {
   oscilloscopePage.setVisible?.(viewKey === oscilloscopePage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
+  universalDmiPage.setVisible?.(viewKey === universalDmiPage.viewKey);
   biosVendorDetectPage.setVisible?.(viewKey === biosVendorDetectPage.viewKey);
   fileHashComparePage.setVisible?.(viewKey === fileHashComparePage.viewKey);
   resistorCalculatorPage.setVisible?.(viewKey === resistorCalculatorPage.viewKey);
@@ -1650,6 +1681,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === uefiToolPage.viewKey) {
     uefiToolPage.refresh?.();
+  }
+
+  if (viewKey === universalDmiPage.viewKey) {
+    universalDmiPage.refresh?.();
   }
 
   if (viewKey === biosVendorDetectPage.viewKey) {
@@ -1703,6 +1738,7 @@ function hideWorkbench() {
   oscilloscopePage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
+  universalDmiPage.setVisible?.(false);
   biosVendorDetectPage.setVisible?.(false);
   fileHashComparePage.setVisible?.(false);
   resistorCalculatorPage.setVisible?.(false);
@@ -1794,6 +1830,7 @@ function setActiveNav(targetKey) {
     [oscilloscopePage.viewKey]: toolOscilloscope,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
+    [universalDmiPage.viewKey]: toolUniversalDmi,
     [biosVendorDetectPage.viewKey]: toolBiosVendorDetect,
     [fileHashComparePage.viewKey]: toolFileHashCompare,
     [resistorCalculatorPage.viewKey]: toolResistorCalculator,
@@ -2088,6 +2125,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "MEA UI"
         : viewKey === uefiToolPage.viewKey
         ? "UEFI UI"
+        : viewKey === universalDmiPage.viewKey
+        ? "DMI UI"
         : viewKey === biosVendorDetectPage.viewKey
         ? "BVD UI"
         : viewKey === biosPasswordPage.viewKey
@@ -8665,6 +8704,17 @@ toolUefi?.addEventListener("click", (event) => {
 
   updateViewHash(uefiToolPage.viewKey);
   currentCatalogView = uefiToolPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolUniversalDmi?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(universalDmiPage.viewKey);
+  currentCatalogView = universalDmiPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
