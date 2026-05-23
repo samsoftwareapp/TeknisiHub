@@ -62,6 +62,15 @@
     }).format(date);
   }
 
+  function createMemberQuotaLabel(member) {
+    const totalDownload = member.totalDownload || "0";
+    if (member.totalDownloadLimit) {
+      return `Trial total: ${totalDownload} / ${member.totalDownloadLimit}`;
+    }
+
+    return `Total download: ${totalDownload} | hari ini: ${member.downloadTodayCount || "0"} / ${member.limitDownloadToday || "-"}`;
+  }
+
   function createWorkbenchMarkup(state) {
     const disabledAttr = state.loading || state.saving || state.cleaning ? " disabled" : "";
     const actionLabel = state.saving ? "Menyimpan..." : "Simpan Pengaturan";
@@ -82,7 +91,7 @@
             ${(member.totalDownload || member.limitDownloadToday) ? `
             <div class="catalog-file-row">
               <span class="material-symbols-outlined">download</span>
-              <span>Total download: ${escapeHtml(member.totalDownload || "0")} | hari ini: ${escapeHtml(member.downloadTodayCount || "0")} / ${escapeHtml(member.limitDownloadToday || "-")}</span>
+              <span>${escapeHtml(createMemberQuotaLabel(member))}</span>
             </div>
             ` : ""}
             <div class="catalog-file-row">

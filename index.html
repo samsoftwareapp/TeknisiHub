@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202605230002">
+  <link rel="stylesheet" href="styles.css?v=202605230005">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -284,6 +284,10 @@
                   <span class="material-symbols-outlined">dashboard</span>
                   <span>Dashboard</span>
                 </a>
+                <a id="navProduct" href="#Product" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">storefront</span>
+                  <span>Product</span>
+                </a>
                 <a id="navBios" href="#BIOS" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">memory</span>
                   <span>BIOS</span>
@@ -402,6 +406,7 @@
 
           <div class="dashboard-main">
             <section id="dashboardHomeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="productWorkbench" class="spi-workbench product-workbench hidden" aria-live="polite"></section>
             <section id="spiFlashWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="oscilloscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -765,8 +770,9 @@
   <script src="pages/microscope/page.js?v=202605210016"></script>
   <script src="pages/alien-server/page.js?v=202605210016"></script>
   <script src="pages/boardviewer/page.js?v=202605210016"></script>
-  <script src="pages/dashboard-home/page.js?v=202605210016"></script>
-  <script src="pages/settings/page.js?v=202605210016"></script>
-    <script src="app.js?v=202605230002"></script>
+  <script src="pages/dashboard-home/page.js?v=202605230002"></script>
+  <script src="pages/product/page.js?v=202605230004"></script>
+  <script src="pages/settings/page.js?v=202605230002"></script>
+    <script src="app.js?v=202605230003"></script>
 </body>
 </html>

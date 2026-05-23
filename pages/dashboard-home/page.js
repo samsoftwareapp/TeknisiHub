@@ -175,18 +175,26 @@
   }
 
   function resolveQuota(member, role) {
-    const limit = parseInteger(member?.limitDownloadToday, getDefaultLimitForRole(role));
-    const used = parseInteger(member?.downloadTodayCount, 0);
     const total = parseInteger(member?.totalDownload, 0);
+    const totalLimit = parseInteger(member?.totalDownloadLimit, 0);
+    const isTrial = totalLimit > 0;
+    const limit = isTrial ? totalLimit : parseInteger(member?.limitDownloadToday, getDefaultLimitForRole(role));
+    const used = isTrial ? total : parseInteger(member?.downloadTodayCount, 0);
     const remaining = Math.max(0, limit - used);
 
     return {
+      label: isTrial ? "Trial Download" : "Kuota Hari Ini",
+      scope: isTrial ? "trial-total" : "daily",
       limit,
       used,
       total,
       remaining,
       isEmpty: limit > 0 && remaining <= 0,
-      isLow: limit > 0 && remaining > 0 && remaining <= Math.max(2, Math.ceil(limit * 0.12))
+      isLow: limit > 0 && remaining > 0 && remaining <= Math.max(2, Math.ceil(limit * 0.12)),
+      emptyMeta: isTrial ? "Silakan langganan untuk lanjut download" : "Tunggu reset harian",
+      remainingMeta: isTrial
+        ? `${formatCompactNumber(remaining)} sisa trial`
+        : `${formatCompactNumber(remaining)} sisa`
     };
   }
 
@@ -273,9 +281,9 @@
       },
       {
         icon: "download",
-        label: "Kuota Hari Ini",
+        label: state.quota.label,
         value: `${formatCompactNumber(state.quota.used)}/${formatCompactNumber(state.quota.limit)}`,
-        meta: `${formatCompactNumber(state.quota.remaining)} sisa`,
+        meta: state.quota.remainingMeta,
         tone: quotaTone
       },
       {
@@ -369,7 +377,7 @@
         tone: "danger",
         icon: "block",
         title: "Kuota download habis",
-        meta: "Tunggu reset harian"
+        meta: state.quota.emptyMeta
       });
     } else if (state.quota.isLow) {
       items.push({

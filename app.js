@@ -62,6 +62,7 @@ const dashboardJoinBoardviewCheckbox = document.getElementById("dashboardJoinBoa
 const dashboardJoinSchematicsCheckbox = document.getElementById("dashboardJoinSchematicsCheckbox");
 const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const dashboardHomeWorkbench = document.getElementById("dashboardHomeWorkbench");
+const productWorkbench = document.getElementById("productWorkbench");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const oscilloscopeWorkbench = document.getElementById("oscilloscopeWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
@@ -160,6 +161,7 @@ const navSchematics = document.getElementById("navSchematics");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
 const navDashboard = document.getElementById("navDashboard");
+const navProduct = document.getElementById("navProduct");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
@@ -380,6 +382,17 @@ const dashboardHomePage = window.teknisiHubPages?.dashboardHome || {
   refresh() {}
 };
 
+const productPage = window.teknisiHubPages?.product || {
+  viewKey: "product",
+  eyebrow: "Product",
+  title: "Product",
+  subtitle: "Produk hardware dan langganan member yang bisa diorder via WhatsApp.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
 let catalogLoaded = false;
 let catalogItems = [];
 let catalogCache = [];
@@ -505,6 +518,17 @@ const localToolCatalog = [
 
 dashboardHomePage.mount?.({
   container: dashboardHomeWorkbench,
+  notify: (message, tone) => setNotice(message, tone),
+  navigate: (viewKey) => {
+    updateViewHash(viewKey);
+    currentCatalogView = viewKey;
+    catalogItems = catalogCache;
+    filterCatalogItems();
+  }
+});
+
+productPage.mount?.({
+  container: productWorkbench,
   notify: (message, tone) => setNotice(message, tone),
   navigate: (viewKey) => {
     updateViewHash(viewKey);
@@ -668,6 +692,12 @@ const toolViewMap = {
     subtitle: dashboardHomePage.subtitle,
     channelLink: null
   },
+  [productPage.viewKey]: {
+    eyebrow: productPage.eyebrow,
+    title: productPage.title,
+    subtitle: productPage.subtitle,
+    channelLink: null
+  },
   tool_spi_flash: {
     eyebrow: spiFlashPage.eyebrow,
     title: spiFlashPage.title,
@@ -768,6 +798,7 @@ const toolViewMap = {
 
 const localWorkbenchViewKeys = new Set([
   dashboardHomePage.viewKey,
+  productPage.viewKey,
   spiFlashPage.viewKey,
   oscilloscopePage.viewKey,
   meAnalyzerPage.viewKey,
@@ -788,6 +819,7 @@ const localWorkbenchViewKeys = new Set([
 
 const documentTitleLabels = {
   [dashboardHomePage.viewKey]: "Dashboard",
+  [productPage.viewKey]: "Product",
   BIOS: "BIOS",
   Boardview: "Boardview",
   Schematics: "Schematics",
@@ -813,6 +845,7 @@ const documentTitleLabels = {
 
 const viewHashMap = {
   [dashboardHomePage.viewKey]: "Dashboard",
+  [productPage.viewKey]: "Product",
   BIOS: "BIOS",
   Boardview: "Boardview",
   Schematics: "Schematics",
@@ -839,6 +872,8 @@ const viewHashMap = {
 const hashRouteMap = {
   dashboard: dashboardHomePage.viewKey,
   dashboardhome: dashboardHomePage.viewKey,
+  product: productPage.viewKey,
+  products: productPage.viewKey,
   bios: "BIOS",
   boardview: "Boardview",
   schematics: "Schematics",
@@ -890,6 +925,7 @@ function escapeHtml(value) {
 function getViewButton(viewKey) {
   const navMap = {
     [dashboardHomePage.viewKey]: navDashboard,
+    [productPage.viewKey]: navProduct,
     BIOS: navBios,
     Boardview: navBoardview,
     Schematics: navSchematics,
@@ -1646,6 +1682,7 @@ function showWorkbenchOnly(viewKey) {
   toggleElement(catalogSection, false);
   toggleElement(catalogPagination, false);
   dashboardHomePage.setVisible?.(viewKey === dashboardHomePage.viewKey);
+  productPage.setVisible?.(viewKey === productPage.viewKey);
   spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
   oscilloscopePage.setVisible?.(viewKey === oscilloscopePage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
@@ -1665,6 +1702,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === dashboardHomePage.viewKey) {
     dashboardHomePage.refresh?.();
+  }
+
+  if (viewKey === productPage.viewKey) {
+    productPage.refresh?.();
   }
 
   if (viewKey === spiFlashPage.viewKey) {
@@ -1734,6 +1775,7 @@ function showWorkbenchOnly(viewKey) {
 
 function hideWorkbench() {
   dashboardHomePage.setVisible?.(false);
+  productPage.setVisible?.(false);
   spiFlashPage.setVisible?.(false);
   oscilloscopePage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
@@ -1795,12 +1837,14 @@ function setActiveNav(targetKey) {
   const isToolView = targetKey.startsWith("tool_");
   const isCatalogView = ["BIOS", "Boardview", "Schematics", "ProblemSolving", "Datasheets"].includes(targetKey);
   const isDashboardView = targetKey === dashboardHomePage.viewKey;
+  const isProductView = targetKey === productPage.viewKey;
   const isSettingsView = targetKey === settingsPage.viewKey;
   const isCompactShellView = true;
 
   document.body.classList.toggle("is-compact-shell-view", isCompactShellView);
   document.body.classList.toggle("is-catalog-workbench-view", isCatalogView);
   document.body.classList.toggle("is-dashboard-workbench-view", isDashboardView);
+  document.body.classList.toggle("is-product-workbench-view", isProductView);
   document.body.classList.toggle("is-settings-workbench-view", isSettingsView);
   if (isCompactShellView) {
     document.body.dataset.activeWorkbenchView = targetKey;
@@ -1821,6 +1865,7 @@ function setActiveNav(targetKey) {
 
   const navMap = {
     [dashboardHomePage.viewKey]: navDashboard,
+    [productPage.viewKey]: navProduct,
     BIOS: navBios,
     Boardview: navBoardview,
     Schematics: navSchematics,
@@ -2119,6 +2164,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
     if (catalogCount) {
       catalogCount.textContent = viewKey === dashboardHomePage.viewKey
         ? "HOME"
+        : viewKey === productPage.viewKey
+        ? `${productPage.items?.length || 0} PRD`
         : viewKey === spiFlashPage.viewKey
         ? "SPI UI"
         : viewKey === meAnalyzerPage.viewKey
@@ -8660,6 +8707,17 @@ navDashboard?.addEventListener("click", (event) => {
 
   updateViewHash(dashboardHomePage.viewKey);
   currentCatalogView = dashboardHomePage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+navProduct?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(productPage.viewKey);
+  currentCatalogView = productPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
