@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202605230005">
+  <link rel="stylesheet" href="styles.css?v=202605270003">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -329,9 +329,6 @@
                     <a id="toolUefi" href="#UefiTools" class="sidebar-nav-button">
                       <span>UEFI Tools</span>
                     </a>
-                    <a id="toolUniversalDmi" href="#UniversalDmi" class="sidebar-nav-button">
-                      <span>Universal DMI</span>
-                    </a>
                     <a id="toolBiosVendorDetect" href="#BiosVendorDetect" class="sidebar-nav-button">
                       <span>Deteksi Vendor BIOS</span>
                     </a>
@@ -349,6 +346,9 @@
                         <span class="material-symbols-outlined">expand_more</span>
                       </summary>
                       <div class="sidebar-subdropdown-menu">
+                        <a id="toolUniversalDmi" href="#UniversalDmi" class="sidebar-nav-button sidebar-nav-button-subitem">
+                          <span>Universal DMI</span>
+                        </a>
                         <a id="toolDumpBiosLenovo" href="#DumpBiosLenovo" class="sidebar-nav-button sidebar-nav-button-subitem">
                           <span>Lenovo UEFI AutoPatcher</span>
                         </a>
@@ -357,6 +357,9 @@
                         </a>
                         <a id="toolAmiDecryptor" href="#AmiDecryptor" class="sidebar-nav-button sidebar-nav-button-subitem">
                           <span>AMI Decrytor &amp; Unlocker</span>
+                        </a>
+                        <a id="toolBiosMemorySpd" href="#BiosMemorySpd" class="sidebar-nav-button sidebar-nav-button-subitem">
+                          <span>BIOS Memory SPD Cleaner</span>
                         </a>
                       </div>
                     </details>
@@ -418,6 +421,7 @@
             <section id="lenovoBiosPatchWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="dell8Fc8Workbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="amiDecryptorWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="biosMemorySpdWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="biosPasswordWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="microscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="alienServerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -755,24 +759,25 @@
   </div>
 
   <script src="service-config.js?v=202605220002"></script>
-  <script src="pages/spi-flash/page.js?v=202605210016"></script>
+  <script src="pages/spi-flash/page.js?v=202605290012"></script>
     <script src="pages/oscilloscope/page.js?v=202605210016"></script>
   <script src="pages/me-analyzer/page.js?v=202605210016"></script>
   <script src="pages/uefi-tool/page.js?v=202605210016"></script>
-  <script src="pages/universal-dmi/page.js?v=202605230003"></script>
+  <script src="pages/universal-dmi/page.js?v=202605290001"></script>
   <script src="pages/bios-vendor-detect/page.js?v=202605210016"></script>
   <script src="pages/file-hash-compare/page.js?v=202605210016"></script>
   <script src="pages/resistor-calculator/page.js?v=202605210016"></script>
   <script src="pages/lenovo-bios-patch/page.js?v=202605210016"></script>
   <script src="pages/dell-8fc8/page.js?v=202605210016"></script>
   <script src="pages/ami-decryptor/page.js?v=202605210016"></script>
+  <script src="pages/bios-memory-spd/page.js?v=202605240003"></script>
   <script src="pages/bios-password/page.js?v=202605210016"></script>
   <script src="pages/microscope/page.js?v=202605210016"></script>
   <script src="pages/alien-server/page.js?v=202605210016"></script>
   <script src="pages/boardviewer/page.js?v=202605210016"></script>
   <script src="pages/dashboard-home/page.js?v=202605230002"></script>
-  <script src="pages/product/page.js?v=202605230004"></script>
+  <script src="pages/product/page.js?v=202605240005"></script>
   <script src="pages/settings/page.js?v=202605230002"></script>
-    <script src="app.js?v=202605230003"></script>
+    <script src="app.js?v=202605290001"></script>
 </body>
 </html>

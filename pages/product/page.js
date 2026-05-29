@@ -112,15 +112,6 @@
     `).join("");
   }
 
-  function createWhatsAppChips() {
-    return whatsappContacts.map((contact) => `
-      <a class="product-whatsapp-chip" href="https://wa.me/${escapeHtml(contact.number)}" target="_blank" rel="noopener noreferrer">
-        <span class="material-symbols-outlined">call</span>
-        <span>${escapeHtml(contact.area)} ${escapeHtml(contact.displayNumber)}</span>
-      </a>
-    `).join("");
-  }
-
   function createProductCard(product) {
     return `
       <article class="product-card">
@@ -184,7 +175,6 @@
           </div>
           <div class="product-head-meta">
             <span class="spi-mini-badge">${escapeHtml(String(products.length))} Produk</span>
-            ${createWhatsAppChips()}
           </div>
         </section>
 

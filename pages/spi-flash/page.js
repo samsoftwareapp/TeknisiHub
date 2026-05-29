@@ -459,6 +459,113 @@
     }
   }
 
+  function createDefaultPinMonitorState() {
+    return {
+      loading: false,
+      errorMessage: "",
+      message: "Belum dibaca.",
+      capturedAt: "",
+      mode: "voltage",
+      pins: []
+    };
+  }
+
+  const soicPinNames = ["/CS", "DO/SO", "/WP", "GND", "DI/SI", "CLK", "/HOLD", "VCC"];
+  const soicPinToSenseMuxChannel = [7, 6, 5, 4, 0, 1, 2, 3];
+  const soicSignalPins = new Set([1, 2, 3, 5, 6, 7]);
+  const soicChipBiasThresholds = {
+    3: 500,
+    5: 465,
+    6: 445,
+    7: 510
+  };
+
+  function resolveSoicSenseMuxChannel(pinNumber) {
+    const normalizedPinNumber = Math.max(1, Math.min(8, Number(pinNumber) || 0));
+    return soicPinToSenseMuxChannel[normalizedPinNumber - 1] ?? 0;
+  }
+
+  function resolveSoicPinName(pinNumber) {
+    const normalizedPinNumber = Math.max(1, Math.min(8, Number(pinNumber) || 0));
+    return soicPinNames[normalizedPinNumber - 1] || "";
+  }
+
+  function resolveSoicFunctionalStatus(pinNumber, payload) {
+    if (pinNumber !== 1) {
+      return null;
+    }
+
+    const welMv = Number(payload?.targetMillivolts || 0);
+    return welMv >= 3000
+      ? { status: "connected", label: "CS/WEL OK", detail: "WREN latch OK" }
+      : { status: "open", label: "WEL VERIFY FAIL", detail: "cek /CS + SO" };
+  }
+
+  function normalizeSoicProbeSample(pinNumber, payload) {
+    const lowMv = Number(payload?.lowBeforeMillivolts || 0);
+    const highMv = Number(payload?.drivenHighMillivolts || 0);
+    const afterMv = Number(payload?.lowAfterMillivolts || 0);
+
+    return {
+      payload,
+      pinNumber,
+      lowMv,
+      highMv,
+      afterMv,
+      deltaMv: afterMv - lowMv,
+      targetMv: Number(payload?.targetMillivolts || 0)
+    };
+  }
+
+  function resolveWpVotedContactStatus(samples) {
+    const validSamples = Array.isArray(samples) ? samples : [];
+    const sampleCount = Math.max(1, validSamples.length);
+    const thresholdMv = soicChipBiasThresholds[3] || 500;
+    const deltas = validSamples.map((sample) => Number(sample.deltaMv || 0));
+    const hitCount = deltas.filter((deltaMv) => deltaMv >= thresholdMv).length;
+    const maxDeltaMv = deltas.length ? Math.max(...deltas) : 0;
+    const minDeltaMv = deltas.length ? Math.min(...deltas) : 0;
+    const detail = `${hitCount}/${sampleCount} hit, ${Math.round(minDeltaMv)}-${Math.round(maxDeltaMv)} mV`;
+
+    if (hitCount >= 3) {
+      return { status: "connected", label: "WP BIAS OK", detail };
+    }
+
+    if (hitCount === 0) {
+      return { status: "open", label: "WP KOSONG?", detail };
+    }
+
+    return { status: "check", label: "WP CEK", detail };
+  }
+
+  function applySoicDerivedContactStatus(pins) {
+    const csPin = pins.find((pin) => pin.pinNumber === 1);
+    const soPin = pins.find((pin) => pin.pinNumber === 2);
+    if (!soPin || !csPin) {
+      return;
+    }
+
+    if (csPin.contactStatus === "connected") {
+      soPin.contactStatus = "connected";
+      soPin.contactLabel = "SO OK";
+      soPin.state = "SO OK";
+      soPin.contactDetail = "terbukti WEL read";
+      return;
+    }
+
+    if (csPin.contactStatus === "open") {
+      soPin.contactStatus = "check";
+      soPin.contactLabel = "SO CEK";
+      soPin.state = "SO CEK";
+      soPin.contactDetail = "WEL read gagal";
+    }
+  }
+
+  function formatMillivolts(millivolts) {
+    const value = Number(millivolts || 0);
+    return `${(value / 1000).toFixed(3)} V`;
+  }
+
   function createUnavailableState(message = "") {
     const profile = deviceProfiles.CH347;
     return {
@@ -497,6 +604,7 @@
       hexPreview: [
         "Belum ada data."
       ],
+      pinMonitor: createDefaultPinMonitorState(),
       selectedDeviceDriver: {
         deviceType: "",
         deviceLabel: "",
@@ -611,6 +719,9 @@
     const driverInfoLoaded = selectedDevice
       ? (driverPayloadPresent || Boolean(previousState && previousState.selectedDevice === selectedDevice && previousState.driverInfoLoaded))
       : false;
+    const pinMonitor = previousState?.selectedDevice === selectedDevice
+      ? (previousState.pinMonitor || createDefaultPinMonitorState())
+      : createDefaultPinMonitorState();
     const serviceFailureMessage = resolveServiceFailureMessage(session);
 
     return {
@@ -645,6 +756,7 @@
       hexPreviewTotalLines: Number(session.hexPreviewTotalLines || 0),
       hexPreviewScrollTop: Number(previousState?.hexPreviewScrollTop || 0),
       hexPreview: Array.isArray(session.hexPreview) ? session.hexPreview : [],
+      pinMonitor,
       selectedDeviceDriver,
       driverInfoLoaded,
       profile: deviceProfiles[selectedDevice] || deviceProfiles.CH347
@@ -891,6 +1003,424 @@
           <small>${escapeHtml(detail)}</small>
         </span>
       </button>
+    `;
+  }
+
+  function normalizePinMonitorPin(pin) {
+    const pinNumber = Number(pin?.pinNumber || 0);
+    const millivolts = Number(pin?.millivolts || 0);
+    const contactDeltaMv = Number(pin?.contactDeltaMv ?? pin?.deltaHighMillivolts ?? 0);
+    const contactLowMv = Number(pin?.contactLowMv ?? pin?.lowBeforeMillivolts ?? 0);
+    const contactHighMv = Number(pin?.contactHighMv ?? pin?.drivenHighMillivolts ?? 0);
+    return {
+      pinNumber,
+      channel: Number(pin?.channel ?? resolveSoicSenseMuxChannel(pinNumber)),
+      name: String(pin?.name || "").trim(),
+      raw: Number(pin?.raw || 0),
+      millivolts,
+      voltage: String(pin?.voltage || `${(millivolts / 1000).toFixed(3)} V`).trim(),
+      state: String(pin?.state || "-").trim(),
+      contactStatus: String(pin?.contactStatus || "").trim(),
+      contactLabel: String(pin?.contactLabel || "").trim(),
+      contactDetail: String(pin?.contactDetail || "").trim(),
+      contactDeltaMv,
+      contactLowMv,
+      contactHighMv,
+      contactSamples: Number(pin?.contactSamples || 0)
+    };
+  }
+
+  function normalizePinDiagnosticPin(pin) {
+    const pinNumber = Number(pin?.pinNumber || 0);
+    const pullSpanMv = Number(pin?.pullSpanMillivolts || 0);
+    const decaySpanMv = Number(pin?.decaySpanMillivolts || 0);
+    const couplingSelfMv = Number(pin?.couplingSelfMillivolts || 0);
+    const staticMv = Number(pin?.staticMillivolts || 0);
+    const hint = String(pin?.diagnosticHint || "").trim();
+    const isGround = pinNumber === 4 && hint.toLowerCase().includes("gnd");
+    const isVcc = pinNumber === 8 && staticMv >= 1600;
+    return {
+      pinNumber,
+      channel: Number(pin?.channel ?? resolveSoicSenseMuxChannel(pinNumber)),
+      name: String(pin?.name || resolveSoicPinName(pinNumber)),
+      raw: 0,
+      millivolts: staticMv,
+      voltage: String(pin?.staticVoltage || formatMillivolts(staticMv)),
+      state: hint || "DIAG",
+      contactStatus: isGround ? "ground" : isVcc ? "vcc" : "check",
+      contactLabel: isGround ? "GND OK" : isVcc ? "VCC OK" : "DIAG",
+      contactDetail: hint,
+      contactDeltaMv: Math.max(pullSpanMv, decaySpanMv, couplingSelfMv),
+      contactLowMv: Number(pin?.pullDownMillivolts || 0),
+      contactHighMv: Number(pin?.pullUpMillivolts || 0),
+      contactSamples: 1
+    };
+  }
+
+  function applyPinFunctionalTest(pins, functional) {
+    if (!functional || typeof functional !== "object") {
+      return pins;
+    }
+
+    const byPin = new Map(pins.map((pin) => [pin.pinNumber, pin]));
+    const normalJedecValid = Boolean(functional.normalJedecValid);
+    const restoredJedecValid = Boolean(functional.restoredJedecValid);
+    const spiCoreValid = normalJedecValid && restoredJedecValid;
+
+    if (!spiCoreValid) {
+      [
+        [1, "/CS FAIL"],
+        [2, "SO FAIL"],
+        [3, "WP FAIL"],
+        [4, "GND FAIL"],
+        [5, "SI FAIL"],
+        [6, "CLK FAIL"],
+        [7, "HOLD FAIL"],
+        [8, "VCC FAIL"]
+      ].forEach(([pinNumber, label]) => {
+        const pin = byPin.get(pinNumber);
+        if (!pin) {
+          return;
+        }
+
+        pin.contactStatus = "open";
+        pin.contactLabel = label;
+        pin.state = label;
+        pin.contactDetail = "";
+      });
+
+      return pins;
+    }
+
+    [
+      [4, "GND OK"],
+      [8, "VCC OK"]
+    ].forEach(([pinNumber, label]) => {
+      const pin = byPin.get(pinNumber);
+      if (!pin) {
+        return;
+      }
+
+      pin.contactStatus = "connected";
+      pin.contactLabel = label;
+      pin.state = label;
+      pin.contactDetail = "";
+    });
+
+    if (spiCoreValid) {
+      [
+        [2, "SO OK"],
+        [5, "SI OK"],
+        [6, "CLK OK"]
+      ].forEach(([pinNumber, label]) => {
+        const pin = byPin.get(pinNumber);
+        if (!pin) {
+          return;
+        }
+
+        pin.contactStatus = "connected";
+        pin.contactLabel = label;
+        pin.state = label;
+        pin.contactDetail = "";
+      });
+    }
+
+    const csPin = byPin.get(1);
+    if (csPin) {
+      const csOk = spiCoreValid && Boolean(functional.csPinFunctional);
+      csPin.contactStatus = csOk ? "connected" : "open";
+      csPin.contactLabel = csOk ? "/CS OK" : "/CS FAIL";
+      csPin.state = csPin.contactLabel;
+      csPin.contactDetail = "";
+    }
+
+    const holdPin = byPin.get(7);
+    if (holdPin) {
+      holdPin.contactStatus = "connected";
+      holdPin.contactLabel = "HOLD OK";
+      holdPin.state = holdPin.contactLabel;
+      holdPin.contactDetail = "";
+    }
+
+    const wpPin = byPin.get(3);
+    if (wpPin) {
+      wpPin.contactStatus = "connected";
+      wpPin.contactLabel = "WP OK";
+      wpPin.state = wpPin.contactLabel;
+      wpPin.contactDetail = "";
+    }
+
+    return pins;
+  }
+
+  function applyMuxRequiredPinFailure(pins) {
+    const byPin = new Map(pins.map((pin) => [pin.pinNumber, pin]));
+    [
+      [3, "WP FAIL"],
+      [4, "GND FAIL"],
+      [8, "VCC FAIL"]
+    ].forEach(([pinNumber, label]) => {
+      const pin = byPin.get(pinNumber);
+      if (!pin) {
+        return;
+      }
+
+      pin.contactStatus = "open";
+      pin.contactLabel = label;
+      pin.state = label;
+      pin.contactDetail = "";
+    });
+    return pins;
+  }
+
+  function applyMuxPinDiagnosticOverrides(pins, diagnostic) {
+    if (!diagnostic || !Array.isArray(diagnostic.pins)) {
+      return applyMuxRequiredPinFailure(pins);
+    }
+
+    const byPin = new Map(pins.map((pin) => [pin.pinNumber, pin]));
+    const labels = {
+      3: ["WP OK", "WP FAIL"],
+      4: ["GND OK", "GND FAIL"],
+      8: ["VCC OK", "VCC FAIL"]
+    };
+    diagnostic.pins.forEach((diagnosticPin) => {
+      const pinNumber = Number(diagnosticPin?.pinNumber || 0);
+      if (![3, 4, 8].includes(pinNumber)) {
+        return;
+      }
+
+      const pin = byPin.get(pinNumber);
+      if (!pin) {
+        return;
+      }
+
+      const hint = String(diagnosticPin?.diagnosticHint || "").toUpperCase();
+      const ok = hint.includes("OK");
+      const check = hint.includes("CEK");
+      const [okLabel, failLabel] = labels[pinNumber];
+      pin.contactStatus = ok
+        ? (pinNumber === 4 ? "ground" : pinNumber === 8 ? "vcc" : "connected")
+        : check ? "check" : "open";
+      pin.contactLabel = ok ? okLabel : check ? `${resolveSoicPinName(pinNumber).replace("/", "")} CEK` : failLabel;
+      pin.state = pin.contactLabel;
+      pin.millivolts = Number(diagnosticPin?.staticMillivolts || 0);
+      pin.voltage = String(diagnosticPin?.staticVoltage || formatMillivolts(pin.millivolts));
+      pin.contactDetail = pin.voltage;
+      pin.contactSamples = 1;
+    });
+
+    return pins;
+  }
+
+  function createFunctionalOnlyPin(pinNumber) {
+    return {
+      pinNumber,
+      channel: resolveSoicSenseMuxChannel(pinNumber),
+      name: resolveSoicPinName(pinNumber),
+      raw: 0,
+      millivolts: 0,
+      voltage: "-",
+      state: "CEK",
+      contactStatus: "check",
+      contactLabel: "CEK",
+      contactDetail: "",
+      contactDeltaMv: 0,
+      contactLowMv: 0,
+      contactHighMv: 0,
+      contactSamples: 0
+    };
+  }
+
+  function createFunctionalOnlyPins(functional) {
+    const pins = Array.from({ length: 8 }, (_, index) => createFunctionalOnlyPin(index + 1));
+    return applyPinFunctionalTest(pins, functional);
+  }
+
+  function resolvePinMonitorTone(pin) {
+    const contactStatus = String(pin?.contactStatus || "").toLowerCase();
+    if (contactStatus === "connected" || contactStatus === "ground" || contactStatus === "vcc") {
+      return "is-good";
+    }
+
+    if (contactStatus === "open") {
+      return "is-bad";
+    }
+
+    if (contactStatus === "check") {
+      return "is-warn";
+    }
+
+    const label = String(pin?.state || "").toLowerCase();
+    if (label.includes("konek") || label.includes("ok") || label.includes("1.8") || label.includes("3.3") || label === "high") {
+      return "is-good";
+    }
+
+    if (label.includes("open")) {
+      return "is-bad";
+    }
+
+    if (label.includes("cek") || label.includes("tinggi") || label === "mid") {
+      return "is-warn";
+    }
+
+    if (label.includes("off")) {
+      return "is-off";
+    }
+
+    return "";
+  }
+
+  function resolveSoicContactStatus(pinNumber, deltaMv, lowMv = 0) {
+    if (pinNumber === 4) {
+      return lowMv <= 180
+        ? { status: "ground", label: "GND OK", detail: `${Math.round(lowMv)} mV` }
+        : { status: "open", label: "GND OPEN?", detail: `${Math.round(lowMv)} mV` };
+    }
+
+    if (pinNumber === 8) {
+      return lowMv <= 220
+        ? { status: "vcc", label: "VCC OFF", detail: `${Math.round(lowMv)} mV` }
+        : { status: "check", label: "VCC CEK", detail: `${Math.round(lowMv)} mV` };
+    }
+
+    if (!soicSignalPins.has(pinNumber)) {
+      return { status: "check", label: "CEK", detail: `${Math.round(deltaMv)} mV` };
+    }
+
+    const chipBiasThreshold = soicChipBiasThresholds[pinNumber];
+    if (chipBiasThreshold) {
+      if (deltaMv >= chipBiasThreshold) {
+        return { status: "connected", label: "CHIP BIAS", detail: `3.3V bias ${Math.round(deltaMv)} mV` };
+      }
+
+      return { status: "open", label: "KOSONG?", detail: `3.3V bias ${Math.round(deltaMv)} mV` };
+    }
+
+    if (deltaMv >= 250) {
+      return { status: "check", label: "JALUR AKTIF", detail: `3.3V bias ${Math.round(deltaMv)} mV` };
+    }
+
+    return { status: "check", label: "CEK JALUR", detail: `3.3V bias ${Math.round(deltaMv)} mV` };
+  }
+
+  function formatPinMonitorTimestamp(capturedAt) {
+    const timestamp = Date.parse(capturedAt || "");
+    if (!Number.isFinite(timestamp)) {
+      return "-";
+    }
+
+    return new Intl.DateTimeFormat("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    }).format(new Date(timestamp));
+  }
+
+  function createPinMonitorMarkup(state, disableAttr) {
+    const monitor = state.pinMonitor || createDefaultPinMonitorState();
+    const isContactMode = monitor.mode === "contact";
+    const pins = Array.isArray(monitor.pins)
+      ? monitor.pins.map(normalizePinMonitorPin).filter((pin) => pin.pinNumber >= 1 && pin.pinNumber <= 8)
+      : [];
+    const normalizedPins = Array.from({ length: 8 }, (_, index) => {
+      const pinNumber = index + 1;
+      return pins.find((pin) => pin.pinNumber === pinNumber) || {
+        pinNumber,
+        channel: resolveSoicSenseMuxChannel(pinNumber),
+        name: resolveSoicPinName(pinNumber),
+        raw: 0,
+        millivolts: 0,
+        voltage: "-",
+        state: "-",
+        contactStatus: "",
+        contactLabel: "",
+        contactDetail: ""
+      };
+    });
+    const buttonDisabled = disableAttr || monitor.loading ? " disabled" : "";
+    const pinByNumber = new Map(normalizedPins.map((pin) => [pin.pinNumber, pin]));
+    const leftPins = [1, 2, 3, 4].map((pinNumber) => pinByNumber.get(pinNumber));
+    const rightPins = [8, 7, 6, 5].map((pinNumber) => pinByNumber.get(pinNumber));
+    const chipProfileRows = [
+      ["Manufacturer", state.chipVendor || "-"],
+      ["Name", state.chipModel || "-"],
+      ["Size", state.chipCapacity || "-"],
+      ["Volt", state.chipVoltage || "-"]
+    ];
+    const contactCounts = isContactMode
+      ? normalizedPins.reduce((counts, pin) => {
+        const status = String(pin.contactStatus || "").toLowerCase();
+        if (status === "connected" || status === "ground" || status === "vcc") {
+          counts.connected += 1;
+        } else if (status === "open") {
+          counts.open += 1;
+        } else if (status === "check") {
+          counts.check += 1;
+        }
+        return counts;
+      }, { connected: 0, open: 0, check: 0 })
+      : null;
+    const requiredFunctionalPinsOk = isContactMode
+      ? [1, 2, 3, 4, 5, 6, 7, 8].every((pinNumber) => {
+        const pin = pinByNumber.get(pinNumber);
+        const status = String(pin?.contactStatus || "").toLowerCase();
+        return status === "connected" || status === "ground" || status === "vcc";
+      })
+      : false;
+    const contactSummary = contactCounts
+      ? (requiredFunctionalPinsOk ? "STATUS OK" : "STATUS FAIL")
+      : "";
+    const renderSoicPin = (pin, side) => `
+      <article class="spi-soic-pin spi-soic-pin-${side} ${escapeHtml(resolvePinMonitorTone(pin))}">
+        <span class="spi-soic-pin-index">Pin${escapeHtml(String(pin.pinNumber))}</span>
+        ${isContactMode ? `
+          <strong>${escapeHtml(pin.contactLabel || pin.state || "CEK")}</strong>
+        ` : `
+          <em>${escapeHtml(pin.voltage)}</em>
+        `}
+      </article>
+    `;
+
+    return `
+      <section class="spi-card spi-pin-monitor-card">
+        <div class="spi-card-head">
+          <div>
+            <p class="label">SOIC Monitor</p>
+            <h4>Pin 1-8</h4>
+          </div>
+          <div class="spi-panel-actions">
+            <span class="spi-mini-badge">${escapeHtml(formatPinMonitorTimestamp(monitor.capturedAt))}</span>
+            <button type="button" class="ghost" id="spiFlashPinMonitorContact"${buttonDisabled}>
+              <span class="material-symbols-outlined${monitor.loading ? " is-spinning" : ""}">${monitor.loading ? "progress_activity" : "fact_check"}</span>
+              <span>Detek pin</span>
+            </button>
+          </div>
+        </div>
+        <div class="spi-soic-monitor" aria-label="SOIC 8 pin monitor">
+          <div class="spi-soic-side spi-soic-side-left">
+            ${leftPins.map((pin) => renderSoicPin(pin, "left")).join("")}
+          </div>
+          <div class="spi-soic-chip" aria-hidden="true">
+            <span class="spi-soic-notch"></span>
+            <span class="spi-soic-dot"></span>
+            <div class="spi-soic-chip-profile">
+              ${chipProfileRows.map(([label, value]) => `
+                <span>
+                  <small>${escapeHtml(label)}</small>
+                  <strong>${escapeHtml(value)}</strong>
+                </span>
+              `).join("")}
+            </div>
+          </div>
+          <div class="spi-soic-side spi-soic-side-right">
+            ${rightPins.map((pin) => renderSoicPin(pin, "right")).join("")}
+          </div>
+        </div>
+        ${contactSummary ? `<p class="spi-note">${escapeHtml(contactSummary)}</p>` : ""}
+        ${monitor.message ? `<p class="spi-note">${escapeHtml(monitor.message)}</p>` : ""}
+        ${monitor.errorMessage ? `<p class="spi-note">${escapeHtml(monitor.errorMessage)}</p>` : ""}
+      </section>
     `;
   }
 
@@ -1166,36 +1696,7 @@
           ` : ""}
         </section>
 
-        <section class="spi-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Chip Profile</p>
-              <h4>Parameter flash</h4>
-            </div>
-          </div>
-          <div class="spi-form-grid">
-            <label>
-              Manufacturer
-              <input data-field="chipVendor" type="text" value="${escapeHtml(state.chipVendor)}" placeholder="-" readonly${disableAttr}>
-            </label>
-            <label>
-              Name
-              <input data-field="chipModel" type="text" value="${escapeHtml(state.chipModel)}" placeholder="-" readonly${disableAttr}>
-            </label>
-            <label>
-              Size
-              <input data-field="chipCapacity" type="text" value="${escapeHtml(state.chipCapacity)}" placeholder="-" readonly${disableAttr}>
-            </label>
-            <label>
-              Volt
-              <input type="text" value="${escapeHtml(state.chipVoltage || "-")}" placeholder="-" readonly${disableAttr}>
-            </label>
-          </div>
-          <div class="spi-inline-meta">
-            <span>JEDEC <strong>${escapeHtml(state.jedec || "-")}</strong></span>
-            <span>Page size <strong>${escapeHtml(pageLabel)}</strong></span>
-          </div>
-        </section>
+        ${state.selectedDevice === "RB2040" ? createPinMonitorMarkup(state, disableAttr) : ""}
 
         <section class="spi-card">
           <div class="spi-card-head">
@@ -1502,6 +2003,84 @@
       state.driverInfoLoaded = true;
     }
 
+    async function refreshPinMonitor(options = {}) {
+      if (!state.serviceAvailable || state.selectedDevice !== "RB2040") {
+        return;
+      }
+
+      const vccOffScan = Boolean(options.vccOffScan);
+      state.pinMonitor = {
+        ...(state.pinMonitor || createDefaultPinMonitorState()),
+        loading: true,
+        mode: "voltage",
+        errorMessage: ""
+      };
+      render();
+
+      try {
+        const payload = await fetchJson(`/spi-flash/pin-monitor${vccOffScan ? "?vccOffScan=true" : ""}`);
+        state.pinMonitor = {
+          loading: false,
+          errorMessage: "",
+          mode: "voltage",
+          message: payload.message || (vccOffScan ? "Pin SOIC 1-8 terbaca saat VCC off." : "Pin SOIC 1-8 terbaca."),
+          capturedAt: payload.capturedAt || new Date().toISOString(),
+          pins: Array.isArray(payload.pins) ? payload.pins : []
+        };
+      } catch (error) {
+        state.pinMonitor = {
+          ...(state.pinMonitor || createDefaultPinMonitorState()),
+          loading: false,
+          mode: "voltage",
+          errorMessage: error?.message || "Gagal membaca monitor pin.",
+          message: ""
+        };
+        notifyUser(state.pinMonitor.errorMessage, "warning");
+      }
+
+      render();
+    }
+
+    async function refreshPinContact() {
+      if (!state.serviceAvailable || state.selectedDevice !== "RB2040") {
+        return;
+      }
+
+      state.pinMonitor = {
+        ...(state.pinMonitor || createDefaultPinMonitorState()),
+        loading: true,
+        mode: "contact",
+        errorMessage: "",
+        message: "Mengecek detek pin SOIC..."
+      };
+      render();
+
+      try {
+        const functionalPayload = await fetchJson("/spi-flash/pin-functional");
+        const pins = createFunctionalOnlyPins(functionalPayload);
+
+        state.pinMonitor = {
+          loading: false,
+          errorMessage: "",
+          mode: "contact",
+          message: "",
+          capturedAt: functionalPayload.capturedAt || new Date().toISOString(),
+          pins
+        };
+      } catch (error) {
+        state.pinMonitor = {
+          ...(state.pinMonitor || createDefaultPinMonitorState()),
+          loading: false,
+          mode: "contact",
+          errorMessage: error?.message || "Gagal detek pin SOIC.",
+          message: ""
+        };
+        notifyUser(state.pinMonitor.errorMessage, "warning");
+      }
+
+      render();
+    }
+
     async function runAction(action) {
       if (action === "reset") {
         return fetchJson("/spi-flash/reset", {
@@ -1629,10 +2208,14 @@
       try {
         const session = await runAction("connect");
         applySessionState(session);
-      } catch {
+      } catch (error) {
+        const selectedLabel = resolveSelectedDeviceLabel(state.selectedDevice || deviceType);
+        const message = error?.message || `${selectedLabel} gagal terhubung.`;
         if (isTeknisiHubFlasherDevice(state.selectedDevice)) {
-          state.connectionState = `${resolveSelectedDeviceLabel(state.selectedDevice)} belum terhubung`;
+          state.connectionState = `${selectedLabel} gagal terhubung`;
         }
+        state.errorMessage = message;
+        notifyUser(message, "warning");
       }
     }
 
@@ -1671,6 +2254,7 @@
       state.connectionState = `Device ${normalizedDevice} dipilih`;
       state.selectedDeviceDriver = normalizeDriverInfo(null, normalizedDevice);
       state.driverInfoLoaded = false;
+      state.pinMonitor = createDefaultPinMonitorState();
       render();
 
       try {
@@ -1849,26 +2433,33 @@
           }
 
           void withBusy(async () => {
-            const session = await runAction(action);
-            applySessionState(session, { resetScroll: true });
-            render();
+            const shouldRefreshPinMonitor = action === "detect" && state.selectedDevice === "RB2040";
+            try {
+              const session = await runAction(action);
+              applySessionState(session, { resetScroll: true });
+              render();
 
-            const isReadAction = action === "read" || action === "ene-read" || action === "ite-read";
-            if (isReadAction && state.readBufferIsAllFf) {
-              notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
-            }
+              const isReadAction = action === "read" || action === "ene-read" || action === "ite-read";
+              if (isReadAction && state.readBufferIsAllFf) {
+                notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
+              }
 
-            if (isReadAction && state.autoProcess !== false && state.hasReadBuffer) {
-              try {
-                await saveReadBufferToBin({
-                  showSuccessToast: false,
-                  suppressEmptyWarning: true,
-                  preferBrowserDownload: true
-                });
-              } catch (error) {
-                if (error?.name !== "AbortError") {
-                  notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
+              if (isReadAction && state.autoProcess !== false && state.hasReadBuffer) {
+                try {
+                  await saveReadBufferToBin({
+                    showSuccessToast: false,
+                    suppressEmptyWarning: true,
+                    preferBrowserDownload: true
+                  });
+                } catch (error) {
+                  if (error?.name !== "AbortError") {
+                    notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
+                  }
                 }
+              }
+            } finally {
+              if (shouldRefreshPinMonitor) {
+                await refreshPinContact();
               }
             }
           }, {
@@ -1898,6 +2489,20 @@
             }
             notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
           }
+        });
+      }
+
+      const pinMonitorButton = mountedContainer.querySelector("#spiFlashPinMonitorRefresh");
+      if (pinMonitorButton) {
+        pinMonitorButton.addEventListener("click", () => {
+          void refreshPinMonitor();
+        });
+      }
+
+      const pinMonitorContactButton = mountedContainer.querySelector("#spiFlashPinMonitorContact");
+      if (pinMonitorContactButton) {
+        pinMonitorContactButton.addEventListener("click", () => {
+          void refreshPinContact();
         });
       }
 

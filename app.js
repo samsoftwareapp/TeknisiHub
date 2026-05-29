@@ -74,6 +74,7 @@ const resistorCalculatorWorkbench = document.getElementById("resistorCalculatorW
 const lenovoBiosPatchWorkbench = document.getElementById("lenovoBiosPatchWorkbench");
 const dell8Fc8Workbench = document.getElementById("dell8Fc8Workbench");
 const amiDecryptorWorkbench = document.getElementById("amiDecryptorWorkbench");
+const biosMemorySpdWorkbench = document.getElementById("biosMemorySpdWorkbench");
 const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
 const microscopeWorkbench = document.getElementById("microscopeWorkbench");
 const alienServerWorkbench = document.getElementById("alienServerWorkbench");
@@ -176,6 +177,7 @@ const toolBiosPatchGroup = document.getElementById("toolBiosPatchGroup");
 const toolDumpBiosLenovo = document.getElementById("toolDumpBiosLenovo");
 const toolDell8Fc8 = document.getElementById("toolDell8Fc8");
 const toolAmiDecryptor = document.getElementById("toolAmiDecryptor");
+const toolBiosMemorySpd = document.getElementById("toolBiosMemorySpd");
 const toolBiosPassword = document.getElementById("toolBiosPassword");
 const toolMicroscope = document.getElementById("toolMicroscope");
 const toolAlienServer = document.getElementById("toolAlienServer");
@@ -241,13 +243,14 @@ const uefiToolPage = window.teknisiHubPages?.uefiTool || {
 
 const universalDmiPage = window.teknisiHubPages?.universalDmi || {
   viewKey: "tool_universal_dmi",
-  eyebrow: "Universal DMI",
-  title: "Universal DMI Tools",
-  subtitle: "Read dan patch DMI BIOS lewat engine C# native TeknisiHub.",
+  eyebrow: "Bios Patch",
+  title: "Universal DMI",
+  subtitle: "Launcher aplikasi desktop Universal-DMI-Tools original.",
   items: [],
   mount() {},
   setVisible() {},
-  refresh() {}
+  refresh() {},
+  launch() {}
 };
 
 const biosVendorDetectPage = window.teknisiHubPages?.biosVendorDetect || {
@@ -310,6 +313,17 @@ const amiDecryptorPage = window.teknisiHubPages?.amiDecryptor || {
   eyebrow: "Bios Patch",
   title: "AMI Decrytor & Unlocker",
   subtitle: "Cari AMITSESetup dan decode kandidat password supervisor dari BIOS AMI.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const biosMemorySpdPage = window.teknisiHubPages?.biosMemorySpd || {
+  viewKey: "tool_bios_memory_spd",
+  eyebrow: "Bios Patch",
+  title: "BIOS Memory SPD Cleaner",
+  subtitle: "Scan, export, dan clean blok SPD DDR3/DDR4 langsung dari local service.",
   items: [],
   mount() {},
   setVisible() {},
@@ -599,6 +613,11 @@ amiDecryptorPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+biosMemorySpdPage.mount?.({
+  container: biosMemorySpdWorkbench,
+  notify: (message, tone) => setNotice(message, tone)
+});
+
 biosPasswordPage.mount?.({
   container: biosPasswordWorkbench,
   notify: (message) => setNotice(message)
@@ -764,6 +783,12 @@ const toolViewMap = {
     subtitle: amiDecryptorPage.subtitle,
     channelLink: null
   },
+  [biosMemorySpdPage.viewKey]: {
+    eyebrow: biosMemorySpdPage.eyebrow,
+    title: biosMemorySpdPage.title,
+    subtitle: biosMemorySpdPage.subtitle,
+    channelLink: null
+  },
   tool_bios_password: {
     eyebrow: biosPasswordPage.eyebrow,
     title: biosPasswordPage.title,
@@ -810,6 +835,7 @@ const localWorkbenchViewKeys = new Set([
   lenovoBiosPatchPage.viewKey,
   dell8Fc8Page.viewKey,
   amiDecryptorPage.viewKey,
+  biosMemorySpdPage.viewKey,
   biosPasswordPage.viewKey,
   microscopePage.viewKey,
   alienServerPage.viewKey,
@@ -836,6 +862,7 @@ const documentTitleLabels = {
   [lenovoBiosPatchPage.viewKey]: "Lenovo UEFI AutoPatcher",
   [dell8Fc8Page.viewKey]: "Dell 8FC8",
   [amiDecryptorPage.viewKey]: "AMI Decrytor & Unlocker",
+  [biosMemorySpdPage.viewKey]: "BIOS Memory SPD Cleaner",
   [biosPasswordPage.viewKey]: "BIOS Unlock Password",
   [microscopePage.viewKey]: "Microscope",
   [alienServerPage.viewKey]: "Alien Server",
@@ -862,6 +889,7 @@ const viewHashMap = {
   [lenovoBiosPatchPage.viewKey]: "DumpBiosLenovo",
   [dell8Fc8Page.viewKey]: "Dell8Fc8",
   [amiDecryptorPage.viewKey]: "AmiDecryptor",
+  [biosMemorySpdPage.viewKey]: "BiosMemorySpd",
   [biosPasswordPage.viewKey]: "BiosPassword",
   [microscopePage.viewKey]: "Microscope",
   [alienServerPage.viewKey]: "AlienServer",
@@ -889,7 +917,9 @@ const hashRouteMap = {
   tooluefitools: uefiToolPage.viewKey,
   tooluefi: uefiToolPage.viewKey,
   universaldmi: universalDmiPage.viewKey,
+  universalpatch: universalDmiPage.viewKey,
   tooluniversaldmi: universalDmiPage.viewKey,
+  tooluniversalpatch: universalDmiPage.viewKey,
   biosvendordetect: biosVendorDetectPage.viewKey,
   toolbiosvendordetect: biosVendorDetectPage.viewKey,
   filehashcompare: fileHashComparePage.viewKey,
@@ -902,6 +932,10 @@ const hashRouteMap = {
   tooldell8fc8: dell8Fc8Page.viewKey,
   amidecryptor: amiDecryptorPage.viewKey,
   toolamidecryptor: amiDecryptorPage.viewKey,
+  biosmemoryspd: biosMemorySpdPage.viewKey,
+  toolbiosmemoryspd: biosMemorySpdPage.viewKey,
+  biosspdcleaner: biosMemorySpdPage.viewKey,
+  spdcleaner: biosMemorySpdPage.viewKey,
   biospassword: biosPasswordPage.viewKey,
   toolbiospassword: biosPasswordPage.viewKey,
   microscope: microscopePage.viewKey,
@@ -942,6 +976,7 @@ function getViewButton(viewKey) {
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     [dell8Fc8Page.viewKey]: toolDell8Fc8,
     [amiDecryptorPage.viewKey]: toolAmiDecryptor,
+    [biosMemorySpdPage.viewKey]: toolBiosMemorySpd,
     [biosPasswordPage.viewKey]: toolBiosPassword,
     [microscopePage.viewKey]: toolMicroscope,
     [boardViewerPage.viewKey]: toolOther,
@@ -1694,6 +1729,7 @@ function showWorkbenchOnly(viewKey) {
   lenovoBiosPatchPage.setVisible?.(viewKey === lenovoBiosPatchPage.viewKey);
   dell8Fc8Page.setVisible?.(viewKey === dell8Fc8Page.viewKey);
   amiDecryptorPage.setVisible?.(viewKey === amiDecryptorPage.viewKey);
+  biosMemorySpdPage.setVisible?.(viewKey === biosMemorySpdPage.viewKey);
   biosPasswordPage.setVisible?.(viewKey === biosPasswordPage.viewKey);
   microscopePage.setVisible?.(viewKey === microscopePage.viewKey);
   alienServerPage.setVisible?.(viewKey === alienServerPage.viewKey);
@@ -1752,6 +1788,10 @@ function showWorkbenchOnly(viewKey) {
     amiDecryptorPage.refresh?.();
   }
 
+  if (viewKey === biosMemorySpdPage.viewKey) {
+    biosMemorySpdPage.refresh?.();
+  }
+
   if (viewKey === biosPasswordPage.viewKey) {
     biosPasswordPage.refresh?.();
   }
@@ -1787,6 +1827,7 @@ function hideWorkbench() {
   lenovoBiosPatchPage.setVisible?.(false);
   dell8Fc8Page.setVisible?.(false);
   amiDecryptorPage.setVisible?.(false);
+  biosMemorySpdPage.setVisible?.(false);
   biosPasswordPage.setVisible?.(false);
   microscopePage.setVisible?.(false);
   alienServerPage.setVisible?.(false);
@@ -1859,9 +1900,11 @@ function setActiveNav(targetKey) {
     delete document.body.dataset.activeToolView;
   }
 
-  const isBiosPatchView = targetKey === lenovoBiosPatchPage.viewKey
+  const isBiosPatchView = targetKey === universalDmiPage.viewKey
+    || targetKey === lenovoBiosPatchPage.viewKey
     || targetKey === dell8Fc8Page.viewKey
-    || targetKey === amiDecryptorPage.viewKey;
+    || targetKey === amiDecryptorPage.viewKey
+    || targetKey === biosMemorySpdPage.viewKey;
 
   const navMap = {
     [dashboardHomePage.viewKey]: navDashboard,
@@ -1882,6 +1925,7 @@ function setActiveNav(targetKey) {
     [lenovoBiosPatchPage.viewKey]: toolDumpBiosLenovo,
     [dell8Fc8Page.viewKey]: toolDell8Fc8,
     [amiDecryptorPage.viewKey]: toolAmiDecryptor,
+    [biosMemorySpdPage.viewKey]: toolBiosMemorySpd,
     tool_bios_password: toolBiosPassword,
     tool_microscope: toolMicroscope,
     [alienServerPage.viewKey]: toolAlienServer,
@@ -8771,10 +8815,7 @@ toolUniversalDmi?.addEventListener("click", (event) => {
     return;
   }
 
-  updateViewHash(universalDmiPage.viewKey);
-  currentCatalogView = universalDmiPage.viewKey;
-  catalogItems = catalogCache;
-  filterCatalogItems();
+  void universalDmiPage.launch?.();
 });
 
 toolBiosVendorDetect?.addEventListener("click", (event) => {
@@ -8839,6 +8880,17 @@ toolAmiDecryptor?.addEventListener("click", (event) => {
 
   updateViewHash(amiDecryptorPage.viewKey);
   currentCatalogView = amiDecryptorPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolBiosMemorySpd?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(biosMemorySpdPage.viewKey);
+  currentCatalogView = biosMemorySpdPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });

@@ -665,7 +665,7 @@ function basicAuthHeader() {
 
 async function fetchConfig() {
   state.config.uploadAuthRequired = false;
-  state.config.maxUploadMb = 50;
+  state.config.maxUploadMb = 100;
   state.config.boardTtlMinutes = 60;
   state.config.supportUrl = '';
   state.config.appVersion = '0.17 TH';
