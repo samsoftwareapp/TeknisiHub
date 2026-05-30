@@ -211,7 +211,7 @@ const spiFlashPage = window.teknisiHubPages?.spiFlash || {
 const oscilloscopePage = window.teknisiHubPages?.oscilloscope || {
   viewKey: "tool_oscilloscope",
   eyebrow: "Oscilloscope",
-  title: "STM32 Oscilloscope",
+  title: "TEKNISIHUB_FLASH_OSC",
   subtitle: "Capture analog single-channel dari local service.",
   items: [],
   mount() {},
@@ -2058,11 +2058,9 @@ function renderFlashChipDeviceSelector(messageId) {
         data-flash-chip-device
         data-message-id="${messageId}"
         aria-label="Pilih device programmer untuk SPI Flash">
-        <option value="">---Pilih Device---</option>
-        <option value="CH341A">CH341A</option>
-        <option value="STM32">STM32</option>
-        <option value="RB2040">RB2040</option>
-        <option value="EZP2019">EZP2019+</option>
+        <option value="">---Pilih Koneksi---</option>
+        <option value="TEKNISIHUB_FLASH_OSC_USB">TEKNISIHUB_FLASH_OSC USB</option>
+        <option value="TEKNISIHUB_FLASH_OSC_WIFI">TEKNISIHUB_FLASH_OSC WIFI</option>
       </select>
       <span class="catalog-flash-chip-device-indicator" data-flash-chip-device-indicator aria-hidden="true"></span>
     </label>
@@ -7296,7 +7294,7 @@ function disposePendingBoardviewTeknisiHubWindow(targetWindow, fileName, errorMe
   }
 }
 
-const supportedFlashChipDevices = new Set(["CH341A", "STM32", "RB2040", "EZP2019"]);
+const supportedFlashChipDevices = new Set(["TEKNISIHUB_FLASH_OSC_USB", "TEKNISIHUB_FLASH_OSC_WIFI"]);
 
 function normalizeFlashChipDeviceValue(value) {
   const normalizedValue = String(value || "").trim().toUpperCase();
@@ -7457,8 +7455,8 @@ function getSelectedFlashChipDevice(triggerButton) {
   return normalizeFlashChipDeviceValue(select?.value);
 }
 
-async function prepareBiosForSpiFlash(messageId, selectedDevice = "CH341A") {
-  const resolvedDevice = normalizeFlashChipDeviceValue(selectedDevice) || "CH341A";
+async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FLASH_OSC_USB") {
+  const resolvedDevice = normalizeFlashChipDeviceValue(selectedDevice) || "TEKNISIHUB_FLASH_OSC_USB";
   const item = findCatalogItemByMessageId(messageId);
   const archiveFileName = item?.fileName || item?.title || `bios-${messageId}.7z`;
   const operationId = createCatalogUploadOperationId();

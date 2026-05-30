@@ -3274,7 +3274,7 @@ body.is-dark-mode .spi-mini-badge {
 }
 
 .spi-layout {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .spi-bottom-grid {
@@ -3359,8 +3359,29 @@ body.is-dark-mode .spi-card.is-failed span {
 }
 
 .spi-pin-monitor-card {
-  grid-column: span 1;
+  grid-column: 1 / -1;
 }
+
+.spi-operation-card {
+  grid-column: 1 / -1;
+}
+
+.spi-operation-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.spi-operation-region,
+.spi-operation-actions {
+  min-width: 0;
+}
+
+.spi-operation-region {
+  padding: 0;
+}
+
 
 .spi-soic-monitor {
   display: grid;
@@ -4650,6 +4671,125 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--muted);
+}
+
+.spi-operation-card .spi-form-grid {
+  grid-template-columns: minmax(130px, 0.75fr) minmax(130px, 0.75fr) minmax(220px, 1.4fr) minmax(96px, 0.55fr);
+  gap: 8px;
+}
+
+.spi-operation-card .spi-form-grid label {
+  min-height: 60px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.spi-operation-card .spi-form-grid label input,
+.spi-operation-card .spi-form-grid label select {
+  height: 34px;
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+.spi-operation-card .spi-file-picker-control {
+  min-height: 34px;
+  gap: 8px;
+}
+
+.spi-operation-card .spi-file-picker-button {
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 7px;
+}
+
+.spi-action-surface {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.spi-action-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.spi-action-surface .spi-auto-toggle {
+  min-height: 44px;
+  margin-bottom: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.spi-action-utility-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(106px, 1fr));
+  gap: 8px;
+  min-width: 240px;
+}
+
+.spi-action-utility-row button {
+  min-height: 44px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.spi-action-command-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.spi-action-command-main,
+.spi-action-command-side {
+  display: grid;
+  gap: 8px;
+}
+
+.spi-action-command-main {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.spi-action-command-side {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.spi-action-command-side button:first-child:nth-last-child(2),
+.spi-action-command-side button:first-child:nth-last-child(2) ~ button {
+  grid-column: span 2;
+}
+
+.spi-action-command-main button,
+.spi-action-command-side button {
+  min-width: 0;
+  border-radius: 8px;
+  justify-content: center;
+  text-align: center;
+}
+
+.spi-action-command-main button {
+  min-height: 52px;
+  padding: 9px 10px;
+}
+
+.spi-action-command-side button {
+  min-height: 44px;
+  padding: 8px 9px;
+}
+
+.spi-action-command-main .spi-action-copy strong,
+.spi-action-command-side .spi-action-copy strong {
+  font-size: 0.88rem;
+}
+
+.spi-action-command-main .spi-action-copy small,
+.spi-action-command-side .spi-action-copy small {
+  font-size: 0.68rem;
 }
 
 .spi-panel-actions {
@@ -6845,7 +6985,7 @@ body.is-dark-mode .microscope-debug-log {
 
 .oscilloscope-topbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto auto;
+  grid-template-columns: minmax(180px, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 13px 14px;
@@ -6868,6 +7008,10 @@ body.is-dark-mode .microscope-debug-log {
   color: #f3fbff;
   font-size: 1.02rem;
   line-height: 1.15;
+}
+
+.oscilloscope-device-picker {
+  justify-self: end;
 }
 
 .oscilloscope-status-strip {
@@ -7944,6 +8088,7 @@ button.ghost {
 .spi-scope-topbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
   padding: 13px 14px;
@@ -7967,6 +8112,103 @@ button.ghost {
   color: #f3fbff;
   font-size: 1.02rem;
   line-height: 1.15;
+}
+
+.spi-scope-device-picker {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid rgba(118, 151, 169, 0.22);
+  border-radius: 9px;
+  background: rgba(11, 28, 40, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.spi-scope-device-picker .material-symbols-outlined {
+  color: #8fb0c6;
+  font-size: 1rem;
+}
+
+.spi-scope-device-picker select {
+  width: clamp(260px, 30vw, 360px);
+  height: 28px;
+  min-height: 28px;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #edf9ff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.spi-scope-device-picker select:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.spi-scope-device-indicator {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: rgba(118, 140, 163, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.spi-scope-device-picker.is-checking {
+  border-color: rgba(210, 157, 44, 0.36);
+  background: rgba(68, 52, 24, 0.72);
+  box-shadow: 0 10px 22px rgba(210, 157, 44, 0.08);
+}
+
+.spi-scope-device-picker.is-checking .material-symbols-outlined,
+.spi-scope-device-picker.is-checking select {
+  color: #f0c267;
+}
+
+.spi-scope-device-picker.is-checking .spi-scope-device-indicator {
+  background: #d29d2c;
+  box-shadow: 0 0 0 4px rgba(210, 157, 44, 0.16);
+}
+
+.spi-scope-device-picker.is-connected {
+  border-color: rgba(45, 228, 193, 0.36);
+  background: rgba(30, 103, 82, 0.22);
+  box-shadow: 0 10px 22px rgba(45, 228, 193, 0.08);
+}
+
+.spi-scope-device-picker.is-connected .material-symbols-outlined,
+.spi-scope-device-picker.is-connected select {
+  color: #45e6bf;
+}
+
+.spi-scope-device-picker.is-connected .spi-scope-device-indicator {
+  background: #45e6bf;
+  box-shadow: 0 0 0 4px rgba(45, 228, 193, 0.16);
+}
+
+.spi-scope-device-picker.is-failed {
+  border-color: rgba(255, 121, 96, 0.36);
+  background: rgba(90, 38, 32, 0.5);
+  box-shadow: 0 10px 22px rgba(255, 121, 96, 0.08);
+}
+
+.spi-scope-device-picker.is-failed .material-symbols-outlined,
+.spi-scope-device-picker.is-failed select {
+  color: #ff9f8d;
+}
+
+.spi-scope-device-picker.is-failed .spi-scope-device-indicator {
+  background: #ff795f;
+  box-shadow: 0 0 0 4px rgba(255, 121, 96, 0.16);
 }
 
 .spi-scope-status-strip {
@@ -8324,12 +8566,19 @@ button.ghost {
   margin-bottom: 10px;
 }
 
+.spi-scope-theme .spi-action-surface .spi-auto-toggle {
+  margin-bottom: 0;
+}
+
 .spi-scope-theme .spi-auto-toggle input {
   accent-color: #2de4c1;
 }
 
 .spi-scope-theme .spi-action-grid-primary button,
-.spi-scope-theme .spi-action-grid-secondary button {
+.spi-scope-theme .spi-action-grid-secondary button,
+.spi-scope-theme .spi-action-command-main button,
+.spi-scope-theme .spi-action-command-side button,
+.spi-scope-theme .spi-action-utility-row button {
   border-radius: 7px;
   border: 1px solid rgba(118, 151, 169, 0.22);
   background: #0b1c28;
@@ -8337,15 +8586,37 @@ button.ghost {
   box-shadow: none;
 }
 
-.spi-scope-theme .spi-action-grid-primary button {
+.spi-scope-theme .spi-action-grid-primary button,
+.spi-scope-theme .spi-action-command-main button {
   min-height: 68px;
 }
 
 .spi-scope-theme .spi-action-grid-primary button:hover,
-.spi-scope-theme .spi-action-grid-primary button:focus-visible {
+.spi-scope-theme .spi-action-grid-primary button:focus-visible,
+.spi-scope-theme .spi-action-command-main button:hover,
+.spi-scope-theme .spi-action-command-main button:focus-visible {
   border-color: rgba(255, 213, 111, 0.34);
   background: rgba(255, 213, 111, 0.12);
   color: #ffe39a;
+}
+
+.spi-scope-theme .spi-operation-card .spi-form-grid label {
+  padding: 8px 10px;
+}
+
+.spi-scope-theme .spi-operation-card .spi-form-grid label input,
+.spi-scope-theme .spi-operation-card .spi-form-grid label select {
+  height: 34px;
+  min-height: 34px;
+}
+
+.spi-scope-theme .spi-action-command-main button {
+  min-height: 52px;
+}
+
+.spi-scope-theme .spi-action-command-side button,
+.spi-scope-theme .spi-action-utility-row button {
+  min-height: 44px;
 }
 
 .spi-scope-theme .spi-action-copy strong,
@@ -8452,6 +8723,54 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-mini-badge {
   color: #537490;
 }
 
+body:not(.is-dark-mode) .spi-scope-device-picker {
+  border-color: rgba(31, 97, 139, 0.18);
+  background: rgba(255, 255, 255, 0.76);
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker .material-symbols-outlined {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker select {
+  background: transparent;
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker.is-checking {
+  border-color: rgba(198, 151, 52, 0.28);
+  background: rgba(255, 246, 224, 0.92);
+  box-shadow: 0 10px 22px rgba(198, 151, 52, 0.08);
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker.is-checking .material-symbols-outlined,
+body:not(.is-dark-mode) .spi-scope-device-picker.is-checking select {
+  color: #9c6b12;
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker.is-connected {
+  border-color: rgba(52, 145, 95, 0.26);
+  background: rgba(231, 247, 237, 0.96);
+  box-shadow: 0 10px 22px rgba(52, 145, 95, 0.08);
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker.is-connected .material-symbols-outlined,
+body:not(.is-dark-mode) .spi-scope-device-picker.is-connected select {
+  color: #1f7a4a;
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker.is-failed {
+  border-color: rgba(198, 76, 56, 0.28);
+  background: rgba(255, 239, 236, 0.96);
+  box-shadow: 0 10px 22px rgba(198, 76, 56, 0.08);
+}
+
+body:not(.is-dark-mode) .spi-scope-device-picker.is-failed .material-symbols-outlined,
+body:not(.is-dark-mode) .spi-scope-device-picker.is-failed select {
+  color: #c64c38;
+}
+
 body:not(.is-dark-mode) .spi-scope-status-strip .is-online {
   border-color: rgba(21, 128, 111, 0.24);
   color: #0b7b69;
@@ -8504,6 +8823,9 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-form-grid label textarea {
 body:not(.is-dark-mode) .spi-scope-theme .ghost,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-secondary button,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-main button,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-side button,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-utility-row button,
 body:not(.is-dark-mode) .spi-scope-theme .spi-file-picker-button {
   border-color: rgba(31, 97, 139, 0.18);
   background: rgba(255, 255, 255, 0.82);
@@ -8520,10 +8842,21 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-file-picker-control:hover .spi-fil
 }
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button:hover,
-body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button:focus-visible {
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button:focus-visible,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-main button:hover,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-main button:focus-visible {
   border-color: rgba(191, 124, 28, 0.28);
   background: rgba(255, 213, 111, 0.22);
   color: #8a5a00;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-side button:hover,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-side button:focus-visible,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-utility-row button:hover,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-utility-row button:focus-visible {
+  border-color: rgba(21, 128, 111, 0.28);
+  background: rgba(30, 190, 160, 0.14);
+  color: #0b7b69;
 }
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-trigger {
@@ -9841,6 +10174,10 @@ body.is-compact-ui .quote-intro-close {
     align-items: stretch;
   }
 
+  .spi-scope-device-picker {
+    justify-self: start;
+  }
+
   .spi-scope-status-strip {
     justify-content: flex-start;
   }
@@ -9850,6 +10187,32 @@ body.is-compact-ui .quote-intro-close {
   .spi-scope-theme .spi-layout,
   .spi-scope-theme .spi-bottom-grid {
     padding: 10px;
+  }
+
+  .spi-operation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spi-operation-card .spi-form-grid,
+  .spi-action-toolbar,
+  .spi-action-command-main,
+  .spi-action-command-side,
+  .spi-action-utility-row {
+    grid-template-columns: 1fr;
+  }
+
+  .spi-action-utility-row {
+    min-width: 0;
+  }
+
+  .spi-action-command-side button:first-child:nth-last-child(2),
+  .spi-action-command-side button:first-child:nth-last-child(2) ~ button {
+    grid-column: auto;
+  }
+
+  .spi-action-command-main button,
+  .spi-action-command-side button {
+    min-height: 46px;
   }
 
   .spi-soic-monitor,

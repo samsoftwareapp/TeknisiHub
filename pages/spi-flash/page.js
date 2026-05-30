@@ -7,50 +7,36 @@
   const maxSpiFlashTaskPanelEntries = 4;
 
   const deviceProfiles = {
-    CH341A: {
-      label: "CH341A",
-      transport: "USB bridge",
-      status: "Legacy clip programmer",
-      speed: "0.75 MHz fixed",
-      note: "Backend CH341A dijalankan langsung dari local service."
-    },
-    CH347: {
-      label: "CH347",
-      transport: "USB high speed",
-      status: "Native backend",
-      speed: "60 MHz max",
-      note: "Backend CH347 dijalankan langsung dari local service."
-    },
-    STM32: {
-      label: "STM32 KBC/EC",
-      transport: "USB WinUSB vendor bulk",
-      status: "SPI + ENE/ITE KBC/EC",
-      speed: "20 MHz request",
-      note: "Backend STM32 memakai firmware TEKNISIHUB_STM32_SPI_I2C (VID_1209 PID_2041)."
-    },
-    RB2040: {
-      label: "RB2040 KBC/EC",
-      transport: "USB WinUSB vendor bulk",
+    TEKNISIHUB_FLASH_OSC_USB: {
+      label: "TEKNISIHUB_FLASH_OSC",
+      transport: "USB",
       status: "SPI + ENE/ITE KBC/EC + OSC",
       speed: "20 MHz request",
-      note: "Backend RB2040 memakai firmware TEKNISIHUB_RB2040_SPI_I2C_OSC (VID_1209 PID_2042)."
+      note: "Backend TEKNISIHUB_FLASH_OSC via USB WinUSB vendor bulk."
     },
-    EZP2019: {
-      label: "EZP2019+",
-      transport: "Bulk USB vendor protocol",
-      status: "Native backend",
-      speed: "3/6/12 MHz",
-      note: "Backend USB EZP2019+ dijalankan langsung dari local service."
+    TEKNISIHUB_FLASH_OSC_WIFI: {
+      label: "TEKNISIHUB_FLASH_OSC",
+      transport: "WIFI",
+      status: "SPI + ENE/ITE KBC/EC + OSC",
+      speed: "20 MHz request",
+      note: "SSID TEKNISIHUB_FLASH_OSC, password teknisihub, TCP 192.168.4.1:2042."
     }
   };
 
-  const disabledDeviceSelections = new Set(["CH347"]);
+  const defaultDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
+  const disabledDeviceSelections = new Set();
   let latestSpiFlashFailureSignature = "";
   let latestSpiFlashFailureTimestamp = 0;
 
   function isTeknisiHubFlasherDevice(deviceType) {
     const normalizedDevice = String(deviceType || "").trim().toUpperCase();
-    return normalizedDevice === "STM32" || normalizedDevice === "RB2040";
+    return isFlashOscDevice(normalizedDevice);
+  }
+
+  function isFlashOscDevice(deviceType) {
+    const normalizedDevice = String(deviceType || "").trim().toUpperCase();
+    return normalizedDevice === "TEKNISIHUB_FLASH_OSC_USB" ||
+      normalizedDevice === "TEKNISIHUB_FLASH_OSC_WIFI";
   }
 
   let pageNotifier = (message, tone = "success") => {
@@ -567,14 +553,14 @@
   }
 
   function createUnavailableState(message = "") {
-    const profile = deviceProfiles.CH347;
+    const profile = deviceProfiles[defaultDeviceType];
     return {
       serviceAvailable: false,
       errorMessage: message,
       autoProcess: true,
       previewMode: false,
       backendMode: "local-service",
-      selectedDevice: "CH347",
+      selectedDevice: defaultDeviceType,
       connectionState: "Local service belum terhubung",
       activeOperation: "Belum ada operasi",
       chipVendor: "",
@@ -701,12 +687,8 @@
       Boolean(session.length);
     const activeOperation = String(session.activeOperation || "").trim().toLowerCase();
     const normalizedConnectionState = String(session.connectionState || "").trim().toLowerCase();
-    const isFreshDefaultSession =
-      (session.selectedDevice || "") === "CH347" &&
-      !hasPersistedSessionState &&
-      activeOperation === "belum ada operasi" &&
-      normalizedConnectionState.includes("belum terhubung");
-    const selectedDevice = isFreshDefaultSession ? "" : (session.selectedDevice || "");
+    const isFreshDefaultSession = false;
+    const selectedDevice = session.selectedDevice || defaultDeviceType;
     const previousDriverInfo =
       previousState &&
       previousState.selectedDevice === selectedDevice
@@ -759,7 +741,7 @@
       pinMonitor,
       selectedDeviceDriver,
       driverInfoLoaded,
-      profile: deviceProfiles[selectedDevice] || deviceProfiles.CH347
+      profile: deviceProfiles[selectedDevice] || deviceProfiles[defaultDeviceType]
     };
   }
 
@@ -1384,11 +1366,11 @@
 
     return `
       <section class="spi-card spi-pin-monitor-card">
-        <div class="spi-card-head">
-          <div>
-            <p class="label">SOIC Monitor</p>
-            <h4>Pin 1-8</h4>
-          </div>
+          <div class="spi-card-head">
+            <div>
+              <p class="label">Chips Monitor</p>
+              <h4>Pin 1-8</h4>
+            </div>
           <div class="spi-panel-actions">
             <span class="spi-mini-badge">${escapeHtml(formatPinMonitorTimestamp(monitor.capturedAt))}</span>
             <button type="button" class="ghost" id="spiFlashPinMonitorContact"${buttonDisabled}>
@@ -1438,23 +1420,31 @@
 
   function createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
     return `
-      ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
-      <div class="spi-action-grid spi-action-grid-primary">
-        ${createActionButton("detect", "radar", "SmartID", "JEDEC", actionDisableAttr)}
-        ${createActionButton("read", "download", "Read", readActionSummary, actionDisableAttr)}
-        ${createActionButton("erase", "ink_eraser", "Erase", "Erase", actionDisableAttr)}
-        ${createActionButton("write", "upload", "Write", writeActionSummary, actionDisableAttr)}
-        ${createActionButton("verify", "rule", "Verify", "Verify", actionDisableAttr)}
-      </div>
-      <div class="spi-action-grid spi-action-grid-secondary">
-        <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
-          <span class="material-symbols-outlined">restart_alt</span>
-          <span>Reset Session</span>
-        </button>
-        <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
-          <span class="material-symbols-outlined">edit_note</span>
-          <span>Edit Database</span>
-        </button>
+      <div class="spi-action-surface">
+        <div class="spi-action-toolbar">
+          ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
+          <div class="spi-action-utility-row">
+            <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
+              <span class="material-symbols-outlined">restart_alt</span>
+              <span>Reset Session</span>
+            </button>
+            <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
+              <span class="material-symbols-outlined">edit_note</span>
+              <span>Edit Database</span>
+            </button>
+          </div>
+        </div>
+        <div class="spi-action-command-grid">
+          <div class="spi-action-grid spi-action-command-main">
+            ${createActionButton("detect", "radar", "SmartID", "JEDEC", actionDisableAttr, "is-hero-action")}
+            ${createActionButton("read", "download", "Read", readActionSummary, actionDisableAttr, "is-hero-action")}
+            ${createActionButton("write", "upload", "Write", writeActionSummary, actionDisableAttr, "is-hero-action")}
+          </div>
+          <div class="spi-action-grid spi-action-command-side">
+            ${createActionButton("verify", "rule", "Verify", "Verify", actionDisableAttr)}
+            ${createActionButton("erase", "ink_eraser", "Erase", "Erase", actionDisableAttr)}
+          </div>
+        </div>
       </div>
     `;
   }
@@ -1466,7 +1456,7 @@
     }
 
     if (normalizedAction === "read") {
-      return selectedDevice === "EZP2019" || !autoProcessEnabled ? "Read" : "Read+Verify";
+      return !autoProcessEnabled ? "Read" : "Read+Verify";
     }
 
     if (normalizedAction === "write" || normalizedAction === "auto") {
@@ -1526,30 +1516,93 @@
     const targetLabel = "SPI";
 
     return `
-      ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
-      <div class="spi-action-grid spi-action-grid-primary">
-        ${createActionButton("detect", "radar", "SmartID", "SPI JEDEC", actionDisableAttr)}
-        ${createActionButton("ene-detect", "memory", "Detect ENE", "KBC/EC", actionDisableAttr)}
-        ${createActionButton("ite-detect", "memory", "Detect ITE", "KBC/EC", actionDisableAttr)}
-        ${createActionButton("read", "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr)}
-        ${createActionButton("write", "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr)}
-        ${createActionButton("verify", "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
-        ${createActionButton("erase", "ink_eraser", "Erase", `${targetLabel} erase`, actionDisableAttr)}
-      </div>
-      <div class="spi-action-grid spi-action-grid-secondary">
-        <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
-          <span class="material-symbols-outlined">restart_alt</span>
-          <span>Reset Session</span>
-        </button>
-        <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
-          <span class="material-symbols-outlined">edit_note</span>
-          <span>Edit Database</span>
-        </button>
+      <div class="spi-action-surface">
+        <div class="spi-action-toolbar">
+          ${createAutoProcessMarkup(autoProcessEnabled, autoProcessSummary, disableAttr)}
+          <div class="spi-action-utility-row">
+            <button type="button" class="ghost" data-spi-action="reset"${disableAttr}>
+              <span class="material-symbols-outlined">restart_alt</span>
+              <span>Reset Session</span>
+            </button>
+            <button type="button" class="ghost" id="spiFlashEditDatabaseButton"${disableAttr}>
+              <span class="material-symbols-outlined">edit_note</span>
+              <span>Edit Database</span>
+            </button>
+          </div>
+        </div>
+        <div class="spi-action-command-grid">
+          <div class="spi-action-grid spi-action-command-main">
+            ${createActionButton("detect", "radar", "SmartID", "SPI JEDEC", actionDisableAttr, "is-hero-action")}
+            ${createActionButton("read", "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr, "is-hero-action")}
+            ${createActionButton("write", "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr, "is-hero-action")}
+          </div>
+          <div class="spi-action-grid spi-action-command-side">
+            ${createActionButton("ene-detect", "memory", "Detect ENE", "KBC/EC", actionDisableAttr)}
+            ${createActionButton("ite-detect", "memory", "Detect ITE", "KBC/EC", actionDisableAttr)}
+            ${createActionButton("verify", "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
+            ${createActionButton("erase", "ink_eraser", "Erase", `${targetLabel} erase`, actionDisableAttr)}
+          </div>
+        </div>
       </div>
     `;
   }
 
-  function createWorkbenchMarkup(state, busy, deviceBusy, deviceMenuOpen, hexView) {
+  function getDevicePickerState(state, busy, deviceBusy, isDeviceConnected, deviceConnectionState = null) {
+    const connectionText = String(state.connectionState || "").trim();
+    const hasError =
+      Boolean(state.errorMessage) ||
+      connectionText.toLowerCase().includes("gagal") ||
+      connectionText.toLowerCase().includes("error");
+    if (hasError) {
+      return {
+        status: "failed",
+        icon: "error",
+        title: state.errorMessage || connectionText || "Koneksi device gagal."
+      };
+    }
+
+    if (
+      deviceConnectionState &&
+      deviceConnectionState.deviceType === state.selectedDevice &&
+      deviceConnectionState.status
+    ) {
+      const overrideStatus = String(deviceConnectionState.status || "").trim();
+      const overrideMessage = String(deviceConnectionState.message || "").trim();
+      return {
+        status: overrideStatus,
+        icon: overrideStatus === "checking"
+          ? "sync"
+          : overrideStatus === "failed"
+            ? "error"
+            : state.profile?.transport === "WIFI" ? "wifi" : "usb",
+        title: overrideMessage || connectionText || "Status device."
+      };
+    }
+
+    if (busy || deviceBusy) {
+      return {
+        status: "checking",
+        icon: "sync",
+        title: "Device sedang dipakai."
+      };
+    }
+
+    if (isDeviceConnected) {
+      return {
+        status: "connected",
+        icon: state.profile?.transport === "WIFI" ? "wifi" : "usb",
+        title: connectionText || "Device terhubung."
+      };
+    }
+
+    return {
+      status: "idle",
+      icon: state.profile?.transport === "WIFI" ? "wifi" : "usb",
+      title: "Pilih koneksi USB atau WIFI."
+    };
+  }
+
+  function createWorkbenchMarkup(state, busy, deviceBusy, hexView, deviceConnectionState = null) {
     const autoProcessEnabled = state.autoProcess !== false;
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
     const isDeviceConnected =
@@ -1557,7 +1610,7 @@
       !normalizedConnectionState.includes("belum terhubung") &&
       (normalizedConnectionState.includes("terhubung") || normalizedConnectionState.includes("aktif"));
     const profile = state.selectedDevice
-      ? (state.profile || deviceProfiles.CH347)
+      ? (state.profile || deviceProfiles[defaultDeviceType])
       : {
           transport: "-",
           speed: "-",
@@ -1567,15 +1620,14 @@
     const controlsDisabled = !state.serviceAvailable || busy || deviceBusy;
     const disableAttr = controlsDisabled ? " disabled" : "";
     const actionDisableAttr = controlsDisabled || !state.selectedDevice ? " disabled" : "";
-    const pageLabel = state.pageSize > 0 ? `${state.pageSize} byte` : "Belum ada data";
     const fileNameLabel = state.fileName || "Belum ada file";
     const showStm32SpeedField = isTeknisiHubFlasherDevice(state.selectedDevice);
-    const showEzpSpeedField = state.selectedDevice === "EZP2019";
-    const showFixedSpeedField = state.selectedDevice === "CH341A";
+    const showEzpSpeedField = false;
+    const showFixedSpeedField = false;
     const fixedSpeedLabel = "0.75 MHz";
     const speedInputValue = formatSpeedInputValue(state.speedHz || 12000000);
     const hexPreviewStatusState = getHexPreviewStatusState(state, busy);
-    const ezpReadUsesSinglePass = state.selectedDevice === "EZP2019";
+    const ezpReadUsesSinglePass = false;
     const readActionSummary = ezpReadUsesSinglePass
       ? "Read"
       : autoProcessEnabled ? "Read + Verify" : "Read";
@@ -1590,20 +1642,10 @@
     const showDriverPanel = Boolean(state.selectedDevice) && Boolean(state.driverInfoLoaded) && !selectedDriver.isPresent;
     const availableDevices = getEnabledDeviceEntries();
     const selectedDeviceLabel = resolveSelectedDeviceLabel(state.selectedDevice);
-    const selectedDeviceSubtext = resolveSelectedDeviceSubtext(state.selectedDevice, deviceBusy);
-    const scopeStatusTitle = deviceBusy
-      ? "CONNECTING"
-      : busy
-        ? String(state.activeOperation || "BUSY").toUpperCase()
-        : state.selectedDevice
-          ? "READY SPI"
-          : "SELECT DEVICE";
-    const scopeUsbState = state.selectedDevice
-      ? isDeviceConnected ? "USB ON" : "USB OFF"
-      : "NO DEVICE";
     const actionPadMarkup = isTeknisiHubFlasherDevice(state.selectedDevice)
       ? createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr)
       : createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr);
+    const devicePickerState = getDevicePickerState(state, busy, deviceBusy, isDeviceConnected, deviceConnectionState);
 
     return `
       <div class="spi-workbench-shell spi-scope-theme scoppy-scope${busy ? " is-busy" : ""}">
@@ -1614,16 +1656,19 @@
         <div class="spi-scope-topbar">
           <div class="spi-scope-title-block">
             <p>${escapeHtml(state.selectedDevice ? selectedDeviceLabel : "TEKNISIHUB_SPI")}</p>
-            <h4>${escapeHtml(scopeStatusTitle)}</h4>
           </div>
-          <div class="spi-scope-status-strip">
-            <span class="${isDeviceConnected ? "is-online" : "is-offline"}">${escapeHtml(scopeUsbState)}</span>
-            <span>JEDEC <strong>${escapeHtml(state.jedec || "-")}</strong></span>
-            <span>CHIP <strong>${escapeHtml(state.chipModel || "-")}</strong></span>
-            <span>SIZE <strong>${escapeHtml(state.chipCapacity || "-")}</strong></span>
-            <span>PROG <strong>${escapeHtml(`${formatInteger(progressWidth)}%`)}</strong></span>
-            <span>MODE <strong>${autoProcessEnabled ? "AUTO" : "MANUAL"}</strong></span>
-          </div>
+          <label
+            class="spi-scope-device-picker is-${escapeHtml(devicePickerState.status)}"
+            data-connection-state="${escapeHtml(devicePickerState.status)}"
+            title="${escapeHtml(devicePickerState.title)}">
+            <span class="material-symbols-outlined${devicePickerState.status === "checking" ? " is-spinning" : ""}">${escapeHtml(devicePickerState.icon)}</span>
+            <select id="spiFlashDeviceSelect" aria-label="Pilih koneksi device"${controlsDisabled ? " disabled" : ""}>
+              ${availableDevices.map(([key, item]) => `
+                <option value="${escapeHtml(key)}"${key === state.selectedDevice ? " selected" : ""}>${escapeHtml(`${item.label} ${item.transport}`)}</option>
+              `).join("")}
+            </select>
+            <span class="spi-scope-device-indicator" aria-hidden="true"></span>
+          </label>
         </div>
       </section>
       ${state.errorMessage ? `
@@ -1639,131 +1684,85 @@
       ` : ""}
 
       <div class="spi-layout">
-        <section class="spi-card${isDeviceConnected ? " is-success" : ""}">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Device Backend</p>
-              <h4>Pilih programmer</h4>
-            </div>
-          </div>
-          <label class="spi-device-select">
-            <span>Device</span>
-            <div class="spi-device-combobox${deviceMenuOpen ? " is-open" : ""}${controlsDisabled ? " is-disabled" : ""}" data-open="${deviceMenuOpen ? "true" : "false"}">
-              <button
-                type="button"
-                class="spi-device-combobox-trigger"
-                id="spiFlashDeviceToggle"
-                aria-haspopup="listbox"
-                aria-expanded="${deviceMenuOpen ? "true" : "false"}"
-                aria-controls="spiFlashDeviceMenu"
-                ${controlsDisabled ? "disabled" : ""}
-              >
-                <span class="spi-device-combobox-copy">
-                  <strong>${escapeHtml(selectedDeviceLabel)}</strong>
-                  <small>${escapeHtml(selectedDeviceSubtext)}</small>
-                </span>
-                <span class="material-symbols-outlined">expand_more</span>
-              </button>
-              <div class="spi-device-combobox-menu" id="spiFlashDeviceMenu" role="listbox" aria-label="Pilih device programmer"${deviceMenuOpen ? "" : " hidden"}>
-                ${availableDevices.map(([key, item]) => `
-                  <button
-                    type="button"
-                    class="spi-device-combobox-option${key === state.selectedDevice ? " is-selected" : ""}"
-                    data-spi-device-option="${escapeHtml(key)}"
-                    role="option"
-                    aria-selected="${key === state.selectedDevice ? "true" : "false"}"
-                  >
-                    <span class="spi-device-combobox-option-copy">
-                      <strong>${escapeHtml(item.label)}</strong>
-                      <small>${escapeHtml(item.status)}</small>
-                    </span>
-                    ${key === state.selectedDevice ? `<span class="material-symbols-outlined">check</span>` : ""}
-                  </button>
-                `).join("")}
+        ${showDriverPanel ? `
+          <section class="spi-card">
+            <div class="spi-card-head">
+              <div>
+                <p class="label">Driver</p>
+                <h4>Driver belum siap</h4>
               </div>
             </div>
-          </label>
-          <div class="spi-inline-meta">
-            <span>Status <strong>${escapeHtml(state.selectedDevice ? (state.connectionState || "Belum terhubung") : "Belum ada device dipilih")}</strong></span>
-            <span>Transport <strong>${escapeHtml(profile.transport)}</strong></span>
-            <span>Clock <strong>${escapeHtml(profile.speed)}</strong></span>
-            <span>Page size <strong>${escapeHtml(pageLabel)}</strong></span>
-          </div>
-          ${showDriverPanel ? `
             <p class="spi-driver-link-row">
               <a href="#" class="spi-driver-link" data-spi-install-driver="1">${escapeHtml(driverInstallLabel)}</a>
             </p>
-          ` : ""}
-        </section>
+          </section>
+        ` : ""}
 
-        ${state.selectedDevice === "RB2040" ? createPinMonitorMarkup(state, disableAttr) : ""}
+        ${isFlashOscDevice(state.selectedDevice) ? createPinMonitorMarkup(state, disableAttr) : ""}
 
-        <section class="spi-card">
-          <div class="spi-card-head">
-            <div>
-              <p class="label">Region & File</p>
-              <h4>Input operasi</h4>
-            </div>
-          </div>
-          <div class="spi-form-grid">
-            <label>
-              Start Address
-              <input data-field="startAddress" type="text" value="${escapeHtml(state.startAddress)}" placeholder="0x000000"${disableAttr}>
-            </label>
-            <label>
-              Length
-              <input data-field="length" type="text" value="${escapeHtml(state.length)}" placeholder="0x00800000"${disableAttr}>
-            </label>
-            <label class="spi-file-field">
-              <span>Source File</span>
-              <span class="spi-file-picker-control">
-                <span class="spi-file-picker-button">Pilih File</span>
-                <span
-                  id="spiFlashSelectedFileName"
-                  class="spi-file-selected-name${state.fileName ? " has-file" : ""}"
-                  title="${escapeHtml(fileNameLabel)}"
-                >${escapeHtml(fileNameLabel)}</span>
-                <input
-                  id="spiFlashFileInput"
-                  class="spi-file-input"
-                  type="file"
-                  accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr"
-                  aria-describedby="spiFlashSelectedFileName"
-                  ${disableAttr}
-                >
-              </span>
-            </label>
-            ${showStm32SpeedField ? `
-              <label>
-                Speed (MHz)
-                <input data-field="speedHz" data-field-format="mhz" type="text" value="${escapeHtml(speedInputValue)}" placeholder="12"${disableAttr}>
-              </label>
-            ` : showEzpSpeedField ? `
-              <label>
-                Speed
-                <select data-field="speedHz"${disableAttr}>
-                  <option value="12000000"${Number(state.speedHz || 12000000) === 12000000 ? " selected" : ""}>12 MHz</option>
-                  <option value="6000000"${Number(state.speedHz || 12000000) === 6000000 ? " selected" : ""}>6 MHz</option>
-                  <option value="3000000"${Number(state.speedHz || 12000000) === 3000000 ? " selected" : ""}>3 MHz</option>
-                </select>
-              </label>
-            ` : showFixedSpeedField ? `
-              <label>
-                Speed
-                <input type="text" value="${escapeHtml(fixedSpeedLabel)}" readonly${disableAttr}>
-              </label>
-            ` : ""}
-          </div>
-        </section>
-
-        <section class="spi-card">
+        <section class="spi-card spi-operation-card">
           <div class="spi-card-head">
             <div>
               <p class="label">Action Pad</p>
               <h4>${isTeknisiHubFlasherDevice(state.selectedDevice) ? "Flow SPI + KBC/EC" : "Flow operasi"}</h4>
             </div>
           </div>
-          ${actionPadMarkup}
+          <div class="spi-operation-grid">
+            <div class="spi-operation-region">
+              <div class="spi-form-grid">
+                <label>
+                  Start Address
+                  <input data-field="startAddress" type="text" value="${escapeHtml(state.startAddress)}" placeholder="0x000000"${disableAttr}>
+                </label>
+                <label>
+                  Length
+                  <input data-field="length" type="text" value="${escapeHtml(state.length)}" placeholder="0x00800000"${disableAttr}>
+                </label>
+                <label class="spi-file-field">
+                  <span>Source File</span>
+                  <span class="spi-file-picker-control">
+                    <span class="spi-file-picker-button">Pilih File</span>
+                    <span
+                      id="spiFlashSelectedFileName"
+                      class="spi-file-selected-name${state.fileName ? " has-file" : ""}"
+                      title="${escapeHtml(fileNameLabel)}"
+                    >${escapeHtml(fileNameLabel)}</span>
+                    <input
+                      id="spiFlashFileInput"
+                      class="spi-file-input"
+                      type="file"
+                      accept=".bin,.rom,.cap,.img,.fd,.bio,.wph,.efi,.hdr"
+                      aria-describedby="spiFlashSelectedFileName"
+                      ${disableAttr}
+                    >
+                  </span>
+                </label>
+                ${showStm32SpeedField ? `
+                  <label>
+                    Speed (MHz)
+                    <input data-field="speedHz" data-field-format="mhz" type="text" value="${escapeHtml(speedInputValue)}" placeholder="12"${disableAttr}>
+                  </label>
+                ` : showEzpSpeedField ? `
+                  <label>
+                    Speed
+                    <select data-field="speedHz"${disableAttr}>
+                      <option value="12000000"${Number(state.speedHz || 12000000) === 12000000 ? " selected" : ""}>12 MHz</option>
+                      <option value="6000000"${Number(state.speedHz || 12000000) === 6000000 ? " selected" : ""}>6 MHz</option>
+                      <option value="3000000"${Number(state.speedHz || 12000000) === 3000000 ? " selected" : ""}>3 MHz</option>
+                    </select>
+                  </label>
+                ` : showFixedSpeedField ? `
+                  <label>
+                    Speed
+                    <input type="text" value="${escapeHtml(fixedSpeedLabel)}" readonly${disableAttr}>
+                  </label>
+                ` : ""}
+              </div>
+            </div>
+            <div class="spi-operation-actions">
+              ${actionPadMarkup}
+            </div>
+          </div>
         </section>
       </div>
 
@@ -1805,25 +1804,14 @@
     return deviceProfiles[selectedDevice].label;
   }
 
-  function resolveSelectedDeviceSubtext(selectedDevice, deviceBusy) {
-    if (deviceBusy && selectedDevice && deviceProfiles[selectedDevice]) {
-      return "Menyambungkan device...";
-    }
-
-    if (!selectedDevice || !deviceProfiles[selectedDevice]) {
-      return "Pilih device lalu konek otomatis.";
-    }
-
-    return deviceProfiles[selectedDevice].status;
-  }
-
   function createApi() {
     let state = createUnavailableState();
     let mountedContainer = null;
     let reportTask = () => {};
     let busy = false;
     let deviceBusy = false;
-    let deviceMenuOpen = false;
+    let deviceSelectionToken = 0;
+    let deviceConnectionState = null;
     let activeTaskOperationLabel = "";
     let sessionPollTimer = null;
     let sessionPollInFlight = false;
@@ -1999,12 +1987,16 @@
       }
 
       const driverInfo = await fetchJson(`/spi-flash/drivers/${encodeURIComponent(deviceType)}`);
+      if (state.selectedDevice !== deviceType) {
+        return;
+      }
+
       state.selectedDeviceDriver = normalizeDriverInfo(driverInfo, deviceType);
       state.driverInfoLoaded = true;
     }
 
     async function refreshPinMonitor(options = {}) {
-      if (!state.serviceAvailable || state.selectedDevice !== "RB2040") {
+      if (!state.serviceAvailable || !isFlashOscDevice(state.selectedDevice)) {
         return;
       }
 
@@ -2042,7 +2034,7 @@
     }
 
     async function refreshPinContact() {
-      if (!state.serviceAvailable || state.selectedDevice !== "RB2040") {
+      if (!state.serviceAvailable || !isFlashOscDevice(state.selectedDevice)) {
         return;
       }
 
@@ -2063,7 +2055,7 @@
           loading: false,
           errorMessage: "",
           mode: "contact",
-          message: "",
+          message: functionalPayload.message || "",
           capturedAt: functionalPayload.capturedAt || new Date().toISOString(),
           pins
         };
@@ -2178,45 +2170,11 @@
       }
     }
 
-    function toggleDeviceMenu(forceOpen) {
-      const nextState = typeof forceOpen === "boolean" ? forceOpen : !deviceMenuOpen;
-      if (deviceBusy || busy || !state.serviceAvailable) {
-        deviceMenuOpen = false;
-      } else {
-        deviceMenuOpen = nextState;
-      }
-
-      render();
-    }
-
     async function selectDevice(nextDevice) {
-      const session = await fetchJson("/spi-flash/device", {
+      return fetchJson("/spi-flash/device", {
         method: "POST",
         body: JSON.stringify({ deviceType: nextDevice })
       });
-
-      applySessionState(session, { resetScroll: true });
-      state.selectedDeviceDriver = normalizeDriverInfo(null, nextDevice);
-      state.driverInfoLoaded = false;
-    }
-
-    async function refreshTeknisiHubFlasherConnectionStatus(deviceType) {
-      if (!state.serviceAvailable || !isTeknisiHubFlasherDevice(deviceType)) {
-        return;
-      }
-
-      try {
-        const session = await runAction("connect");
-        applySessionState(session);
-      } catch (error) {
-        const selectedLabel = resolveSelectedDeviceLabel(state.selectedDevice || deviceType);
-        const message = error?.message || `${selectedLabel} gagal terhubung.`;
-        if (isTeknisiHubFlasherDevice(state.selectedDevice)) {
-          state.connectionState = `${selectedLabel} gagal terhubung`;
-        }
-        state.errorMessage = message;
-        notifyUser(message, "warning");
-      }
     }
 
     async function handleDeviceSelection(nextDevice) {
@@ -2224,15 +2182,16 @@
         return;
       }
 
+      const selectionToken = ++deviceSelectionToken;
       const normalizedDevice = String(nextDevice || "").trim();
-      deviceMenuOpen = false;
 
       if (!normalizedDevice) {
         state.selectedDevice = "";
-        state.profile = deviceProfiles.CH347;
+        state.profile = deviceProfiles[defaultDeviceType];
         state.connectionState = "Belum ada device dipilih";
         state.selectedDeviceDriver = normalizeDriverInfo(null, "");
         state.driverInfoLoaded = false;
+        deviceConnectionState = null;
         render();
         return;
       }
@@ -2242,34 +2201,70 @@
       }
 
       if (disabledDeviceSelections.has(normalizedDevice)) {
-        notifyUser("CH347 sedang dinonaktifkan dan tidak bisa dipilih.", "warning");
+        notifyUser("Device ini sedang dinonaktifkan dan tidak bisa dipilih.", "warning");
         render();
         return;
       }
 
-      deviceBusy = true;
       state.errorMessage = "";
       state.selectedDevice = normalizedDevice;
-      state.profile = deviceProfiles[normalizedDevice] || deviceProfiles.CH347;
-      state.connectionState = `Device ${normalizedDevice} dipilih`;
+      state.profile = deviceProfiles[normalizedDevice] || deviceProfiles[defaultDeviceType];
+      state.connectionState = `${state.profile.transport} dicek`;
       state.selectedDeviceDriver = normalizeDriverInfo(null, normalizedDevice);
       state.driverInfoLoaded = false;
       state.pinMonitor = createDefaultPinMonitorState();
+      deviceConnectionState = {
+        deviceType: normalizedDevice,
+        status: "checking",
+        message: `Mengecek ${state.profile.transport}...`
+      };
       render();
 
       try {
-        await selectDevice(normalizedDevice);
-        await refreshTeknisiHubFlasherConnectionStatus(normalizedDevice);
-        try {
-          await fetchDriverInfo(normalizedDevice);
-        } catch {
-          // Driver info is helpful, but selecting the device must stay usable without it.
+        const session = await selectDevice(normalizedDevice);
+        if (selectionToken !== deviceSelectionToken || state.selectedDevice !== normalizedDevice) {
+          return;
         }
+
+        applySessionState(session, { resetScroll: true });
+        state.selectedDeviceDriver = normalizeDriverInfo(null, normalizedDevice);
+        state.driverInfoLoaded = false;
+        render();
+
+        const connectedSession = await runAction("connect");
+        if (selectionToken !== deviceSelectionToken || state.selectedDevice !== normalizedDevice) {
+          return;
+        }
+
+        applySessionState(connectedSession);
+        deviceConnectionState = {
+          deviceType: normalizedDevice,
+          status: "connected",
+          message: connectedSession.connectionState || `${state.profile?.transport || "Device"} terhubung.`
+        };
+        render();
+
+        void fetchDriverInfo(normalizedDevice)
+          .then(() => {
+            if (selectionToken === deviceSelectionToken && state.selectedDevice === normalizedDevice) {
+              render();
+            }
+          })
+          .catch(() => {
+            // Driver info is helpful, but selecting the device must stay responsive without it.
+          });
       } catch (error) {
+        if (selectionToken !== deviceSelectionToken || state.selectedDevice !== normalizedDevice) {
+          return;
+        }
+
         state.errorMessage = error?.message || "Gagal memilih device SPI Flash.";
+        deviceConnectionState = {
+          deviceType: normalizedDevice,
+          status: "failed",
+          message: state.errorMessage
+        };
         notifyUser(state.errorMessage, "warning");
-      } finally {
-        deviceBusy = false;
         render();
       }
     }
@@ -2291,7 +2286,7 @@
         reportTask,
         activeTaskOperationLabel
       );
-      mountedContainer.innerHTML = createWorkbenchMarkup(renderState, busy, deviceBusy, deviceMenuOpen, hexView);
+      mountedContainer.innerHTML = createWorkbenchMarkup(renderState, busy, deviceBusy, hexView, deviceConnectionState);
 
       const busyOverlay = mountedContainer.querySelector("#spiBusyOverlay");
       if (busyOverlay) {
@@ -2302,67 +2297,17 @@
         });
       }
 
-      const deviceCombobox = mountedContainer.querySelector(".spi-device-combobox");
-      const deviceToggle = mountedContainer.querySelector("#spiFlashDeviceToggle");
-      if (deviceCombobox) {
-        deviceCombobox.addEventListener("focusout", (event) => {
-          if (deviceCombobox.contains(event.relatedTarget)) {
+      const deviceSelect = mountedContainer.querySelector("#spiFlashDeviceSelect");
+      if (deviceSelect) {
+        deviceSelect.addEventListener("change", () => {
+          const nextDevice = deviceSelect.value || "";
+          if (!nextDevice || nextDevice === state.selectedDevice) {
             return;
           }
 
-          if (deviceMenuOpen) {
-            deviceMenuOpen = false;
-            render();
-          }
+          void handleDeviceSelection(nextDevice);
         });
       }
-
-      if (deviceToggle) {
-        deviceToggle.addEventListener("click", () => {
-          toggleDeviceMenu();
-        });
-
-        deviceToggle.addEventListener("keydown", (event) => {
-          if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            toggleDeviceMenu(true);
-            mountedContainer.querySelector("[data-spi-device-option]")?.focus();
-          }
-        });
-      }
-
-      mountedContainer.querySelectorAll("[data-spi-device-option]").forEach((optionButton, index, optionButtons) => {
-        optionButton.addEventListener("click", async () => {
-          const nextDevice = optionButton.getAttribute("data-spi-device-option") || "";
-          await handleDeviceSelection(nextDevice);
-        });
-
-        optionButton.addEventListener("keydown", (event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            deviceMenuOpen = false;
-            render();
-            mountedContainer.querySelector("#spiFlashDeviceToggle")?.focus();
-            return;
-          }
-
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            optionButtons[Math.min(index + 1, optionButtons.length - 1)]?.focus();
-            return;
-          }
-
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            if (index <= 0) {
-              mountedContainer.querySelector("#spiFlashDeviceToggle")?.focus();
-              return;
-            }
-
-            optionButtons[index - 1]?.focus();
-          }
-        });
-      });
 
       mountedContainer.querySelectorAll("[data-field]").forEach((input) => {
         const handleFieldChange = () => {
@@ -2433,33 +2378,26 @@
           }
 
           void withBusy(async () => {
-            const shouldRefreshPinMonitor = action === "detect" && state.selectedDevice === "RB2040";
-            try {
-              const session = await runAction(action);
-              applySessionState(session, { resetScroll: true });
-              render();
+            const session = await runAction(action);
+            applySessionState(session, { resetScroll: true });
+            render();
 
-              const isReadAction = action === "read" || action === "ene-read" || action === "ite-read";
-              if (isReadAction && state.readBufferIsAllFf) {
-                notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
-              }
+            const isReadAction = action === "read" || action === "ene-read" || action === "ite-read";
+            if (isReadAction && state.readBufferIsAllFf) {
+              notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
+            }
 
-              if (isReadAction && state.autoProcess !== false && state.hasReadBuffer) {
-                try {
-                  await saveReadBufferToBin({
-                    showSuccessToast: false,
-                    suppressEmptyWarning: true,
-                    preferBrowserDownload: true
-                  });
-                } catch (error) {
-                  if (error?.name !== "AbortError") {
-                    notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
-                  }
+            if (isReadAction && state.autoProcess !== false && state.hasReadBuffer) {
+              try {
+                await saveReadBufferToBin({
+                  showSuccessToast: false,
+                  suppressEmptyWarning: true,
+                  preferBrowserDownload: true
+                });
+              } catch (error) {
+                if (error?.name !== "AbortError") {
+                  notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
                 }
-              }
-            } finally {
-              if (shouldRefreshPinMonitor) {
-                await refreshPinContact();
               }
             }
           }, {
@@ -2552,7 +2490,6 @@
       }
 
       busy = true;
-      deviceMenuOpen = false;
       activeTaskOperationLabel = String(options.activeOperation || "").trim();
       if (options.activeOperation) {
         state.activeOperation = options.activeOperation;

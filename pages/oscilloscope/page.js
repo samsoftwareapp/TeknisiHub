@@ -31,6 +31,19 @@
       fill: "rgba(45, 228, 193, 0.10)"
     }
   ];
+  const deviceProfiles = {
+    TEKNISIHUB_FLASH_OSC_USB: {
+      label: "TEKNISIHUB_FLASH_OSC",
+      transport: "USB",
+      icon: "usb"
+    },
+    TEKNISIHUB_FLASH_OSC_WIFI: {
+      label: "TEKNISIHUB_FLASH_OSC",
+      transport: "WIFI",
+      icon: "wifi"
+    }
+  };
+  const defaultDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -319,8 +332,10 @@
       device: {
         success: false,
         isPresent: false,
-        message: "Tekan Scan untuk cek TEKNISIHUB OSC.",
-        deviceLabel: "TEKNISIHUB_OSC",
+        message: "Pilih koneksi USB atau WIFI.",
+        deviceLabel: "TEKNISIHUB_FLASH_OSC",
+        deviceType: defaultDeviceType,
+        transport: "USB",
         maxSampleRateHz: defaultSampleRateHz,
         maxSampleCount: singleChannelSampleCount,
         bits: 12,
@@ -376,6 +391,8 @@
       recordSessionId: "",
       recordFrameCount: 0,
       recordFilePath: "",
+      selectedDevice: defaultDeviceType,
+      deviceConnectionStatus: "idle",
       isRunning: false,
       isCapturing: false,
       isBusy: false,
@@ -1888,33 +1905,86 @@
     })));
   }
 
+  function normalizeDeviceSelection(value) {
+    const normalized = String(value || "").trim().toUpperCase();
+    if (normalized === "WIFI" || normalized === "WI-FI" || normalized === "TEKNISIHUB_FLASH_OSC_WIFI") {
+      return "TEKNISIHUB_FLASH_OSC_WIFI";
+    }
+    if (normalized === "USB" || normalized === "TEKNISIHUB_FLASH_OSC" || normalized === "TEKNISIHUB_FLASH_OSC_USB") {
+      return "TEKNISIHUB_FLASH_OSC_USB";
+    }
+    return defaultDeviceType;
+  }
+
+  function getDevicePickerState(state) {
+    const selectedDevice = normalizeDeviceSelection(state.selectedDevice);
+    const profile = deviceProfiles[selectedDevice] || deviceProfiles[defaultDeviceType];
+    const hasError = Boolean(state.errorMessage) || state.deviceConnectionStatus === "failed";
+    if (hasError) {
+      return {
+        status: "failed",
+        icon: "error",
+        title: state.errorMessage || state.device?.message || "Koneksi device gagal."
+      };
+    }
+    if (state.deviceConnectionStatus === "checking" || state.isBusy || state.isCapturing) {
+      return {
+        status: "checking",
+        icon: "sync",
+        title: `${profile.transport} dicek.`
+      };
+    }
+    if (isSelectedDeviceConnected(state)) {
+      return {
+        status: "connected",
+        icon: profile.icon,
+        title: state.device?.message || `${profile.transport} terhubung.`
+      };
+    }
+    return {
+      status: "idle",
+      icon: profile.icon,
+      title: "Pilih koneksi USB atau WIFI."
+    };
+  }
+
+  function isSelectedDeviceConnected(state) {
+    return Boolean(state.device?.isPresent) &&
+      normalizeDeviceSelection(state.device?.deviceType) === normalizeDeviceSelection(state.selectedDevice);
+  }
+
   function createShellMarkup() {
     const sampleRateOptions = [10000, 20000, 50000, 100000];
     const sampleCountOptions = [512, 1024, 2048, 4096, 8192, 16384];
     const voltsPerDivOptions = ["auto", 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
     const initialChannelProbes = storedChannelProbeAttenuations();
     const initialChannelVisibility = storedChannelVisibility();
+    const devicePickerState = getDevicePickerState({
+      selectedDevice: defaultDeviceType,
+      deviceConnectionStatus: "idle",
+      device: { isPresent: false }
+    });
 
     return `
       <div class="oscilloscope-shell scoppy-scope">
         <section class="oscilloscope-scope-panel">
           <div class="oscilloscope-topbar">
             <div class="oscilloscope-title-block">
-              <p data-osc-device-label>TEKNISIHUB_OSC</p>
-              <h4 data-osc-run-title>STOP YT</h4>
+              <p data-osc-device-label>TEKNISIHUB_FLASH_OSC</p>
             </div>
-            <div class="oscilloscope-status-strip">
-              <span data-osc-usb class="is-offline">USB OFF</span>
-              <span data-osc-rate>100,0 kSa/s</span>
-              <span data-osc-points>8.192 pts</span>
-              <span data-osc-span>81,92 ms</span>
-              <span data-osc-bits>12 bit</span>
-              <span data-osc-channel-count>1 CH</span>
-            </div>
-            <button type="button" id="oscScan" class="ghost oscilloscope-scan-button">
-              <span class="material-symbols-outlined" aria-hidden="true">usb</span>
-              <span>Scan</span>
-            </button>
+            <label
+              class="spi-scope-device-picker oscilloscope-device-picker is-${escapeHtml(devicePickerState.status)}"
+              data-osc-device-picker
+              data-connection-state="${escapeHtml(devicePickerState.status)}"
+              title="${escapeHtml(devicePickerState.title)}">
+              <span data-osc-device-icon class="material-symbols-outlined">${escapeHtml(devicePickerState.icon)}</span>
+              <select id="oscDeviceSelect" aria-label="Pilih koneksi device">
+                ${Object.entries(deviceProfiles).map(([key, item]) => `
+                  <option value="${escapeHtml(key)}"${key === defaultDeviceType ? " selected" : ""}>${escapeHtml(`${item.label} ${item.transport}`)}</option>
+                `).join("")}
+              </select>
+              <span class="spi-scope-device-indicator" aria-hidden="true"></span>
+            </label>
           </div>
 
           <div class="oscilloscope-workbench">
@@ -2221,6 +2291,7 @@
     let drawQueued = false;
     let runConfirmResolver = null;
     let themeListenerBound = false;
+    let deviceSelectionToken = 0;
 
     function mountShell() {
       if (!mountedContainer) {
@@ -2229,7 +2300,9 @@
       mountedContainer.innerHTML = createShellMarkup();
       refs = {
         canvas: mountedContainer.querySelector("#oscCanvas"),
-        scan: mountedContainer.querySelector("#oscScan"),
+        devicePicker: mountedContainer.querySelector("[data-osc-device-picker]"),
+        deviceSelect: mountedContainer.querySelector("#oscDeviceSelect"),
+        deviceIcon: mountedContainer.querySelector("[data-osc-device-icon]"),
         run: mountedContainer.querySelector("#oscRun"),
         single: mountedContainer.querySelector("#oscSingle"),
         record: mountedContainer.querySelector("#oscRecord"),
@@ -2270,12 +2343,6 @@
         labels: {
           device: mountedContainer.querySelector("[data-osc-device-label]"),
           title: mountedContainer.querySelector("[data-osc-run-title]"),
-          usb: mountedContainer.querySelector("[data-osc-usb]"),
-          rate: mountedContainer.querySelector("[data-osc-rate]"),
-          points: mountedContainer.querySelector("[data-osc-points]"),
-          span: mountedContainer.querySelector("[data-osc-span]"),
-          bits: mountedContainer.querySelector("[data-osc-bits]"),
-          channelCount: mountedContainer.querySelector("[data-osc-channel-count]"),
           freq: mountedContainer.querySelector("[data-osc-freq]"),
           vpp: mountedContainer.querySelector("[data-osc-vpp]"),
           rms: mountedContainer.querySelector("[data-osc-rms]"),
@@ -2310,7 +2377,9 @@
     }
 
     function bindEvents() {
-      refs.scan?.addEventListener("click", () => withBusy(scanDevice));
+      refs.deviceSelect?.addEventListener("change", () => {
+        void selectDevice(refs.deviceSelect.value);
+      });
       refs.run?.addEventListener("click", toggleContinuous);
       refs.single?.addEventListener("click", () => withBusy(() => captureWaveform({ saveTemporary: true })));
       refs.record?.addEventListener("click", toggleRecording);
@@ -2446,6 +2515,27 @@
       return ch2 ? 2 : Math.max(1, Number(ch1));
     }
 
+    function updateDevicePicker(acquisitionLocked = false) {
+      const selectedDevice = normalizeDeviceSelection(state.selectedDevice);
+      const profile = deviceProfiles[selectedDevice] || deviceProfiles[defaultDeviceType];
+      const pickerState = getDevicePickerState(state);
+      if (refs.deviceSelect) {
+        refs.deviceSelect.value = selectedDevice;
+        refs.deviceSelect.disabled = acquisitionLocked;
+      }
+      if (refs.deviceIcon) {
+        refs.deviceIcon.textContent = pickerState.icon;
+        refs.deviceIcon.classList.toggle("is-spinning", pickerState.status === "checking");
+      }
+      if (refs.devicePicker) {
+        refs.devicePicker.classList.remove("is-idle", "is-checking", "is-connected", "is-failed");
+        refs.devicePicker.classList.add(`is-${pickerState.status}`);
+        refs.devicePicker.dataset.connectionState = pickerState.status;
+        refs.devicePicker.title = pickerState.title;
+      }
+      setText(refs.labels?.device, profile.label);
+    }
+
     function channelSampleCountLimit() {
       return activeChannelCount() <= 1 ? singleChannelSampleCount : dualChannelSampleCount;
     }
@@ -2515,16 +2605,8 @@
         ? Number(state.channelLowestDropVoltages[1])
         : ch2Window.length ? ch2Stats.min : NaN;
 
-      setText(labels.device, device.deviceLabel || "TEKNISIHUB_OSC");
+      setText(labels.device, device.deviceLabel || "TEKNISIHUB_FLASH_OSC");
       setText(labels.title, `${state.isRunning ? "RUN" : "STOP"} ${modeLabel}`);
-      setText(labels.usb, device.isPresent ? "USB OK" : "USB OFF");
-      labels.usb?.classList.toggle("is-online", Boolean(device.isPresent));
-      labels.usb?.classList.toggle("is-offline", !device.isPresent);
-      setText(labels.rate, formatRate(rate));
-      setText(labels.points, `${formatNumber(points)} pts`);
-      setText(labels.span, formatDurationSeconds(spanSeconds));
-      setText(labels.bits, `${formatNumber(device.bits || 12)} bit`);
-      setText(labels.channelCount, `${formatNumber(channelCount)} CH`);
       setText(labels.freq, hasCapture ? formatFrequency(summary.frequencyHz) : "-");
       setText(labels.vpp, hasCapture && ch1Window.length ? formatVoltage(ch1Stats.vpp) : "-");
       setText(labels.rms, hasCapture && ch1Window.length ? formatVoltage(ch1Stats.rms) : "-");
@@ -2560,12 +2642,16 @@
 
       const busy = state.isBusy || state.isCapturing;
       const acquisitionLocked = busy || state.isRunning;
+      const deviceUnavailable = !isSelectedDeviceConnected(state);
+      updateDevicePicker(acquisitionLocked);
+      if (refs.run) {
+        refs.run.disabled = busy || (!state.isRunning && deviceUnavailable);
+      }
       [
-        refs.scan,
         refs.single,
       ].forEach((element) => {
         if (element) {
-          element.disabled = acquisitionLocked;
+          element.disabled = acquisitionLocked || deviceUnavailable;
         }
       });
       [
@@ -2580,14 +2666,14 @@
         ...(refs.actualVoltages || [])
       ].forEach((element) => {
         if (element) {
-          element.disabled = acquisitionLocked;
+          element.disabled = acquisitionLocked || deviceUnavailable;
         }
       });
       if (refs.showCh1) {
-        refs.showCh1.disabled = acquisitionLocked;
+        refs.showCh1.disabled = acquisitionLocked || deviceUnavailable;
       }
       if (refs.showCh2) {
-        refs.showCh2.disabled = acquisitionLocked || !supportsChannel2();
+        refs.showCh2.disabled = acquisitionLocked || deviceUnavailable || !supportsChannel2();
       }
       if (refs.clearDrop) {
         refs.clearDrop.disabled = state.isBusy || !hasVoltageHistory(state);
@@ -2788,27 +2874,103 @@
       }
     }
 
-    async function scanDevice() {
-      state.message = "Scan TEKNISIHUB OSC...";
-      updateHud();
-      const device = await fetchJson("/tools/oscilloscope/device");
-      const supportedChannelCount = Number(device.channelCount || state.device.supportedChannelCount || state.device.channelCount || 1);
+    async function selectDevice(nextDevice) {
+      if (state.isRunning || state.isCapturing) {
+        updateDevicePicker(true);
+        return;
+      }
+
+      const normalizedDevice = normalizeDeviceSelection(nextDevice);
+      const profile = deviceProfiles[normalizedDevice] || deviceProfiles[defaultDeviceType];
+      const selectionToken = ++deviceSelectionToken;
+      state.selectedDevice = normalizedDevice;
+      state.deviceConnectionStatus = "checking";
+      state.errorMessage = "";
+      state.message = `Cek ${profile.transport} TEKNISIHUB_FLASH_OSC...`;
       state.device = {
         ...state.device,
-        ...device,
-        channelCount: supportedChannelCount,
-        supportedChannelCount
+        success: false,
+        isPresent: false,
+        deviceLabel: profile.label,
+        deviceType: normalizedDevice,
+        transport: profile.transport,
+        message: state.message
       };
-      state.message = device.message || (device.isPresent ? "Device OSC terhubung." : "Device OSC tidak ditemukan.");
-      if (device.isPresent) {
-        notify(state.message, "success");
-        state.calPadEnabled = false;
-        try {
-          await setCalPadEnabled(false, { silent: true });
-        } catch (_error) {
+      updateHud();
+
+      try {
+        const session = await fetchJson("/spi-flash/device", {
+          method: "POST",
+          body: JSON.stringify({ deviceType: normalizedDevice })
+        });
+        const globalDevice = normalizeDeviceSelection(session?.selectedDevice || normalizedDevice);
+        if (selectionToken !== deviceSelectionToken) {
+          return;
+        }
+        state.selectedDevice = globalDevice;
+        const activeProfile = deviceProfiles[globalDevice] || profile;
+        const device = await fetchJson(`/tools/oscilloscope/device?deviceType=${encodeURIComponent(normalizedDevice)}`);
+        if (selectionToken !== deviceSelectionToken || state.selectedDevice !== globalDevice) {
+          return;
+        }
+
+        const responseDeviceType = device.deviceType
+          ? normalizeDeviceSelection(device.deviceType)
+          : device.transport
+            ? normalizeDeviceSelection(device.transport)
+            : "";
+        const transportMatches = responseDeviceType === globalDevice ||
+          (!responseDeviceType && globalDevice === defaultDeviceType);
+        const devicePresent = Boolean(device.isPresent) && transportMatches;
+        const supportedChannelCount = Number(device.channelCount || state.device.supportedChannelCount || state.device.channelCount || 1);
+        state.device = {
+          ...state.device,
+          ...device,
+          isPresent: devicePresent,
+          deviceLabel: activeProfile.label,
+          deviceType: globalDevice,
+          transport: activeProfile.transport,
+          channelCount: supportedChannelCount,
+          supportedChannelCount
+        };
+        state.deviceConnectionStatus = devicePresent ? "connected" : "failed";
+        state.message = transportMatches
+          ? (device.message || (devicePresent ? `${activeProfile.transport} terhubung.` : `${activeProfile.transport} tidak ditemukan.`))
+          : `LocalService belum memakai jalur ${activeProfile.transport} untuk OSC.`;
+        if (devicePresent) {
+          notify(state.message, "success");
           state.calPadEnabled = false;
+          try {
+            await setCalPadEnabled(false, { silent: true });
+          } catch (_error) {
+            state.calPadEnabled = false;
+          }
+        } else {
+          notify(state.message, "warning");
+        }
+      } catch (error) {
+        if (selectionToken !== deviceSelectionToken) {
+          return;
+        }
+        state.deviceConnectionStatus = "failed";
+        state.errorMessage = error?.message || `${profile.transport} gagal dicek.`;
+        state.message = state.errorMessage;
+        notify(state.errorMessage, "warning");
+      } finally {
+        if (selectionToken === deviceSelectionToken) {
+          updateInstrument();
         }
       }
+    }
+
+    async function checkSelectedDevice() {
+      try {
+        const session = await fetchJson("/spi-flash/session");
+        state.selectedDevice = normalizeDeviceSelection(session?.selectedDevice || state.selectedDevice);
+      } catch (_error) {
+        // OSC tetap bisa mencoba device terakhir kalau session SPI belum terbaca.
+      }
+      await selectDevice(state.selectedDevice);
     }
 
     async function setCalPadEnabled(enabled, { silent = false } = {}) {
@@ -2818,7 +2980,10 @@
       }
       const response = await fetchJson("/tools/oscilloscope/cal-pad", {
         method: "POST",
-        body: JSON.stringify({ enabled })
+        body: JSON.stringify({
+          deviceType: normalizeDeviceSelection(state.selectedDevice),
+          enabled
+        })
       });
 
       state.calPadEnabled = Boolean(response.enabled);
@@ -2838,6 +3003,7 @@
       return fetchJson("/tools/oscilloscope/capture", {
         method: "POST",
         body: JSON.stringify({
+          deviceType: normalizeDeviceSelection(state.selectedDevice),
           sampleRateHz: Number(state.sampleRateHz || defaultSampleRateHz),
           sampleCount: Number(state.sampleCount || defaultSampleCount),
           channelCount: activeChannelCount(),
@@ -3106,7 +3272,7 @@
     return {
       viewKey: "tool_oscilloscope",
       eyebrow: "Oscilloscope",
-      title: "STM32 Oscilloscope",
+      title: "TEKNISIHUB_FLASH_OSC",
       subtitle: "Pipeline render mengikuti pola Scoppy: buffer, trigger, pre-trigger, resampling.",
       items: [],
       async mount(options = {}) {
@@ -3114,6 +3280,7 @@
         notify = typeof options.notify === "function" ? options.notify : notify;
         bindThemeListener();
         mountShell();
+        void checkSelectedDevice();
       },
       setVisible(visible) {
         if (!mountedContainer) {
@@ -3133,6 +3300,9 @@
           return;
         }
         requestDraw();
+        if (state.deviceConnectionStatus === "idle") {
+          void checkSelectedDevice();
+        }
       },
       async refresh() {
         updateInstrument();

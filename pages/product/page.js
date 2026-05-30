@@ -6,10 +6,10 @@
 
   const products = [
     {
-      id: "stm32-universal",
-      orderName: "STM32 UNIVERSAL SPI FLASH /FLASH EC/KBC",
-      title: "STM32 UNIVERSAL SPI FLASH /FLASH EC/KBC",
-      description: "Board universal STM32 untuk kebutuhan SPI Flash dan Flash EC/KBC.",
+      id: "teknisihub-flash-osc-usb",
+      orderName: "TEKNISIHUB_FLASH_OSC USB",
+      title: "TEKNISIHUB_FLASH_OSC USB",
+      description: "Device universal untuk kebutuhan SPI Flash, Flash EC/KBC, dan OSC via USB.",
       price: "Rp300.000",
       unit: "/ Unit",
       moq: "1 Paket",
@@ -17,16 +17,16 @@
       reviews: "50",
       sold: "50",
       delivery: "Fast Delivery",
-      tags: ["STM32", "SPI Flash", "EC/KBC"],
+      tags: ["TEKNISIHUB_FLASH_OSC", "SPI Flash", "EC/KBC"],
       toolViewKey: "tool_spi_flash",
-      imageSrc: "assets/stm32_spi_i2c_osc.png?v=202605230002",
-      imageAlt: "STM32 universal SPI Flash dan Flash EC KBC"
+      imageSrc: "assets/HubLogo.png?v=202605230001",
+      imageAlt: "TEKNISIHUB_FLASH_OSC USB"
     },
     {
-      id: "rp2040-universal",
-      orderName: "RP2040 UNIVERSAL SPI FLASH /FLASH EC/KBC / OSC",
-      title: "RP2040 UNIVERSAL SPI FLASH /FLASH EC/KBC / OSC",
-      description: "Board universal RP2040 untuk kebutuhan SPI Flash, Flash EC/KBC, dan OSC.",
+      id: "teknisihub-flash-osc-wifi",
+      orderName: "TEKNISIHUB_FLASH_OSC WIFI",
+      title: "TEKNISIHUB_FLASH_OSC WIFI",
+      description: "Device universal untuk kebutuhan SPI Flash, Flash EC/KBC, dan OSC via WIFI.",
       price: "Rp500.000",
       unit: "/ Unit",
       moq: "1 Unit",
@@ -34,10 +34,10 @@
       reviews: "103",
       sold: "103",
       delivery: "Ready Order",
-      tags: ["RP2040", "SPI Flash", "EC/KBC", "OSC"],
+      tags: ["TEKNISIHUB_FLASH_OSC", "SPI Flash", "EC/KBC", "OSC"],
       toolViewKey: "tool_spi_flash",
-      imageSrc: "assets/rp2040_spi_i2c_osc.png?v=202605230002",
-      imageAlt: "RP2040 universal SPI Flash, Flash EC KBC, dan OSC"
+      imageSrc: "assets/HubLogo.png?v=202605230001",
+      imageAlt: "TEKNISIHUB_FLASH_OSC WIFI"
     },
     {
       id: "member-biasa-1-bulan",
