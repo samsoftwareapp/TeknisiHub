@@ -3041,6 +3041,11 @@ body.is-dark-mode .catalog-upload-task-card {
 .catalog-upload-task-list {
   display: grid;
   gap: 10px;
+  max-height: min(386px, calc(100vh - 180px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  scrollbar-gutter: stable;
 }
 
 .catalog-upload-task-item {
@@ -3106,6 +3111,28 @@ body.is-dark-mode .catalog-upload-task-item {
   color: var(--muted);
 }
 
+.catalog-upload-task-state-icons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-height: 18px;
+}
+
+.catalog-upload-task-remove {
+  border-radius: 999px;
+  color: #cc5645;
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+  outline-offset: 2px;
+}
+
+.catalog-upload-task-remove:hover,
+.catalog-upload-task-remove:focus-visible {
+  color: #b93f32;
+}
+
 .catalog-upload-task-state-label {
   font-size: 0.76rem;
   font-weight: 700;
@@ -3113,20 +3140,53 @@ body.is-dark-mode .catalog-upload-task-item {
 }
 
 .catalog-upload-task-progress {
-  margin-top: 10px;
-  height: 6px;
+  position: relative;
+  margin-top: 8px;
+  height: 5px;
   overflow: hidden;
   border-radius: 999px;
   background: rgba(17, 72, 110, 0.08);
 }
 
-.catalog-upload-task-progress span {
+.catalog-upload-task-progress-fill {
   display: block;
   width: 0;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(135deg, var(--deep), var(--accent));
   transition: width 180ms ease-out;
+}
+
+.catalog-upload-task-progress.is-indeterminate .catalog-upload-task-progress-fill {
+  width: 100%;
+  min-width: 0;
+  animation: catalog-upload-task-erase-wipe 2.4s ease-in-out infinite;
+  animation-delay: var(--task-erase-wipe-delay, 0ms);
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      transparent 12%,
+      rgba(53, 198, 220, 0.2) 24%,
+      rgba(66, 224, 197, 0.9) 48%,
+      rgba(53, 198, 220, 0.2) 72%,
+      transparent 88%,
+      transparent 100%);
+  background-size: 230% 100%;
+  transition: none;
+}
+
+@keyframes catalog-upload-task-erase-wipe {
+  0% {
+    background-position: 115% 0;
+  }
+
+  50% {
+    background-position: -15% 0;
+  }
+
+  100% {
+    background-position: 115% 0;
+  }
 }
 
 .catalog-upload-task-item.is-completed .catalog-upload-task-state,
@@ -3138,7 +3198,7 @@ body.is-dark-mode .catalog-upload-task-item {
   background: rgba(41, 156, 82, 0.12);
 }
 
-.catalog-upload-task-item.is-completed .catalog-upload-task-progress span {
+.catalog-upload-task-item.is-completed .catalog-upload-task-progress-fill {
   background: linear-gradient(135deg, #299c52, #45c36a);
 }
 
@@ -3154,8 +3214,8 @@ body.is-dark-mode .catalog-upload-task-item {
   background: rgba(204, 86, 69, 0.12);
 }
 
-.catalog-upload-task-item.is-failed .catalog-upload-task-progress span,
-.catalog-upload-task-item.is-cancelled .catalog-upload-task-progress span {
+.catalog-upload-task-item.is-failed .catalog-upload-task-progress-fill,
+.catalog-upload-task-item.is-cancelled .catalog-upload-task-progress-fill {
   background: linear-gradient(135deg, #cc5645, #e18065);
 }
 
@@ -3587,6 +3647,314 @@ body.is-dark-mode .spi-card.is-failed span {
   border-radius: 50%;
   background: #65dbc6;
   box-shadow: 0 0 0 4px rgba(101, 219, 198, 0.14);
+}
+
+.spi-soic-brand-mark {
+  display: inline-grid;
+  place-items: center;
+  min-height: 30px;
+  max-width: 100%;
+  padding: 0 4px;
+  color: rgba(232, 239, 241, 0.68);
+  font-family: "Arial Black", Impact, "Segoe UI Black", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 950;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-align: center;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08),
+    0 -1px 0 rgba(0, 0, 0, 0.38);
+  text-transform: uppercase;
+  user-select: none;
+  overflow-wrap: anywhere;
+}
+
+.spi-flash-brand-winbond {
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 1.28rem;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  text-transform: none;
+}
+
+.spi-flash-brand-gigadevice {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  text-transform: none;
+}
+
+.spi-flash-brand-xmc,
+.spi-flash-brand-xtx {
+  letter-spacing: 0.12em;
+}
+
+.spi-flash-brand-puya,
+.spi-flash-brand-fudan,
+.spi-flash-brand-boya,
+.spi-flash-brand-pflash {
+  letter-spacing: 0.08em;
+}
+
+.spi-flash-brand-macronix {
+  font-size: 1.42rem;
+  letter-spacing: 0.04em;
+}
+
+.spi-flash-brand-micron,
+.spi-flash-brand-intel,
+.spi-flash-brand-issi,
+.spi-flash-brand-onsemi {
+  font-family: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  text-transform: lowercase;
+}
+
+.spi-flash-brand-spansion {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 1.14rem;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  text-transform: none;
+}
+
+.spi-flash-brand-zbit,
+.spi-flash-brand-zetta,
+.spi-flash-brand-excelsemi,
+.spi-flash-brand-nantronics,
+.spi-flash-brand-paragon,
+.spi-flash-brand-generic {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+
+.spi-kbc-monitor-card {
+  grid-column: 1 / -1;
+}
+
+.spi-kbc-monitor {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(210px, 280px) minmax(150px, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 151, 169, 0.16);
+  background:
+    linear-gradient(180deg, rgba(248, 252, 255, 0.86), rgba(231, 240, 246, 0.62)),
+    repeating-linear-gradient(90deg, rgba(118, 151, 169, 0.1) 0 1px, transparent 1px 22px);
+  overflow: hidden;
+}
+
+.spi-kbc-pin-column {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.spi-kbc-pin {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(30, 154, 112, 0.24);
+  background: rgba(225, 248, 239, 0.72);
+  box-shadow: 0 10px 20px rgba(27, 45, 58, 0.07);
+}
+
+.spi-kbc-pin::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 2px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, rgba(30, 154, 112, 0.25), rgba(30, 154, 112, 0.86));
+}
+
+.spi-kbc-pin::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 18px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(109, 126, 137, 0.34);
+  background: linear-gradient(180deg, #edf3f6, #b8c4cc);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+.spi-kbc-pin-left {
+  text-align: right;
+}
+
+.spi-kbc-pin-left::before {
+  right: -28px;
+}
+
+.spi-kbc-pin-left::after {
+  right: -14px;
+  border-radius: 0 4px 4px 0;
+}
+
+.spi-kbc-pin-right {
+  text-align: left;
+}
+
+.spi-kbc-pin-right::before {
+  left: -28px;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.spi-kbc-pin-right::after {
+  left: -14px;
+  border-radius: 4px 0 0 4px;
+}
+
+.spi-kbc-pin span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.spi-kbc-pin strong {
+  color: #126553;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.08;
+}
+
+.spi-kbc-pin small {
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.spi-kbc-chip-stack {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.spi-kbc-chip {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 280px;
+  padding: 28px 14px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(4, 17, 26, 0.78);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.07)),
+    linear-gradient(180deg, #26313b, #101921 54%, #081017);
+  color: #eef8ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -14px 28px rgba(0, 0, 0, 0.34),
+    0 18px 28px rgba(19, 35, 47, 0.18);
+}
+
+.spi-kbc-chip > strong {
+  color: #f4fbff;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.08;
+}
+
+.spi-kbc-chip > small {
+  color: #9fb7c8;
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.spi-kbc-brand-mark {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  color: rgba(231, 238, 240, 0.68);
+  line-height: 0.9;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08),
+    0 -1px 0 rgba(0, 0, 0, 0.35);
+  user-select: none;
+}
+
+.spi-kbc-brand-ite {
+  font-family: "Arial Black", Impact, "Segoe UI Black", sans-serif;
+  font-size: 1.75rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.spi-kbc-brand-ene {
+  font-family: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 1.72rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  text-transform: lowercase;
+}
+
+.spi-kbc-dot {
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #65dbc6;
+  box-shadow: 0 0 0 4px rgba(101, 219, 198, 0.14);
+}
+
+.spi-kbc-chip-profile {
+  margin-top: 4px;
+}
+
+.spi-kbc-wire-note {
+  margin: 6px 0 0;
+  color: #3f6f8d;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+}
+
+body.is-dark-mode .spi-kbc-monitor {
+  border-color: rgba(148, 178, 196, 0.14);
+  background:
+    linear-gradient(180deg, rgba(6, 17, 26, 0.92), rgba(10, 27, 39, 0.86)),
+    repeating-linear-gradient(90deg, rgba(148, 178, 196, 0.08) 0 1px, transparent 1px 22px);
+}
+
+body.is-dark-mode .spi-kbc-pin {
+  border-color: rgba(75, 210, 178, 0.2);
+  background: rgba(12, 43, 38, 0.72);
+}
+
+body.is-dark-mode .spi-kbc-pin small {
+  color: #d9edf5;
+}
+
+body.is-dark-mode .spi-kbc-wire-note {
+  color: #8fbfd4;
 }
 
 .spi-stats-grid {
@@ -4673,9 +5041,39 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
   color: var(--muted);
 }
 
-.spi-operation-card .spi-form-grid {
-  grid-template-columns: minmax(130px, 0.75fr) minmax(130px, 0.75fr) minmax(220px, 1.4fr) minmax(96px, 0.55fr);
+.spi-operation-card .spi-operation-form-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
+}
+
+.spi-operation-card .spi-operation-form-grid .spi-field-start {
+  grid-column: 1 / span 3;
+  grid-row: 1;
+}
+
+.spi-operation-card .spi-operation-form-grid .spi-field-length {
+  grid-column: 4 / span 3;
+  grid-row: 1;
+}
+
+.spi-operation-card .spi-operation-form-grid .spi-file-field {
+  grid-column: 1 / span 4;
+  grid-row: 2;
+}
+
+.spi-operation-card .spi-operation-form-grid .spi-field-chunk {
+  grid-column: 5;
+  grid-row: 2;
+}
+
+.spi-operation-card .spi-operation-form-grid .spi-field-speed {
+  grid-column: 5 / span 2;
+  grid-row: 2;
+}
+
+.spi-operation-card .spi-operation-form-grid.has-chunk-field .spi-field-speed {
+  grid-column: 6;
+  grid-row: 2;
 }
 
 .spi-operation-card .spi-form-grid label {
@@ -4741,8 +5139,22 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
 
 .spi-action-command-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
+}
+
+.spi-action-command-grid > button {
+  grid-column: span 2;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  justify-content: center;
+  text-align: center;
+}
+
+.spi-action-command-grid.is-kbc-actions > button:nth-last-child(-n + 2) {
+  grid-column: span 3;
 }
 
 .spi-action-command-main,
@@ -4765,7 +5177,8 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
 }
 
 .spi-action-command-main button,
-.spi-action-command-side button {
+.spi-action-command-side button,
+.spi-action-command-grid > button {
   min-width: 0;
   border-radius: 8px;
   justify-content: center;
@@ -4783,12 +5196,14 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
 }
 
 .spi-action-command-main .spi-action-copy strong,
-.spi-action-command-side .spi-action-copy strong {
+.spi-action-command-side .spi-action-copy strong,
+.spi-action-command-grid > button .spi-action-copy strong {
   font-size: 0.88rem;
 }
 
 .spi-action-command-main .spi-action-copy small,
-.spi-action-command-side .spi-action-copy small {
+.spi-action-command-side .spi-action-copy small,
+.spi-action-command-grid > button .spi-action-copy small {
   font-size: 0.68rem;
 }
 
@@ -8463,64 +8878,64 @@ button.ghost {
   margin-top: 12px;
 }
 
-.spi-scope-theme .spi-soic-monitor {
+body.is-dark-mode .spi-scope-theme .spi-soic-monitor {
   border-color: rgba(118, 151, 169, 0.18);
   background:
     linear-gradient(180deg, rgba(11, 28, 40, 0.92), rgba(7, 17, 26, 0.94)),
     repeating-linear-gradient(90deg, rgba(118, 151, 169, 0.09) 0 1px, transparent 1px 18px);
 }
 
-.spi-scope-theme .spi-soic-pin {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin {
   border-color: rgba(118, 151, 169, 0.2);
   background: #0b1c28;
   box-shadow: none;
 }
 
-.spi-scope-theme .spi-soic-pin::before,
-.spi-scope-theme .spi-soic-pin::after {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin::before,
+body.is-dark-mode .spi-scope-theme .spi-soic-pin::after {
   border-color: rgba(143, 176, 198, 0.22);
   background: linear-gradient(180deg, #344756, #142636);
 }
 
-.spi-scope-theme .spi-soic-pin-index,
-.spi-scope-theme .spi-soic-pin small {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin-index,
+body.is-dark-mode .spi-scope-theme .spi-soic-pin small {
   color: #8fb0c6;
 }
 
-.spi-scope-theme .spi-soic-pin strong {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin strong {
   color: #f4fbff;
 }
 
-.spi-scope-theme .spi-soic-pin em {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin em {
   color: #86f3d4;
 }
 
-.spi-scope-theme .spi-soic-pin.is-good {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin.is-good {
   border-color: rgba(45, 228, 193, 0.34);
   background: rgba(45, 228, 193, 0.1);
 }
 
-.spi-scope-theme .spi-soic-pin.is-warn {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin.is-warn {
   border-color: rgba(255, 213, 111, 0.34);
   background: rgba(255, 213, 111, 0.1);
 }
 
-.spi-scope-theme .spi-soic-pin.is-bad {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin.is-bad {
   border-color: rgba(255, 104, 104, 0.38);
   background: rgba(255, 104, 104, 0.12);
 }
 
-.spi-scope-theme .spi-soic-pin.is-bad strong,
-.spi-scope-theme .spi-soic-pin.is-bad em {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin.is-bad strong,
+body.is-dark-mode .spi-scope-theme .spi-soic-pin.is-bad em {
   color: #ffb3b3;
 }
 
-.spi-scope-theme .spi-soic-pin.is-off {
+body.is-dark-mode .spi-scope-theme .spi-soic-pin.is-off {
   border-color: rgba(118, 151, 169, 0.18);
   background: rgba(7, 17, 26, 0.72);
 }
 
-.spi-scope-theme .spi-soic-chip {
+body.is-dark-mode .spi-scope-theme .spi-soic-chip {
   border-color: rgba(45, 228, 193, 0.24);
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.08)),
@@ -8531,21 +8946,21 @@ button.ghost {
     0 18px 34px rgba(0, 0, 0, 0.24);
 }
 
-.spi-scope-theme .spi-soic-notch {
+body.is-dark-mode .spi-scope-theme .spi-soic-notch {
   border-color: rgba(45, 228, 193, 0.22);
   background: #0b1c28;
 }
 
-.spi-scope-theme .spi-soic-chip-profile span {
+body.is-dark-mode .spi-scope-theme .spi-soic-chip-profile span {
   border-color: rgba(45, 228, 193, 0.16);
   background: rgba(45, 228, 193, 0.06);
 }
 
-.spi-scope-theme .spi-soic-chip-profile small {
+body.is-dark-mode .spi-scope-theme .spi-soic-chip-profile small {
   color: #8fb0c6;
 }
 
-.spi-scope-theme .spi-soic-chip-profile strong {
+body.is-dark-mode .spi-scope-theme .spi-soic-chip-profile strong {
   color: #eefbff;
 }
 
@@ -8576,6 +8991,7 @@ button.ghost {
 
 .spi-scope-theme .spi-action-grid-primary button,
 .spi-scope-theme .spi-action-grid-secondary button,
+.spi-scope-theme .spi-action-command-grid > button,
 .spi-scope-theme .spi-action-command-main button,
 .spi-scope-theme .spi-action-command-side button,
 .spi-scope-theme .spi-action-utility-row button {
@@ -8593,6 +9009,8 @@ button.ghost {
 
 .spi-scope-theme .spi-action-grid-primary button:hover,
 .spi-scope-theme .spi-action-grid-primary button:focus-visible,
+.spi-scope-theme .spi-action-command-grid > button:hover,
+.spi-scope-theme .spi-action-command-grid > button:focus-visible,
 .spi-scope-theme .spi-action-command-main button:hover,
 .spi-scope-theme .spi-action-command-main button:focus-visible {
   border-color: rgba(255, 213, 111, 0.34);
@@ -8610,6 +9028,7 @@ button.ghost {
   min-height: 34px;
 }
 
+.spi-scope-theme .spi-action-command-grid > button,
 .spi-scope-theme .spi-action-command-main button {
   min-height: 52px;
 }
@@ -8823,6 +9242,7 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-form-grid label textarea {
 body:not(.is-dark-mode) .spi-scope-theme .ghost,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-secondary button,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-grid > button,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-main button,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-side button,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-utility-row button,
@@ -8843,6 +9263,8 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-file-picker-control:hover .spi-fil
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button:hover,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-grid-primary button:focus-visible,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-grid > button:hover,
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-grid > button:focus-visible,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-main button:hover,
 body:not(.is-dark-mode) .spi-scope-theme .spi-action-command-main button:focus-visible {
   border-color: rgba(191, 124, 28, 0.28);
@@ -8891,12 +9313,13 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-option {
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-shell {
   border-color: rgba(31, 97, 139, 0.16);
-  background: #f5fbfd;
+  background: #eef8fc;
 }
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-chrome,
 body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-head {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.96);
+  color: #173e5f;
 }
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-chrome {
@@ -8904,7 +9327,43 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-chrome {
 }
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-caption {
-  color: #537490;
+  color: #355d7f;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-head-offset,
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-offset {
+  color: #1287ca;
+  font-weight: 700;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-head-bytes {
+  color: #b36200;
+  font-weight: 700;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-head-ascii,
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-ascii {
+  color: #13865c;
+  font-weight: 700;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-row {
+  color: #173e5f;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-bytes {
+  color: #22384d;
+  font-weight: 650;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-row:nth-child(even) {
+  background: rgba(31, 97, 139, 0.045);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-hex-row:hover {
+  background:
+    linear-gradient(90deg, rgba(39, 199, 213, 0.18), rgba(39, 199, 213, 0.08)),
+    rgba(255, 255, 255, 0.62);
 }
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-hex-preview-body {
@@ -10066,6 +10525,10 @@ body.is-compact-ui .catalog-upload-task-list {
   gap: 8px;
 }
 
+body.is-compact-ui .catalog-upload-task-list {
+  max-height: min(312px, calc(100vh - 150px));
+}
+
 body.is-compact-ui .catalog-upload-task-body {
   padding: 0 10px 10px;
 }
@@ -10195,10 +10658,21 @@ body.is-compact-ui .quote-intro-close {
 
   .spi-operation-card .spi-form-grid,
   .spi-action-toolbar,
+  .spi-action-command-grid,
   .spi-action-command-main,
   .spi-action-command-side,
   .spi-action-utility-row {
     grid-template-columns: 1fr;
+  }
+
+  .spi-operation-card .spi-operation-form-grid .spi-field-start,
+  .spi-operation-card .spi-operation-form-grid .spi-field-length,
+  .spi-operation-card .spi-operation-form-grid .spi-file-field,
+  .spi-operation-card .spi-operation-form-grid .spi-field-chunk,
+  .spi-operation-card .spi-operation-form-grid .spi-field-speed,
+  .spi-operation-card .spi-operation-form-grid.has-chunk-field .spi-field-speed {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .spi-action-utility-row {
@@ -10210,8 +10684,10 @@ body.is-compact-ui .quote-intro-close {
     grid-column: auto;
   }
 
+  .spi-action-command-grid > button,
   .spi-action-command-main button,
   .spi-action-command-side button {
+    grid-column: auto;
     min-height: 46px;
   }
 
@@ -10269,6 +10745,71 @@ body.is-compact-ui .quote-intro-close {
 
   .spi-soic-chip-profile small {
     font-size: 0.58rem;
+  }
+
+  .spi-kbc-monitor {
+    grid-template-columns: minmax(92px, 1fr) minmax(112px, 150px) minmax(92px, 1fr);
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .spi-kbc-pin-column {
+    gap: 8px;
+  }
+
+  .spi-kbc-pin {
+    min-height: 58px;
+    padding: 7px;
+  }
+
+  .spi-kbc-pin::before {
+    width: 12px;
+  }
+
+  .spi-kbc-pin::after {
+    width: 8px;
+  }
+
+  .spi-kbc-pin-left::before {
+    right: -18px;
+  }
+
+  .spi-kbc-pin-left::after {
+    right: -10px;
+  }
+
+  .spi-kbc-pin-right::before {
+    left: -18px;
+  }
+
+  .spi-kbc-pin-right::after {
+    left: -10px;
+  }
+
+  .spi-kbc-pin strong {
+    font-size: 0.84rem;
+  }
+
+  .spi-kbc-pin span,
+  .spi-kbc-pin small {
+    font-size: 0.62rem;
+  }
+
+  .spi-kbc-chip {
+    min-height: 248px;
+    padding: 26px 7px 10px;
+  }
+
+  .spi-kbc-chip > strong {
+    font-size: 0.88rem;
+  }
+
+  .spi-kbc-chip > small {
+    font-size: 0.64rem;
+  }
+
+  .spi-kbc-wire-note {
+    font-size: 0.6rem;
   }
 
   .spi-scope-status-strip span {

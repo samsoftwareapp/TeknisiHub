@@ -6,38 +6,28 @@
 
   const products = [
     {
-      id: "teknisihub-flash-osc-usb",
-      orderName: "TEKNISIHUB_FLASH_OSC USB",
-      title: "TEKNISIHUB_FLASH_OSC USB",
-      description: "Device universal untuk kebutuhan SPI Flash, Flash EC/KBC, dan OSC via USB.",
-      price: "Rp300.000",
-      unit: "/ Unit",
-      moq: "1 Paket",
-      rating: "5.0",
-      reviews: "50",
-      sold: "50",
-      delivery: "Fast Delivery",
-      tags: ["TEKNISIHUB_FLASH_OSC", "SPI Flash", "EC/KBC"],
-      toolViewKey: "tool_spi_flash",
-      imageSrc: "assets/HubLogo.png?v=202605230001",
-      imageAlt: "TEKNISIHUB_FLASH_OSC USB"
-    },
-    {
-      id: "teknisihub-flash-osc-wifi",
-      orderName: "TEKNISIHUB_FLASH_OSC WIFI",
-      title: "TEKNISIHUB_FLASH_OSC WIFI",
-      description: "Device universal untuk kebutuhan SPI Flash, Flash EC/KBC, dan OSC via WIFI.",
-      price: "Rp500.000",
+      id: "teknisihub-flash-osc",
+      orderName: "TEKNISIHUB_FLASH_OSC",
+      title: "TEKNISIHUB_FLASH_OSC",
+      description: "Programmer dan oscilloscope portable untuk teknisi board-level: satu device untuk SPI Flash BIOS, EC/KBC, dan analisa sinyal ringan.",
+      price: "Rp2.000.000",
       unit: "/ Unit",
       moq: "1 Unit",
       rating: "5.0",
       reviews: "103",
       sold: "103",
       delivery: "Ready Order",
-      tags: ["TEKNISIHUB_FLASH_OSC", "SPI Flash", "EC/KBC", "OSC"],
+      tags: ["SPI Flash", "EC/KBC", "OSC", "USB/WIFI"],
+      features: [
+        "Read, write, erase, verify BIOS SPI 25 Series",
+        "SmartID BIOS/EC/KBC dan chip monitor",
+        "Support Flash EC/KBC ENE dan ITE",
+        "Oscilloscope ringan via USB atau WIFI",
+        "Integrasi langsung dengan SPI Flash Tools dan OSC Tools"
+      ],
       toolViewKey: "tool_spi_flash",
       imageSrc: "assets/HubLogo.png?v=202605230001",
-      imageAlt: "TEKNISIHUB_FLASH_OSC WIFI"
+      imageAlt: "TEKNISIHUB_FLASH_OSC"
     },
     {
       id: "member-biasa-1-bulan",

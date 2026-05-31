@@ -13,6 +13,7 @@
   const defaultDisplayMode = "yt";
   const defaultProbeAttenuation = 10;
   const settingsStorageKey = "teknisihub.oscilloscope.settings.v1";
+  const connectionPlaceholderLabel = "---- PILIH KONEKSI ----";
   const probeProfiles = {
     1: { value: 1, label: "1X 0-3.3V", min: 0, max: 3.3, minSpan: 0.5 },
     10: { value: 10, label: "10X 0-30V", min: 0, max: 30, minSpan: 5 }
@@ -334,8 +335,8 @@
         isPresent: false,
         message: "Pilih koneksi USB atau WIFI.",
         deviceLabel: "TEKNISIHUB_FLASH_OSC",
-        deviceType: defaultDeviceType,
-        transport: "USB",
+        deviceType: "",
+        transport: "",
         maxSampleRateHz: defaultSampleRateHz,
         maxSampleCount: singleChannelSampleCount,
         bits: 12,
@@ -391,7 +392,7 @@
       recordSessionId: "",
       recordFrameCount: 0,
       recordFilePath: "",
-      selectedDevice: defaultDeviceType,
+      selectedDevice: "",
       deviceConnectionStatus: "idle",
       isRunning: false,
       isCapturing: false,
@@ -1907,19 +1908,29 @@
 
   function normalizeDeviceSelection(value) {
     const normalized = String(value || "").trim().toUpperCase();
+    if (!normalized) {
+      return "";
+    }
     if (normalized === "WIFI" || normalized === "WI-FI" || normalized === "TEKNISIHUB_FLASH_OSC_WIFI") {
       return "TEKNISIHUB_FLASH_OSC_WIFI";
     }
     if (normalized === "USB" || normalized === "TEKNISIHUB_FLASH_OSC" || normalized === "TEKNISIHUB_FLASH_OSC_USB") {
       return "TEKNISIHUB_FLASH_OSC_USB";
     }
-    return defaultDeviceType;
+    return "";
   }
 
   function getDevicePickerState(state) {
     const selectedDevice = normalizeDeviceSelection(state.selectedDevice);
+    if (!selectedDevice) {
+      return {
+        status: "idle",
+        icon: "usb",
+        title: "Pilih koneksi USB atau WIFI."
+      };
+    }
     const profile = deviceProfiles[selectedDevice] || deviceProfiles[defaultDeviceType];
-    const hasError = Boolean(state.errorMessage) || state.deviceConnectionStatus === "failed";
+    const hasError = state.deviceConnectionStatus === "failed";
     if (hasError) {
       return {
         status: "failed",
@@ -1927,7 +1938,7 @@
         title: state.errorMessage || state.device?.message || "Koneksi device gagal."
       };
     }
-    if (state.deviceConnectionStatus === "checking" || state.isBusy || state.isCapturing) {
+    if (state.deviceConnectionStatus === "checking") {
       return {
         status: "checking",
         icon: "sync",
@@ -1949,7 +1960,9 @@
   }
 
   function isSelectedDeviceConnected(state) {
-    return Boolean(state.device?.isPresent) &&
+    const selectedDevice = normalizeDeviceSelection(state.selectedDevice);
+    return Boolean(selectedDevice) &&
+      Boolean(state.device?.isPresent) &&
       normalizeDeviceSelection(state.device?.deviceType) === normalizeDeviceSelection(state.selectedDevice);
   }
 
@@ -1960,7 +1973,7 @@
     const initialChannelProbes = storedChannelProbeAttenuations();
     const initialChannelVisibility = storedChannelVisibility();
     const devicePickerState = getDevicePickerState({
-      selectedDevice: defaultDeviceType,
+      selectedDevice: "",
       deviceConnectionStatus: "idle",
       device: { isPresent: false }
     });
@@ -1979,8 +1992,9 @@
               title="${escapeHtml(devicePickerState.title)}">
               <span data-osc-device-icon class="material-symbols-outlined">${escapeHtml(devicePickerState.icon)}</span>
               <select id="oscDeviceSelect" aria-label="Pilih koneksi device">
+                <option value="" selected>${escapeHtml(connectionPlaceholderLabel)}</option>
                 ${Object.entries(deviceProfiles).map(([key, item]) => `
-                  <option value="${escapeHtml(key)}"${key === defaultDeviceType ? " selected" : ""}>${escapeHtml(`${item.label} ${item.transport}`)}</option>
+                  <option value="${escapeHtml(key)}">${escapeHtml(`${item.label} ${item.transport}`)}</option>
                 `).join("")}
               </select>
               <span class="spi-scope-device-indicator" aria-hidden="true"></span>
@@ -2292,6 +2306,7 @@
     let runConfirmResolver = null;
     let themeListenerBound = false;
     let deviceSelectionToken = 0;
+    let calPadRequestInFlight = false;
 
     function mountShell() {
       if (!mountedContainer) {
@@ -2383,7 +2398,9 @@
       refs.run?.addEventListener("click", toggleContinuous);
       refs.single?.addEventListener("click", () => withBusy(() => captureWaveform({ saveTemporary: true })));
       refs.record?.addEventListener("click", toggleRecording);
-      refs.calPad?.addEventListener("click", () => withBusy(toggleCalPad));
+      refs.calPad?.addEventListener("click", () => {
+        void toggleCalPadFromUser();
+      });
       refs.modeYt?.addEventListener("click", () => setDisplayMode("yt"));
       refs.modeFft?.addEventListener("click", () => setDisplayMode("fft"));
       refs.modeXy?.addEventListener("click", () => setDisplayMode("xy"));
@@ -2645,7 +2662,7 @@
       const deviceUnavailable = !isSelectedDeviceConnected(state);
       updateDevicePicker(acquisitionLocked);
       if (refs.run) {
-        refs.run.disabled = busy || (!state.isRunning && deviceUnavailable);
+        refs.run.disabled = !state.isRunning && (busy || deviceUnavailable);
       }
       [
         refs.single,
@@ -2655,18 +2672,30 @@
         }
       });
       [
-        refs.calPad,
         refs.probeCh1,
         refs.probeCh2,
-        refs.sampleRate,
-        refs.sampleCount,
         refs.triggerEdge,
         refs.preTrigger,
-        refs.triggerLevel,
-        ...(refs.actualVoltages || [])
+        refs.triggerLevel
       ].forEach((element) => {
         if (element) {
           element.disabled = acquisitionLocked || deviceUnavailable;
+        }
+      });
+      [
+        refs.sampleRate,
+        refs.sampleCount
+      ].forEach((element) => {
+        if (element) {
+          element.disabled = deviceUnavailable;
+        }
+      });
+      if (refs.calPad) {
+        refs.calPad.disabled = deviceUnavailable;
+      }
+      refs.actualVoltages?.forEach((element) => {
+        if (element) {
+          element.disabled = deviceUnavailable;
         }
       });
       if (refs.showCh1) {
@@ -2881,6 +2910,24 @@
       }
 
       const normalizedDevice = normalizeDeviceSelection(nextDevice);
+      if (!normalizedDevice) {
+        deviceSelectionToken += 1;
+        state.selectedDevice = "";
+        state.deviceConnectionStatus = "idle";
+        state.errorMessage = "";
+        state.message = "Pilih koneksi USB atau WIFI.";
+        state.device = {
+          ...state.device,
+          success: false,
+          isPresent: false,
+          deviceType: "",
+          transport: "",
+          message: state.message
+        };
+        updateInstrument();
+        return;
+      }
+
       const profile = deviceProfiles[normalizedDevice] || deviceProfiles[defaultDeviceType];
       const selectionToken = ++deviceSelectionToken;
       state.selectedDevice = normalizedDevice;
@@ -2970,7 +3017,9 @@
       } catch (_error) {
         // OSC tetap bisa mencoba device terakhir kalau session SPI belum terbaca.
       }
-      await selectDevice(state.selectedDevice);
+      if (state.selectedDevice) {
+        await selectDevice(state.selectedDevice);
+      }
     }
 
     async function setCalPadEnabled(enabled, { silent = false } = {}) {
@@ -2997,6 +3046,25 @@
 
     async function toggleCalPad() {
       await setCalPadEnabled(!state.calPadEnabled);
+    }
+
+    async function toggleCalPadFromUser() {
+      if (calPadRequestInFlight || !isSelectedDeviceConnected(state)) {
+        return;
+      }
+
+      calPadRequestInFlight = true;
+      state.errorMessage = "";
+      updateHud();
+      try {
+        await toggleCalPad();
+      } catch (error) {
+        state.errorMessage = error?.message || "Operasi CAL PAD gagal.";
+        notify(state.errorMessage, "warning");
+      } finally {
+        calPadRequestInFlight = false;
+        updateInstrument();
+      }
     }
 
     async function requestCapture({ saveTemporary = true, recordEnabled = false } = {}) {
@@ -3280,7 +3348,6 @@
         notify = typeof options.notify === "function" ? options.notify : notify;
         bindThemeListener();
         mountShell();
-        void checkSelectedDevice();
       },
       setVisible(visible) {
         if (!mountedContainer) {
@@ -3300,9 +3367,6 @@
           return;
         }
         requestDraw();
-        if (state.deviceConnectionStatus === "idle") {
-          void checkSelectedDevice();
-        }
       },
       async refresh() {
         updateInstrument();

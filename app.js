@@ -127,6 +127,7 @@ const catalogEditorUploadProgressPercent = document.getElementById("catalogEdito
 const catalogEditorUploadProgressBar = document.getElementById("catalogEditorUploadProgressBar");
 const catalogUploadTaskPanel = document.getElementById("catalogUploadTaskPanel");
 const catalogUploadTaskSummary = document.getElementById("catalogUploadTaskSummary");
+const catalogUploadTaskClearAllButton = document.getElementById("catalogUploadTaskClearAllButton");
 const catalogUploadTaskToggleButton = document.getElementById("catalogUploadTaskToggleButton");
 const catalogUploadTaskToggleIcon = document.getElementById("catalogUploadTaskToggleIcon");
 const catalogUploadTaskCloseButton = document.getElementById("catalogUploadTaskCloseButton");
@@ -473,7 +474,7 @@ const catalogSearchCacheMissNoticeByQuery = new Map();
 let catalogEventSource = null;
 let catalogEventReconnectTimerId = 0;
 const catalogUploadTasks = new Map();
-const maxCatalogUploadTasks = 4;
+const maxCatalogUploadHistoryTasks = 10;
 let catalogUploadTaskCollapsed = false;
 let catalogUploadTaskDismissed = false;
 let catalogUploadTaskSyncTimerId = 0;
@@ -4550,6 +4551,96 @@ function shouldSkipCatalogUploadTaskSound(task = {}) {
   return String(task.source || "").toLowerCase() === "spi-flash";
 }
 
+function normalizeCatalogUploadTaskFamilyText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\b(sedang|selesai|sukses|gagal|error|failed|completed|running|progress|proses|berjalan)\b/g, " ")
+    .replace(/\b\d+%\b/g, " ")
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveCatalogUploadTaskFamily(task = {}) {
+  const text = [
+    task.fileName,
+    task.displayName,
+    task.message,
+    task.lastError
+  ].map(normalizeCatalogUploadTaskFamilyText).filter(Boolean).join(" ");
+
+  if (!text) {
+    return "";
+  }
+
+  const hasEne = /\bene\b|\bkb9/.test(text);
+  const hasIte = /\bite\b|\bit8/.test(text);
+  if (text.includes("smartid")) {
+    return "smartid";
+  }
+
+  if (text.includes("detect bios") || text.includes("25 spi")) {
+    return "detect-bios";
+  }
+
+  if (text.includes("detect") && hasEne) {
+    return "detect-ene";
+  }
+
+  if (text.includes("detect") && hasIte) {
+    return "detect-ite";
+  }
+
+  if (text.includes("read") && text.includes("verify")) {
+    return `${hasEne ? "ene-" : hasIte ? "ite-" : ""}read-verify`;
+  }
+
+  if (text.includes("write") && text.includes("verify")) {
+    return `${hasEne ? "ene-" : hasIte ? "ite-" : ""}write-verify`;
+  }
+
+  if (text.includes("verify")) {
+    return `${hasEne ? "ene-" : hasIte ? "ite-" : ""}verify`;
+  }
+
+  if (text.includes("erase")) {
+    return `${hasEne ? "ene-" : hasIte ? "ite-" : ""}erase`;
+  }
+
+  if (text.includes("write")) {
+    return `${hasEne ? "ene-" : hasIte ? "ite-" : ""}write`;
+  }
+
+  if (text.includes("read")) {
+    return `${hasEne ? "ene-" : hasIte ? "ite-" : ""}read`;
+  }
+
+  return text
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function pruneDuplicateSpiFlashTasks(nextTask = {}) {
+  if (String(nextTask.source || "").toLowerCase() !== "spi-flash") {
+    return;
+  }
+
+  if (!nextTask.active) {
+    return;
+  }
+
+  for (const [operationId, task] of catalogUploadTasks.entries()) {
+    if (
+      operationId !== nextTask.operationId &&
+      String(task?.source || "").toLowerCase() === "spi-flash" &&
+      task?.active
+    ) {
+      catalogUploadTasks.delete(operationId);
+    }
+  }
+}
+
 function resolveCatalogUploadTaskSoundKind(existingTask = {}, nextTask = {}) {
   if (!nextTask.operationId || shouldSkipCatalogUploadTaskSound(nextTask)) {
     return "";
@@ -4601,15 +4692,11 @@ function getCatalogUploadTaskEntries() {
 }
 
 function trimCatalogUploadTasks() {
-  if (catalogUploadTasks.size <= maxCatalogUploadTasks) {
-    return;
-  }
-
   const removableTasks = Array.from(catalogUploadTasks.values())
     .filter((task) => !task.active)
     .sort((left, right) => getCatalogUploadTaskSortValue(left) - getCatalogUploadTaskSortValue(right));
 
-  while (catalogUploadTasks.size > maxCatalogUploadTasks && removableTasks.length > 0) {
+  while (removableTasks.length > maxCatalogUploadHistoryTasks) {
     const removableTask = removableTasks.shift();
     if (removableTask?.operationId) {
       catalogUploadTasks.delete(removableTask.operationId);
@@ -4708,20 +4795,45 @@ function getCatalogUploadTaskStatusText(task) {
   return "Gagal";
 }
 
+function isCatalogUploadTaskIndeterminate(task, progressPercent) {
+  if (!task?.active || progressPercent > 0) {
+    return false;
+  }
+
+  const taskText = [
+    task.fileName,
+    task.displayName,
+    task.message,
+    task.lastError,
+    task.stage
+  ].filter(Boolean).join(" ").toLowerCase();
+  return taskText.includes("erase");
+}
+
 function renderCatalogUploadTasks() {
   if (!catalogUploadTaskPanel || !catalogUploadTaskSummary || !catalogUploadTaskList || !catalogUploadTaskBody) {
     return;
   }
 
   const tasks = getCatalogUploadTaskEntries();
-  toggleElement(catalogUploadTaskPanel, tasks.length > 0 && !catalogUploadTaskDismissed);
+  const hasActiveTasks = tasks.some((task) => task.active);
+  const hasHistoryTasks = tasks.some((task) => !task.active);
+  toggleElement(catalogUploadTaskPanel, tasks.length > 0 && (hasActiveTasks || !catalogUploadTaskDismissed));
   if (tasks.length === 0) {
     catalogUploadTaskList.innerHTML = "";
+    if (catalogUploadTaskClearAllButton) {
+      catalogUploadTaskClearAllButton.hidden = true;
+      catalogUploadTaskClearAllButton.disabled = true;
+    }
     syncFloatingUtilityOffset();
     return;
   }
 
   catalogUploadTaskSummary.textContent = formatCatalogUploadTaskSummary(tasks);
+  if (catalogUploadTaskClearAllButton) {
+    catalogUploadTaskClearAllButton.hidden = !hasHistoryTasks;
+    catalogUploadTaskClearAllButton.disabled = !hasHistoryTasks;
+  }
   toggleElement(catalogUploadTaskBody, !catalogUploadTaskCollapsed);
   if (catalogUploadTaskToggleButton) {
     catalogUploadTaskToggleButton.setAttribute("aria-expanded", String(!catalogUploadTaskCollapsed));
@@ -4742,8 +4854,23 @@ function renderCatalogUploadTasks() {
       ? "is-cancelled"
       : "is-failed";
     const progressPercent = Math.max(0, Math.min(100, Math.round(Number(task.progressPercent) || 0)));
+    const indeterminateProgress = isCatalogUploadTaskIndeterminate(task, progressPercent);
+    const eraseWipeDurationMs = 2400;
+    const eraseWipeDelayStyle = indeterminateProgress
+      ? ` style="--task-erase-wipe-delay: -${Date.now() % eraseWipeDurationMs}ms;"`
+      : "";
     const icon = task.icon || "description";
     const subtitle = `${task.displayName} - ${task.lastError || task.message || "Menyiapkan proses..."}`;
+    const removeIcon = task.active ? "" : `
+      <span
+        role="button"
+        tabindex="0"
+        class="material-symbols-outlined catalog-upload-task-remove"
+        data-catalog-task-remove="${escapeHtml(task.operationId)}"
+        aria-label="Hapus task ${escapeHtml(task.fileName)}">
+        delete
+      </span>
+    `;
 
     return `
       <article class="catalog-upload-task-item ${stageClass}">
@@ -4755,16 +4882,93 @@ function renderCatalogUploadTasks() {
           </div>
           <div class="catalog-upload-task-state">
             <span class="catalog-upload-task-state-label">${escapeHtml(getCatalogUploadTaskStatusText(task))}</span>
-            <span class="material-symbols-outlined${task.active ? " is-spinning" : ""}">${getCatalogUploadTaskStatusIcon(task)}</span>
+            <span class="catalog-upload-task-state-icons">
+              <span class="material-symbols-outlined${task.active ? " is-spinning" : ""}">${getCatalogUploadTaskStatusIcon(task)}</span>
+              ${removeIcon}
+            </span>
           </div>
         </div>
-        <div class="catalog-upload-task-progress" aria-hidden="true">
-          <span style="width: ${progressPercent}%;"></span>
+        <div class="catalog-upload-task-progress${indeterminateProgress ? " is-indeterminate" : ""}" aria-hidden="true"${eraseWipeDelayStyle}>
+          <span class="catalog-upload-task-progress-fill"${indeterminateProgress ? "" : ` style="width: ${progressPercent}%;"`}></span>
         </div>
       </article>
     `;
   }).join("");
+  catalogUploadTaskList.querySelectorAll("[data-catalog-task-remove]").forEach((icon) => {
+    const handleRemove = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void removeCatalogUploadTask(icon.getAttribute("data-catalog-task-remove"));
+    };
+
+    icon.addEventListener("click", handleRemove);
+    icon.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        handleRemove(event);
+      }
+    });
+  });
   syncFloatingUtilityOffset();
+}
+
+async function removeCatalogUploadTask(operationId) {
+  const normalizedOperationId = String(operationId || "").trim();
+  if (!normalizedOperationId) {
+    return;
+  }
+
+  const task = catalogUploadTasks.get(normalizedOperationId);
+  if (task?.active) {
+    return;
+  }
+
+  const spiHistoryMatch = normalizedOperationId.match(/^spi-flash-history-(\d+)$/i);
+  if (spiHistoryMatch) {
+    try {
+      await fetchJson(`/spi-flash/progress-history/${encodeURIComponent(spiHistoryMatch[1])}`, {
+        method: "DELETE"
+      });
+      await spiFlashPage.refresh?.();
+    } catch (error) {
+      setNotice(error?.message || "Gagal menghapus task history SPI Flash.", "warning");
+      return;
+    }
+  }
+
+  catalogUploadTasks.delete(normalizedOperationId);
+  catalogUploadTaskDismissed = false;
+  renderCatalogUploadTasks();
+}
+
+async function clearCatalogUploadTaskHistory() {
+  const hasSpiFlashHistory = Array.from(catalogUploadTasks.values()).some((task) =>
+    !task?.active && String(task?.source || "").toLowerCase() === "spi-flash"
+  );
+
+  if (hasSpiFlashHistory) {
+    try {
+      await fetchJson("/spi-flash/progress-history", {
+        method: "DELETE"
+      });
+      if (typeof spiFlashPage.clearTaskHistoryLocally === "function") {
+        spiFlashPage.clearTaskHistoryLocally();
+      } else {
+        await spiFlashPage.refresh?.();
+      }
+    } catch (error) {
+      setNotice(error?.message || "Gagal menghapus task history SPI Flash.", "warning");
+      return;
+    }
+  }
+
+  for (const [operationId, task] of Array.from(catalogUploadTasks.entries())) {
+    if (!task?.active) {
+      catalogUploadTasks.delete(operationId);
+    }
+  }
+
+  catalogUploadTaskDismissed = false;
+  renderCatalogUploadTasks();
 }
 
 function upsertCatalogUploadTask(taskUpdate = {}) {
@@ -4774,6 +4978,12 @@ function upsertCatalogUploadTask(taskUpdate = {}) {
   }
 
   if (taskUpdate.remove || taskUpdate.deleted) {
+    const existingTask = catalogUploadTasks.get(operationId);
+    if (existingTask?.active && taskUpdate.forceRemove !== true) {
+      renderCatalogUploadTasks();
+      return;
+    }
+
     catalogUploadTasks.delete(operationId);
     renderCatalogUploadTasks();
     return;
@@ -4834,7 +5044,12 @@ function upsertCatalogUploadTask(taskUpdate = {}) {
   };
 
   maybePlayCatalogUploadTaskSound(existingTask, nextTask);
+  pruneDuplicateSpiFlashTasks(nextTask);
   catalogUploadTasks.set(operationId, nextTask);
+  if (nextTask.active) {
+    catalogUploadTaskDismissed = false;
+    catalogUploadTaskCollapsed = false;
+  }
   trimCatalogUploadTasks();
   renderCatalogUploadTasks();
 }
@@ -8695,6 +8910,7 @@ catalogEditorForm?.addEventListener("submit", async (event) => {
 });
 
 catalogUploadTaskToggleButton?.addEventListener("click", toggleCatalogUploadTaskPanel);
+catalogUploadTaskClearAllButton?.addEventListener("click", clearCatalogUploadTaskHistory);
 catalogUploadTaskCloseButton?.addEventListener("click", closeCatalogUploadTaskPanel);
 
 navBios?.addEventListener("click", (event) => {

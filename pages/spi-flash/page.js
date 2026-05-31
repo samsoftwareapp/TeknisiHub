@@ -4,7 +4,14 @@
   const hexPreviewOverscanLines = 10;
   const hexPreviewMinimumRequestLines = 64;
   const hexPreviewMaxVirtualHeight = 12000000;
-  const maxSpiFlashTaskPanelEntries = 4;
+  const maxSpiFlashTaskPanelEntries = 10;
+  const eneDefaultSpeedHz = 20000000;
+  const spiDefaultSpeedHz = 20000000;
+  const usbDefaultChunkSizeBytes = 61440;
+  const wifiDefaultChunkSizeBytes = 8192;
+  const eneDefaultChunkSizeBytes = 4096;
+  const iteDefaultChunkSizeBytes = 256;
+  const connectionPlaceholderLabel = "---- PILIH KONEKSI ----";
 
   const deviceProfiles = {
     TEKNISIHUB_FLASH_OSC_USB: {
@@ -137,11 +144,125 @@
     return Math.round(numeric * 1000000);
   }
 
+  function formatChunkInputValue(chunkSizeBytes) {
+    const normalized = Math.max(0, Number(chunkSizeBytes) || 0);
+    if (!normalized) {
+      return "";
+    }
+
+    const chunkKb = normalized / 1024;
+    return Number(chunkKb.toFixed(2)).toString();
+  }
+
+  function parseChunkInputValue(rawValue) {
+    const normalized = String(rawValue || "").trim().replace(",", ".");
+    if (!normalized) {
+      return 0;
+    }
+
+    const numeric = Number(normalized);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+
+    return Math.round(numeric * 1024);
+  }
+
   function createChipSummary(entry) {
     const model = String(entry?.chipModel || "").trim();
     const voltage = String(entry?.chipVoltage || "").trim();
     const capacity = String(entry?.chipCapacity || "").trim();
     return [model, voltage, capacity].filter(Boolean).join(" ");
+  }
+
+  function resolveFlashBrandMark(manufacturer, model) {
+    const source = [manufacturer, model].filter(Boolean).join(" ").trim();
+    const normalized = source.toUpperCase().replace(/[^A-Z0-9]+/g, "");
+    const aliases = [
+      ["winbond", "Winbond", ["WINBOND"]],
+      ["gigadevice", "GigaDevice", ["GIGADEVICE", "GD25"]],
+      ["xmc", "XMC", ["XMC", "XM25"]],
+      ["puya", "PUYA", ["PUYA", "PY25", "P25Q"]],
+      ["macronix", "MXIC", ["MACRONIX", "MXIC", "MX25"]],
+      ["micron", "micron", ["MICRON", "NUMONYX", "N25Q", "MT25"]],
+      ["eon", "EON", ["EON", "EN25"]],
+      ["issi", "ISSI", ["ISSI", "IS25"]],
+      ["atmel", "ATMEL", ["ATMEL", "AT25"]],
+      ["amic", "AMIC", ["AMIC", "A25L"]],
+      ["sst", "SST", ["SST", "SST25"]],
+      ["fudan", "FUDAN", ["FUDAN", "FM25"]],
+      ["spansion", "Spansion", ["SPANSION", "S25"]],
+      ["boya", "BOYA", ["BOYA", "BY25"]],
+      ["xtx", "XTX", ["XTX", "XT25"]],
+      ["zbit", "Zbit", ["ZBIT", "ZB25"]],
+      ["esmt", "ESMT", ["ESMT", "F25L"]],
+      ["excelsemi", "ExcelSemi", ["EXCELSEMI", "ES25"]],
+      ["pct", "PCT", ["PCT"]],
+      ["pflash", "PFLASH", ["PFLASH"]],
+      ["zetta", "Zetta", ["ZETTA", "ZD25"]],
+      ["intel", "intel", ["INTEL"]],
+      ["nantronics", "Nantronics", ["NANTRONICS"]],
+      ["paragon", "Paragon", ["PARAGON"]],
+      ["sanyo", "SANYO", ["SANYO"]],
+      ["pmc", "PMC", ["PMC", "PM25"]],
+      ["onsemi", "onsemi", ["ONSEMI", "ON25"]],
+      ["douqi", "DOUQI", ["DOUQI"]],
+      ["st", "ST", ["ST", "M25P", "M25PE", "M45PE"]]
+    ];
+
+    const match = aliases.find(([, , tokens]) => tokens.some((token) => normalized.includes(token)));
+    if (match) {
+      return { key: match[0], label: match[1] };
+    }
+
+    const fallbackLabel = String(manufacturer || "").trim() || "25 SPI";
+    return {
+      key: "generic",
+      label: fallbackLabel.length > 14 ? fallbackLabel.slice(0, 14) : fallbackLabel
+    };
+  }
+
+  function normalizeMonitorTarget(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return normalized === "bios" || normalized === "ene" || normalized === "ite"
+      ? normalized
+      : "";
+  }
+
+  function resolveMonitorTargetFromAction(action) {
+    const normalizedAction = String(action || "").trim().toLowerCase();
+    if (normalizedAction === "detect-bios") {
+      return "bios";
+    }
+    if (normalizedAction === "ene-detect") {
+      return "ene";
+    }
+    if (normalizedAction === "ite-detect") {
+      return "ite";
+    }
+    return "";
+  }
+
+  function resolveMonitorTargetFromDetectedFields(entry) {
+    const targetText = [
+      entry?.chipVendor,
+      entry?.chipModel,
+      entry?.jedec
+    ].filter(Boolean).join(" ").toLowerCase();
+    if (String(entry?.chipVendor || "").trim().toUpperCase() === "ENE" ||
+      targetText.includes("ene") ||
+      targetText.includes("kb9")) {
+      return "ene";
+    }
+    if (String(entry?.chipVendor || "").trim().toUpperCase() === "ITE" ||
+      targetText.includes("ite") ||
+      targetText.includes("it8")) {
+      return "ite";
+    }
+    if (entry?.chipVendor || entry?.chipModel || entry?.jedec) {
+      return "bios";
+    }
+    return "";
   }
 
   function isIdleOperationLabel(value) {
@@ -151,6 +272,71 @@
       label === "belum ada operasi" ||
       label === "device dipilih" ||
       label === "file siap dipakai";
+  }
+
+  function isFinalOperationLabel(value) {
+    const label = String(value || "").trim().toLowerCase();
+    return label.includes("selesai") ||
+      label.includes("sukses") ||
+      label.includes("gagal") ||
+      label.includes("error") ||
+      label.includes("failed") ||
+      label.includes("batal") ||
+      label.includes("cancelled");
+  }
+
+  function normalizeTaskKey(value) {
+    return normalizeSpiFlashTaskActionName(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+  }
+
+  function doesSessionMatchActiveTask(state, activeTaskOperationLabel = "") {
+    const activeTaskKey = normalizeTaskKey(activeTaskOperationLabel);
+    if (!activeTaskKey) {
+      return true;
+    }
+
+    return [
+      state.activeOperation,
+      state.lastResult,
+      ...(Array.isArray(state.logs) ? state.logs.slice(0, 4) : [])
+    ].some((item) => {
+      const itemKey = normalizeTaskKey(item);
+      return itemKey && (itemKey.includes(activeTaskKey) || activeTaskKey.includes(itemKey));
+    });
+  }
+
+  function isSessionActionSettled(state, activeTaskOperationLabel = "") {
+    const progressDone = Number(state.progress || 0) >= 100;
+    const statusText = `${state.activeOperation || ""} ${state.lastResult || ""}`;
+    return (progressDone || isFinalOperationLabel(statusText)) &&
+      doesSessionMatchActiveTask(state, activeTaskOperationLabel);
+  }
+
+  function createSessionSettlementSignature(state) {
+    return [
+      state.activeOperation,
+      state.lastResult,
+      state.lastUpdated,
+      state.progress,
+      state.chipVendor,
+      state.chipModel,
+      ...(Array.isArray(state.logs) ? state.logs.slice(0, 2) : [])
+    ].map((item) => String(item || "").trim()).join("|");
+  }
+
+  function isSpiFlashSessionProgressActive(currentState) {
+    const activeOperation = String(currentState?.activeOperation || "").trim();
+    if (isIdleOperationLabel(activeOperation)) {
+      return false;
+    }
+
+    const progress = Number(currentState?.progress || 0);
+    const statusText = `${activeOperation} ${currentState?.lastResult || ""} ${currentState?.lastUpdated || ""}`;
+    return progress >= 0 &&
+      progress < 100 &&
+      !isFinalOperationLabel(statusText);
   }
 
   function resolveServiceFailureMessage(session) {
@@ -237,6 +423,10 @@
 
     if ((hasEne || hasIte) && normalized.includes("detect")) {
       return `Detect ${hasEne ? "ENE" : "ITE"}`;
+    }
+
+    if (normalized.includes("detect bios") || normalized.includes("25 spi")) {
+      return "Detect BIOS";
     }
 
     if (
@@ -328,7 +518,16 @@
     return latestSpiFlashFailureTimestamp || Date.now();
   }
 
-  function reportActionProgressTasks(state, busy, deviceBusy, progressWidth, reportTask, activeTaskOperationLabel = "") {
+  function reportActionProgressTasks(
+    state,
+    busy,
+    deviceBusy,
+    progressWidth,
+    reportTask,
+    activeTaskOperationLabel = "",
+    activeTaskOperationId = "",
+    historyClearedAtMs = 0
+  ) {
     if (typeof reportTask !== "function") {
       return;
     }
@@ -337,27 +536,50 @@
       ? state.fullProgressHistory
       : [])
       .slice()
+      .filter((entry) => Number(entry.completedAtUnixMilliseconds || 0) > Number(historyClearedAtMs || 0))
       .sort((left, right) => (right.sequence || 0) - (left.sequence || 0));
     const activeOperation = String(activeTaskOperationLabel || state.activeOperation || "").trim();
-    const hasActiveOperation = (busy || deviceBusy) && !isIdleOperationLabel(activeOperation);
+    const sessionProgressActive = isSpiFlashSessionProgressActive(state);
+    const hasActiveOperation =
+      (busy || deviceBusy || sessionProgressActive) &&
+      !isIdleOperationLabel(activeOperation);
     const lowerActiveOperation = activeOperation.toLowerCase();
-    const shouldShowCurrentResult =
-      !hasActiveOperation &&
-      Number(state.progress || 0) >= 100 &&
-      lowerActiveOperation.includes("jedec");
+    const lowerLastResult = String(state.lastResult || "").trim().toLowerCase();
     const failedMessage = !busy && !deviceBusy && state.errorMessage
       ? String(state.errorMessage || "").trim()
       : "";
+    const hasCurrentFailure =
+      Boolean(failedMessage) ||
+      lowerActiveOperation.includes("gagal") ||
+      lowerActiveOperation.includes("failed") ||
+      lowerLastResult.includes("gagal") ||
+      lowerLastResult.includes("failed") ||
+      lowerLastResult.includes("tidak menemukan") ||
+      (
+        lowerLastResult.includes("mismatch") &&
+        !lowerLastResult.includes("tanpa mismatch")
+      );
+    const shouldShowCurrentResult =
+      !hasActiveOperation &&
+      !hasCurrentFailure &&
+      Number(state.progress || 0) >= 100 &&
+      (
+        lowerActiveOperation.includes("jedec") ||
+        lowerActiveOperation.includes("smartid") ||
+        lowerActiveOperation.includes("detect")
+      );
     const activeMeta = [
       state.selectedDevice ? resolveSelectedDeviceLabel(state.selectedDevice) : "",
-      state.jedec ? `JEDEC ${state.jedec}` : "",
+      state.jedec ? (String(state.jedec).trim().toUpperCase().startsWith("ENE ")
+        ? `ENE ID ${state.jedec.replace(/^ENE\s+/i, "")}`
+        : `JEDEC ${state.jedec}`) : "",
       state.fileName || ""
     ].filter(Boolean).join(" - ") || "Menunggu update dari local service";
 
     if (hasActiveOperation) {
       const timestamp = Date.now();
       reportTask({
-        operationId: "spi-flash-active",
+        operationId: activeTaskOperationId || "spi-flash-active",
         source: "spi-flash",
         fileName: createSpiFlashTaskTitle(activeOperation, "running"),
         displayName: "SPI Flash",
@@ -366,13 +588,13 @@
         stage: "running",
         active: true,
         success: false,
-        progressPercent: progressWidth,
+        progressPercent: Math.max(progressWidth, Number(state.progress || 0)),
         updatedAt: timestamp,
         sortKey: timestamp
       });
     } else {
       reportTask({
-        operationId: "spi-flash-active",
+        operationId: activeTaskOperationId || "spi-flash-active",
         source: "spi-flash",
         remove: true
       });
@@ -560,15 +782,17 @@
       autoProcess: true,
       previewMode: false,
       backendMode: "local-service",
-      selectedDevice: defaultDeviceType,
+      selectedDevice: "",
       connectionState: "Local service belum terhubung",
       activeOperation: "Belum ada operasi",
       chipVendor: "",
       chipModel: "",
       chipCapacity: "",
       chipVoltage: "",
+      monitorTarget: "",
       pageSize: 0,
       speedHz: 0,
+      chunkSizeBytes: 0,
       jedec: "",
       startAddress: "",
       length: "",
@@ -677,7 +901,7 @@
     );
   }
 
-  function mapServiceSessionToState(session, previousState = null) {
+  function mapServiceSessionToState(session, previousState = null, options = {}) {
     const hasPersistedSessionState =
       Boolean(session.fileName) ||
       Boolean(session.jedec) ||
@@ -688,7 +912,8 @@
     const activeOperation = String(session.activeOperation || "").trim().toLowerCase();
     const normalizedConnectionState = String(session.connectionState || "").trim().toLowerCase();
     const isFreshDefaultSession = false;
-    const selectedDevice = session.selectedDevice || defaultDeviceType;
+    const forceNoDeviceSelection = options.forceNoDeviceSelection === true;
+    const selectedDevice = forceNoDeviceSelection ? "" : (session.selectedDevice || "");
     const previousDriverInfo =
       previousState &&
       previousState.selectedDevice === selectedDevice
@@ -704,6 +929,9 @@
     const pinMonitor = previousState?.selectedDevice === selectedDevice
       ? (previousState.pinMonitor || createDefaultPinMonitorState())
       : createDefaultPinMonitorState();
+    const monitorTarget = previousState?.selectedDevice === selectedDevice
+      ? normalizeMonitorTarget(previousState.monitorTarget)
+      : "";
     const serviceFailureMessage = resolveServiceFailureMessage(session);
 
     return {
@@ -713,14 +941,16 @@
       previewMode: Boolean(session.previewMode),
       backendMode: session.backendMode || "local-service",
       selectedDevice,
-      connectionState: session.connectionState || "Device belum terhubung",
+      connectionState: forceNoDeviceSelection ? "Belum ada device dipilih" : (session.connectionState || "Device belum terhubung"),
       activeOperation: session.activeOperation || "Belum ada operasi",
       chipVendor: session.chipVendor || "",
       chipModel: session.chipModel || "",
       chipCapacity: session.chipCapacity || "",
       chipVoltage: session.chipVoltage || "",
+      monitorTarget,
       pageSize: Number(session.pageSize || 0),
       speedHz: Number(session.speedHz || 0),
+      chunkSizeBytes: Number(session.chunkSizeBytes || 0),
       jedec: session.jedec || "",
       startAddress: session.startAddress || "",
       length: session.length || "",
@@ -1302,6 +1532,21 @@
   function createPinMonitorMarkup(state, disableAttr) {
     const monitor = state.pinMonitor || createDefaultPinMonitorState();
     const isContactMode = monitor.mode === "contact";
+    const monitorTarget = normalizeMonitorTarget(state.monitorTarget);
+    const stateTextForMonitor = [
+      state.chipVendor,
+      state.chipModel,
+      state.jedec
+    ].filter(Boolean).join(" ").toLowerCase();
+    const detectedMonitorTarget = resolveMonitorTargetFromDetectedFields(state);
+    const detectedEneChip = String(state.chipVendor || "").trim().toUpperCase() === "ENE" ||
+      /\bene\b|\bkb9/.test(stateTextForMonitor);
+    const detectedIteChip = String(state.chipVendor || "").trim().toUpperCase() === "ITE" ||
+      /\bite\b|\bit8/.test(stateTextForMonitor);
+    const isEneChip = monitorTarget === "ene" || (!monitorTarget && detectedEneChip);
+    const isIteChip = monitorTarget === "ite" || (!monitorTarget && detectedIteChip);
+    const isKbcChip = isEneChip || isIteChip;
+    const useBiosProfile = !detectedEneChip && !detectedIteChip && detectedMonitorTarget === "bios";
     const pins = Array.isArray(monitor.pins)
       ? monitor.pins.map(normalizePinMonitorPin).filter((pin) => pin.pinNumber >= 1 && pin.pinNumber <= 8)
       : [];
@@ -1325,34 +1570,80 @@
     const leftPins = [1, 2, 3, 4].map((pinNumber) => pinByNumber.get(pinNumber));
     const rightPins = [8, 7, 6, 5].map((pinNumber) => pinByNumber.get(pinNumber));
     const chipProfileRows = [
-      ["Manufacturer", state.chipVendor || "-"],
-      ["Name", state.chipModel || "-"],
-      ["Size", state.chipCapacity || "-"],
-      ["Volt", state.chipVoltage || "-"]
+      ["Manufacturer", isEneChip ? (detectedEneChip ? (state.chipVendor || "ENE") : "ENE") : isIteChip ? (detectedIteChip ? (state.chipVendor || "ITE") : "ITE") : (useBiosProfile ? (state.chipVendor || "-") : "-")],
+      ["Name", isEneChip ? (detectedEneChip ? (state.chipModel || "KB9xxx") : "KB9xxx") : isIteChip ? (detectedIteChip ? (state.chipModel || "IT8xxx") : "IT8xxx") : (useBiosProfile ? (state.chipModel || "-") : "-")],
+      ["Size", isEneChip ? (detectedEneChip ? (state.chipCapacity || "128 KB") : "128 KB") : isIteChip ? (detectedIteChip ? (state.chipCapacity || "Detect") : "Detect") : (useBiosProfile ? (state.chipCapacity || "-") : "-")],
+      ["Volt", isKbcChip ? (state.chipVoltage || "3.3 V") : (useBiosProfile ? (state.chipVoltage || "-") : "-")]
     ];
-    const contactCounts = isContactMode
-      ? normalizedPins.reduce((counts, pin) => {
-        const status = String(pin.contactStatus || "").toLowerCase();
-        if (status === "connected" || status === "ground" || status === "vcc") {
-          counts.connected += 1;
-        } else if (status === "open") {
-          counts.open += 1;
-        } else if (status === "check") {
-          counts.check += 1;
-        }
-        return counts;
-      }, { connected: 0, open: 0, check: 0 })
-      : null;
-    const requiredFunctionalPinsOk = isContactMode
-      ? [1, 2, 3, 4, 5, 6, 7, 8].every((pinNumber) => {
-        const pin = pinByNumber.get(pinNumber);
-        const status = String(pin?.contactStatus || "").toLowerCase();
-        return status === "connected" || status === "ground" || status === "vcc";
-      })
-      : false;
-    const contactSummary = contactCounts
-      ? (requiredFunctionalPinsOk ? "STATUS OK" : "STATUS FAIL")
-      : "";
+    const biosBrandMark = resolveFlashBrandMark(
+      useBiosProfile ? state.chipVendor : "",
+      useBiosProfile ? state.chipModel : ""
+    );
+    const renderKbcMonitor = () => {
+      const kbcPins = isIteChip ? [
+        { side: "left", signal: "SDA", detail: "Data", net: "SDA" },
+        { side: "left", signal: "SCL", detail: "Clock", net: "SCL" },
+        { side: "left", signal: "GND", detail: "Common", net: "GND" },
+        { side: "right", signal: "3.3V", detail: "Board power", net: "VCC" },
+        { side: "right", signal: "ISP", detail: "Unlock", net: "ITE" }
+      ] : [
+        { side: "left", signal: "CS", detail: "SOIC pin 1 / IC pin 59", net: "KSI4" },
+        { side: "left", signal: "CLK", detail: "SOIC pin 6 / IC pin 60", net: "KSI5" },
+        { side: "left", signal: "MOSI", detail: "SOIC pin 5 / IC pin 61", net: "KSI6" },
+        { side: "right", signal: "MISO", detail: "SOIC pin 2 / IC pin 62", net: "KSI7" },
+        { side: "right", signal: "GND", detail: "KSO3 -> GND / IC pin 42", net: "KSO3" }
+      ];
+      const leftKbcPins = kbcPins.filter((pin) => pin.side === "left");
+      const rightKbcPins = kbcPins.filter((pin) => pin.side === "right");
+      const renderKbcPin = (pin) => `
+        <article class="spi-kbc-pin spi-kbc-pin-${escapeHtml(pin.side)}">
+          <span>${escapeHtml(pin.net)}</span>
+          <strong>${escapeHtml(pin.signal)}</strong>
+          <small>${escapeHtml(pin.detail)}</small>
+        </article>
+      `;
+      const kbcModeLabel = isIteChip ? "ITE" : "ENE";
+      const kbcTitle = isIteChip ? "KBC/EC I2C" : "KBC/EC EDI";
+
+      return `
+        <section class="spi-card spi-pin-monitor-card spi-kbc-monitor-card">
+          <div class="spi-card-head">
+            <div>
+              <p class="label">Chips Monitor</p>
+              <h4>${escapeHtml(kbcTitle)}</h4>
+            </div>
+            <div class="spi-panel-actions">
+              <span class="spi-mini-badge">${escapeHtml(kbcModeLabel)}</span>
+            </div>
+          </div>
+          <div class="spi-kbc-monitor" aria-label="KBC EC monitor">
+            <div class="spi-kbc-pin-column">
+              ${leftKbcPins.map(renderKbcPin).join("")}
+            </div>
+            <div class="spi-kbc-chip-stack">
+              <div class="spi-kbc-chip" aria-hidden="true">
+                <span class="spi-kbc-dot"></span>
+                <strong>KBC/EC</strong>
+                <span class="spi-kbc-brand-mark spi-kbc-brand-${isIteChip ? "ite" : "ene"}">${isIteChip ? "ITE" : "ene"}</span>
+                <div class="spi-soic-chip-profile spi-kbc-chip-profile">
+                  ${chipProfileRows.map(([label, value]) => `
+                    <span>
+                      <small>${escapeHtml(label)}</small>
+                      <strong>${escapeHtml(value)}</strong>
+                    </span>
+                  `).join("")}
+                </div>
+              </div>
+            </div>
+            <div class="spi-kbc-pin-column">
+              ${rightKbcPins.map(renderKbcPin).join("")}
+            </div>
+          </div>
+          <p class="spi-kbc-wire-note">Kabel &gt;10 cm: turunkan Speed (MHz) untuk stabilitas read/write.</p>
+          ${monitor.errorMessage ? `<p class="spi-note">${escapeHtml(monitor.errorMessage)}</p>` : ""}
+        </section>
+      `;
+    };
     const renderSoicPin = (pin, side) => `
       <article class="spi-soic-pin spi-soic-pin-${side} ${escapeHtml(resolvePinMonitorTone(pin))}">
         <span class="spi-soic-pin-index">Pin${escapeHtml(String(pin.pinNumber))}</span>
@@ -1363,6 +1654,10 @@
         `}
       </article>
     `;
+
+    if (isKbcChip) {
+      return renderKbcMonitor();
+    }
 
     return `
       <section class="spi-card spi-pin-monitor-card">
@@ -1386,6 +1681,7 @@
           <div class="spi-soic-chip" aria-hidden="true">
             <span class="spi-soic-notch"></span>
             <span class="spi-soic-dot"></span>
+            <span class="spi-soic-brand-mark spi-flash-brand-${escapeHtml(biosBrandMark.key)}">${escapeHtml(biosBrandMark.label)}</span>
             <div class="spi-soic-chip-profile">
               ${chipProfileRows.map(([label, value]) => `
                 <span>
@@ -1399,8 +1695,6 @@
             ${rightPins.map((pin) => renderSoicPin(pin, "right")).join("")}
           </div>
         </div>
-        ${contactSummary ? `<p class="spi-note">${escapeHtml(contactSummary)}</p>` : ""}
-        ${monitor.message ? `<p class="spi-note">${escapeHtml(monitor.message)}</p>` : ""}
         ${monitor.errorMessage ? `<p class="spi-note">${escapeHtml(monitor.errorMessage)}</p>` : ""}
       </section>
     `;
@@ -1416,6 +1710,77 @@
         </span>
       </label>
     `;
+  }
+
+  function isEneAction(action) {
+    return String(action || "").trim().toLowerCase().startsWith("ene-");
+  }
+
+  function isIteAction(action) {
+    return String(action || "").trim().toLowerCase().startsWith("ite-");
+  }
+
+  function isGenericMemoryAction(action) {
+    const normalizedAction = String(action || "").trim().toLowerCase();
+    return normalizedAction === "read" ||
+      normalizedAction === "write" ||
+      normalizedAction === "verify" ||
+      normalizedAction === "erase";
+  }
+
+  function isEneState(currentState) {
+    const targetText = [
+      currentState?.chipVendor,
+      currentState?.chipModel,
+      currentState?.jedec
+    ].filter(Boolean).join(" ").toLowerCase();
+    return String(currentState?.chipVendor || "").trim().toUpperCase() === "ENE" ||
+      targetText.includes("ene") ||
+      targetText.includes("kb9");
+  }
+
+  function isIteState(currentState) {
+    const targetText = [
+      currentState?.chipVendor,
+      currentState?.chipModel,
+      currentState?.jedec
+    ].filter(Boolean).join(" ").toLowerCase();
+    return String(currentState?.chipVendor || "").trim().toUpperCase() === "ITE" ||
+      targetText.includes("ite") ||
+      targetText.includes("it8");
+  }
+
+  function resolveDefaultChunkSizeBytes(currentState, action = "") {
+    const normalizedAction = String(action || "").trim().toLowerCase();
+    const useDetectedTargetDefault = !normalizedAction || isGenericMemoryAction(normalizedAction);
+    if (isEneAction(normalizedAction) || (useDetectedTargetDefault && isEneState(currentState))) {
+      return eneDefaultChunkSizeBytes;
+    }
+
+    if (isIteAction(normalizedAction) || (useDetectedTargetDefault && isIteState(currentState))) {
+      return iteDefaultChunkSizeBytes;
+    }
+
+    return String(currentState?.selectedDevice || "").toUpperCase().includes("WIFI")
+      ? wifiDefaultChunkSizeBytes
+      : usbDefaultChunkSizeBytes;
+  }
+
+  function resolveVisibleChunkSizeBytes(currentState) {
+    const chunkSizeBytes = Number(currentState?.chunkSizeBytes || 0);
+    const defaultChunkSizeBytes = resolveDefaultChunkSizeBytes(currentState);
+    const normalTransportDefault = String(currentState?.selectedDevice || "").toUpperCase().includes("WIFI")
+      ? wifiDefaultChunkSizeBytes
+      : usbDefaultChunkSizeBytes;
+    if (!chunkSizeBytes) {
+      return defaultChunkSizeBytes;
+    }
+
+    if ((isEneState(currentState) || isIteState(currentState)) && chunkSizeBytes === normalTransportDefault) {
+      return defaultChunkSizeBytes;
+    }
+
+    return chunkSizeBytes;
   }
 
   function createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
@@ -1434,16 +1799,13 @@
             </button>
           </div>
         </div>
-        <div class="spi-action-command-grid">
-          <div class="spi-action-grid spi-action-command-main">
-            ${createActionButton("detect", "radar", "SmartID", "JEDEC", actionDisableAttr, "is-hero-action")}
-            ${createActionButton("read", "download", "Read", readActionSummary, actionDisableAttr, "is-hero-action")}
-            ${createActionButton("write", "upload", "Write", writeActionSummary, actionDisableAttr, "is-hero-action")}
-          </div>
-          <div class="spi-action-grid spi-action-command-side">
-            ${createActionButton("verify", "rule", "Verify", "Verify", actionDisableAttr)}
-            ${createActionButton("erase", "ink_eraser", "Erase", "Erase", actionDisableAttr)}
-          </div>
+        <div class="spi-action-command-grid is-default-actions">
+          ${createActionButton("detect", "radar", "SmartID", "BIOS/EC/KBC", actionDisableAttr, "is-hero-action")}
+          ${createActionButton("detect-bios", "developer_board", "Detect BIOS", "25 SPI Series", actionDisableAttr)}
+          ${createActionButton("read", "download", "Read", readActionSummary, actionDisableAttr, "is-hero-action")}
+          ${createActionButton("write", "upload", "Write", writeActionSummary, actionDisableAttr, "is-hero-action")}
+          ${createActionButton("verify", "rule", "Verify", "Verify", actionDisableAttr)}
+          ${createActionButton("erase", "ink_eraser", "Erase", "Erase", actionDisableAttr)}
         </div>
       </div>
     `;
@@ -1453,6 +1815,10 @@
     const normalizedAction = String(action || "").trim().toLowerCase();
     if (normalizedAction === "detect") {
       return "SmartID";
+    }
+
+    if (normalizedAction === "detect-bios") {
+      return "Detect BIOS";
     }
 
     if (normalizedAction === "read") {
@@ -1512,8 +1878,23 @@
     return normalizedAction ? normalizedAction : "SPI Flash";
   }
 
-  function createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
-    const targetLabel = "SPI";
+  function createFlashOscActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
+    const targetText = [
+      state.chipVendor,
+      state.chipModel,
+      state.jedec
+    ].filter(Boolean).join(" ").toLowerCase();
+    const isEneTarget = String(state.chipVendor || "").trim().toUpperCase() === "ENE" ||
+      targetText.includes("ene") ||
+      targetText.includes("kb9");
+    const isIteTarget = String(state.chipVendor || "").trim().toUpperCase() === "ITE" ||
+      targetText.includes("ite") ||
+      targetText.includes("it8");
+    const targetLabel = isEneTarget ? "ENE" : isIteTarget ? "ITE" : "SPI";
+    const readAction = isEneTarget ? "ene-read" : isIteTarget ? "ite-read" : "read";
+    const writeAction = isEneTarget ? "ene-write" : isIteTarget ? "ite-write" : "write";
+    const verifyAction = isEneTarget ? "ene-verify" : isIteTarget ? "ite-verify" : "verify";
+    const eraseAction = isEneTarget ? "ene-erase" : isIteTarget ? "ite-erase" : "erase";
 
     return `
       <div class="spi-action-surface">
@@ -1530,18 +1911,15 @@
             </button>
           </div>
         </div>
-        <div class="spi-action-command-grid">
-          <div class="spi-action-grid spi-action-command-main">
-            ${createActionButton("detect", "radar", "SmartID", "SPI JEDEC", actionDisableAttr, "is-hero-action")}
-            ${createActionButton("read", "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr, "is-hero-action")}
-            ${createActionButton("write", "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr, "is-hero-action")}
-          </div>
-          <div class="spi-action-grid spi-action-command-side">
-            ${createActionButton("ene-detect", "memory", "Detect ENE", "KBC/EC", actionDisableAttr)}
-            ${createActionButton("ite-detect", "memory", "Detect ITE", "KBC/EC", actionDisableAttr)}
-            ${createActionButton("verify", "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
-            ${createActionButton("erase", "ink_eraser", "Erase", `${targetLabel} erase`, actionDisableAttr)}
-          </div>
+        <div class="spi-action-command-grid is-kbc-actions">
+          ${createActionButton("detect", "radar", "SmartID", "BIOS/EC/KBC", actionDisableAttr, "is-hero-action")}
+          ${createActionButton("detect-bios", "developer_board", "Detect BIOS", "25 SPI Series", actionDisableAttr)}
+          ${createActionButton(readAction, "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr, "is-hero-action")}
+          ${createActionButton(writeAction, "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr, "is-hero-action")}
+          ${createActionButton(verifyAction, "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
+          ${createActionButton(eraseAction, "ink_eraser", "Erase", `${targetLabel} erase`, actionDisableAttr)}
+          ${createActionButton("ene-detect", "memory", "Detect ENE", "KBC/EC", actionDisableAttr)}
+          ${createActionButton("ite-detect", "memory", "Detect ITE", "KBC/EC", actionDisableAttr)}
         </div>
       </div>
     `;
@@ -1549,15 +1927,11 @@
 
   function getDevicePickerState(state, busy, deviceBusy, isDeviceConnected, deviceConnectionState = null) {
     const connectionText = String(state.connectionState || "").trim();
-    const hasError =
-      Boolean(state.errorMessage) ||
-      connectionText.toLowerCase().includes("gagal") ||
-      connectionText.toLowerCase().includes("error");
-    if (hasError) {
+    if (!state.selectedDevice) {
       return {
-        status: "failed",
-        icon: "error",
-        title: state.errorMessage || connectionText || "Koneksi device gagal."
+        status: "idle",
+        icon: "usb",
+        title: "Pilih koneksi USB atau WIFI."
       };
     }
 
@@ -1576,14 +1950,6 @@
             ? "error"
             : state.profile?.transport === "WIFI" ? "wifi" : "usb",
         title: overrideMessage || connectionText || "Status device."
-      };
-    }
-
-    if (busy || deviceBusy) {
-      return {
-        status: "checking",
-        icon: "sync",
-        title: "Device sedang dipakai."
       };
     }
 
@@ -1621,11 +1987,13 @@
     const disableAttr = controlsDisabled ? " disabled" : "";
     const actionDisableAttr = controlsDisabled || !state.selectedDevice ? " disabled" : "";
     const fileNameLabel = state.fileName || "Belum ada file";
-    const showStm32SpeedField = isTeknisiHubFlasherDevice(state.selectedDevice);
+    const showFlashOscSpeedField = isTeknisiHubFlasherDevice(state.selectedDevice);
     const showEzpSpeedField = false;
     const showFixedSpeedField = false;
     const fixedSpeedLabel = "0.75 MHz";
-    const speedInputValue = formatSpeedInputValue(state.speedHz || 12000000);
+    const visibleSpeedHz = state.speedHz || spiDefaultSpeedHz;
+    const speedInputValue = formatSpeedInputValue(visibleSpeedHz);
+    const chunkInputValue = formatChunkInputValue(resolveVisibleChunkSizeBytes(state));
     const hexPreviewStatusState = getHexPreviewStatusState(state, busy);
     const ezpReadUsesSinglePass = false;
     const readActionSummary = ezpReadUsesSinglePass
@@ -1643,7 +2011,7 @@
     const availableDevices = getEnabledDeviceEntries();
     const selectedDeviceLabel = resolveSelectedDeviceLabel(state.selectedDevice);
     const actionPadMarkup = isTeknisiHubFlasherDevice(state.selectedDevice)
-      ? createStm32ActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr)
+      ? createFlashOscActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr)
       : createDefaultActionPadMarkup(autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr);
     const devicePickerState = getDevicePickerState(state, busy, deviceBusy, isDeviceConnected, deviceConnectionState);
 
@@ -1655,7 +2023,7 @@
       <section class="spi-scope-panel">
         <div class="spi-scope-topbar">
           <div class="spi-scope-title-block">
-            <p>${escapeHtml(state.selectedDevice ? selectedDeviceLabel : "TEKNISIHUB_SPI")}</p>
+            <p>${escapeHtml(state.selectedDevice ? selectedDeviceLabel : "TEKNISIHUB_FLASH_OSC")}</p>
           </div>
           <label
             class="spi-scope-device-picker is-${escapeHtml(devicePickerState.status)}"
@@ -1663,6 +2031,7 @@
             title="${escapeHtml(devicePickerState.title)}">
             <span class="material-symbols-outlined${devicePickerState.status === "checking" ? " is-spinning" : ""}">${escapeHtml(devicePickerState.icon)}</span>
             <select id="spiFlashDeviceSelect" aria-label="Pilih koneksi device"${controlsDisabled ? " disabled" : ""}>
+              <option value=""${state.selectedDevice ? "" : " selected"}>${escapeHtml(connectionPlaceholderLabel)}</option>
               ${availableDevices.map(([key, item]) => `
                 <option value="${escapeHtml(key)}"${key === state.selectedDevice ? " selected" : ""}>${escapeHtml(`${item.label} ${item.transport}`)}</option>
               `).join("")}
@@ -1709,12 +2078,12 @@
           </div>
           <div class="spi-operation-grid">
             <div class="spi-operation-region">
-              <div class="spi-form-grid">
-                <label>
+              <div class="spi-form-grid spi-operation-form-grid${state.selectedDevice ? " has-chunk-field" : ""}">
+                <label class="spi-field-start">
                   Start Address
                   <input data-field="startAddress" type="text" value="${escapeHtml(state.startAddress)}" placeholder="0x000000"${disableAttr}>
                 </label>
-                <label>
+                <label class="spi-field-length">
                   Length
                   <input data-field="length" type="text" value="${escapeHtml(state.length)}" placeholder="0x00800000"${disableAttr}>
                 </label>
@@ -1737,13 +2106,13 @@
                     >
                   </span>
                 </label>
-                ${showStm32SpeedField ? `
-                  <label>
+                ${showFlashOscSpeedField ? `
+                  <label class="spi-field-speed">
                     Speed (MHz)
-                    <input data-field="speedHz" data-field-format="mhz" type="text" value="${escapeHtml(speedInputValue)}" placeholder="12"${disableAttr}>
+                    <input data-field="speedHz" data-field-format="mhz" type="text" value="${escapeHtml(speedInputValue)}" placeholder="20"${disableAttr}>
                   </label>
                 ` : showEzpSpeedField ? `
-                  <label>
+                  <label class="spi-field-speed">
                     Speed
                     <select data-field="speedHz"${disableAttr}>
                       <option value="12000000"${Number(state.speedHz || 12000000) === 12000000 ? " selected" : ""}>12 MHz</option>
@@ -1752,9 +2121,15 @@
                     </select>
                   </label>
                 ` : showFixedSpeedField ? `
-                  <label>
+                  <label class="spi-field-speed">
                     Speed
                     <input type="text" value="${escapeHtml(fixedSpeedLabel)}" readonly${disableAttr}>
+                  </label>
+                ` : ""}
+                ${state.selectedDevice ? `
+                  <label class="spi-field-chunk">
+                    Chunk (KB)
+                    <input data-field="chunkSizeBytes" data-field-format="kb" type="text" value="${escapeHtml(chunkInputValue)}" placeholder="4"${disableAttr}>
                   </label>
                 ` : ""}
               </div>
@@ -1810,11 +2185,18 @@
     let reportTask = () => {};
     let busy = false;
     let deviceBusy = false;
+    let busyRunToken = 0;
     let deviceSelectionToken = 0;
     let deviceConnectionState = null;
     let activeTaskOperationLabel = "";
+    let activeTaskOperationId = "";
+    let activeTaskInitialSignature = "";
+    let speedHzUserOverride = false;
+    let chunkSizeUserOverride = false;
     let sessionPollTimer = null;
     let sessionPollInFlight = false;
+    let sessionRefreshSequence = 0;
+    let taskHistoryClearedAtMs = 0;
     let hexViewRequestToken = 0;
     let hexView = {
       requestKey: "",
@@ -1868,7 +2250,15 @@
     }
 
     function applySessionState(session, options = {}) {
-      state = mapServiceSessionToState(session, state);
+      const previousSpeedHz = Number(state.speedHz || 0);
+      const previousChunkSizeBytes = Number(state.chunkSizeBytes || 0);
+      state = mapServiceSessionToState(session, state, options);
+      if (speedHzUserOverride) {
+        state.speedHz = previousSpeedHz;
+      }
+      if (chunkSizeUserOverride) {
+        state.chunkSizeBytes = previousChunkSizeBytes;
+      }
       syncHexViewFromState(options);
     }
 
@@ -1968,14 +2358,58 @@
       await loadHexPreviewRange(lineStart, requestedLineCount);
     }
 
-    function collectActionPayload() {
+    function resolveActionSpeedHz(action) {
+      const speedHz = Number(state.speedHz || 0);
+      const normalizedAction = String(action || "").trim().toLowerCase();
+      if (normalizedAction === "detect-bios") {
+        return speedHzUserOverride ? speedHz : spiDefaultSpeedHz;
+      }
+
+      if (isEneAction(action) || (isEneState(state) && isGenericMemoryAction(action))) {
+        if (speedHzUserOverride) {
+          return speedHz;
+        }
+        return eneDefaultSpeedHz;
+      }
+
+      return speedHz || spiDefaultSpeedHz;
+    }
+
+    function resolveActionChunkSizeBytes(action) {
+      const normalizedAction = String(action || "").trim().toLowerCase();
+      const chunkSizeBytes = Number(state.chunkSizeBytes || 0);
+      const defaultChunkSizeBytes = resolveDefaultChunkSizeBytes(state, action);
+      const normalTransportDefault = String(state.selectedDevice || "").toUpperCase().includes("WIFI")
+        ? wifiDefaultChunkSizeBytes
+        : usbDefaultChunkSizeBytes;
+      if (normalizedAction === "detect-bios") {
+        return chunkSizeUserOverride && chunkSizeBytes ? chunkSizeBytes : normalTransportDefault;
+      }
+
+      if (!chunkSizeBytes) {
+        return defaultChunkSizeBytes;
+      }
+
+      if (chunkSizeUserOverride) {
+        return chunkSizeBytes;
+      }
+
+      if ((isEneAction(action) || isIteAction(action) || (isEneState(state) && isGenericMemoryAction(action)) || (isIteState(state) && isGenericMemoryAction(action))) && chunkSizeBytes === normalTransportDefault) {
+        return defaultChunkSizeBytes;
+      }
+
+      return chunkSizeBytes;
+    }
+
+    function collectActionPayload(action = "") {
       return {
         chipVendor: state.chipVendor,
         chipModel: state.chipModel,
         chipCapacity: state.chipCapacity,
         autoProcess: state.autoProcess !== false,
         pageSize: Number(state.pageSize || 256),
-        speedHz: Number(state.speedHz || 0),
+        speedHz: resolveActionSpeedHz(action),
+        chunkSizeBytes: resolveActionChunkSizeBytes(action),
         startAddress: state.startAddress,
         length: state.length
       };
@@ -2083,7 +2517,7 @@
 
       return fetchJson(`/spi-flash/actions/${encodeURIComponent(action)}`, {
         method: "POST",
-        body: JSON.stringify(collectActionPayload())
+        body: JSON.stringify(collectActionPayload(action))
       });
     }
 
@@ -2139,20 +2573,28 @@
       return true;
     }
 
-    async function refreshSessionSilently() {
-      if (sessionPollInFlight || !state.serviceAvailable) {
+    async function refreshSessionSilently(options = {}) {
+      const force = options.force === true;
+      if ((sessionPollInFlight && !force) || !state.serviceAvailable) {
         return;
       }
 
+      const refreshToken = ++sessionRefreshSequence;
       sessionPollInFlight = true;
       try {
         const session = await fetchJson("/spi-flash/session");
+        if (refreshToken !== sessionRefreshSequence) {
+          return;
+        }
+
         applySessionState(session);
         render();
       } catch {
         // Ignore polling hiccups while the main action request is still running.
       } finally {
-        sessionPollInFlight = false;
+        if (refreshToken === sessionRefreshSequence) {
+          sessionPollInFlight = false;
+        }
       }
     }
 
@@ -2284,7 +2726,9 @@
         deviceBusy,
         Math.max(0, Math.min(100, Number(renderState.progress) || 0)),
         reportTask,
-        activeTaskOperationLabel
+        activeTaskOperationLabel,
+        activeTaskOperationId,
+        taskHistoryClearedAtMs
       );
       mountedContainer.innerHTML = createWorkbenchMarkup(renderState, busy, deviceBusy, hexView, deviceConnectionState);
 
@@ -2301,7 +2745,7 @@
       if (deviceSelect) {
         deviceSelect.addEventListener("change", () => {
           const nextDevice = deviceSelect.value || "";
-          if (!nextDevice || nextDevice === state.selectedDevice) {
+          if (nextDevice === state.selectedDevice) {
             return;
           }
 
@@ -2329,11 +2773,19 @@
 
           if (field === "speedHz" && input.getAttribute("data-field-format") === "mhz") {
             state[field] = parseSpeedInputValue(input.value);
+            speedHzUserOverride = true;
+            return;
+          }
+
+          if (field === "chunkSizeBytes" && input.getAttribute("data-field-format") === "kb") {
+            state[field] = parseChunkInputValue(input.value);
+            chunkSizeUserOverride = true;
             return;
           }
 
           if (field === "speedHz") {
             state[field] = Number(input.value || 0);
+            speedHzUserOverride = true;
             return;
           }
 
@@ -2377,9 +2829,27 @@
             return;
           }
 
+          const manualMonitorTarget = resolveMonitorTargetFromAction(action);
+          if (manualMonitorTarget) {
+            state.monitorTarget = manualMonitorTarget;
+            render();
+          }
+
           void withBusy(async () => {
+            if (action === "reset") {
+              speedHzUserOverride = false;
+              chunkSizeUserOverride = false;
+              state.monitorTarget = "";
+            }
+
             const session = await runAction(action);
             applySessionState(session, { resetScroll: true });
+            if (action === "detect") {
+              const detectedMonitorTarget = resolveMonitorTargetFromDetectedFields(session);
+              if (detectedMonitorTarget) {
+                state.monitorTarget = detectedMonitorTarget;
+              }
+            }
             render();
 
             const isReadAction = action === "read" || action === "ene-read" || action === "ite-read";
@@ -2489,8 +2959,12 @@
         return;
       }
 
+      const runToken = ++busyRunToken;
+      let actionErrorMessage = "";
       busy = true;
       activeTaskOperationLabel = String(options.activeOperation || "").trim();
+      activeTaskOperationId = `spi-flash-active-${runToken}`;
+      activeTaskInitialSignature = createSessionSettlementSignature(state);
       if (options.activeOperation) {
         state.activeOperation = options.activeOperation;
         state.progress = 0;
@@ -2509,22 +2983,39 @@
             // Keep the original action error as the main feedback.
           }
         }
-        state.errorMessage = error?.message || "Operasi SPI Flash gagal.";
+        actionErrorMessage = error?.message || "Operasi SPI Flash gagal.";
+        state.errorMessage = actionErrorMessage;
         notifyUser(state.errorMessage, "warning");
         render();
       } finally {
         stopSessionPolling();
-        await refreshSessionSilently();
-        busy = false;
-        activeTaskOperationLabel = "";
-        render();
+        await refreshSessionSilently({ force: true });
+        if (actionErrorMessage) {
+          state.errorMessage = actionErrorMessage;
+        }
+
+        if (runToken === busyRunToken) {
+          if (activeTaskOperationId) {
+            reportTask({
+              operationId: activeTaskOperationId,
+              source: "spi-flash",
+              remove: true,
+              forceRemove: true
+            });
+          }
+          busy = false;
+          activeTaskOperationLabel = "";
+          activeTaskOperationId = "";
+          activeTaskInitialSignature = "";
+          render();
+        }
       }
     }
 
-    async function loadSessionFromService() {
+    async function loadSessionFromService(options = {}) {
       try {
         const session = await fetchJson("/spi-flash/session");
-        applySessionState(session);
+        applySessionState(session, options);
       } catch (error) {
         state = createUnavailableState(error?.message || "Local service SPI Flash belum tersedia.");
         syncHexViewFromState({ resetScroll: true });
@@ -2543,7 +3034,7 @@
           pageNotifier = options.notify;
         }
         reportTask = typeof options.reportTask === "function" ? options.reportTask : () => {};
-        await loadSessionFromService();
+        await loadSessionFromService({ forceNoDeviceSelection: !state.selectedDevice });
         render();
       },
       setVisible(visible) {
@@ -2555,6 +3046,12 @@
       },
       async refresh() {
         await loadSessionFromService();
+        render();
+      },
+      clearTaskHistoryLocally() {
+        taskHistoryClearedAtMs = Date.now();
+        state.progressHistory = [];
+        state.fullProgressHistory = [];
         render();
       }
     };
