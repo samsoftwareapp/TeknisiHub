@@ -5,14 +5,21 @@
   const maxVoltageHistoryFrames = 1200;
   const referenceWarmupFrames = 8;
   const fftAverageDepth = 8;
-  const fftLowCutHz = 100;
-  const defaultSampleRateHz = 100000;
+  const fftMaxSize = 8192;
+  const fftLowCutHz = 1;
+  const minimumFftPeakMagnitude = 0.002;
+  const defaultCalPadFrequencyHz = 1000;
+  const defaultCalPadMode = "square_1khz";
+  const minimumPulseDetectVpp = 0.25;
+  const defaultSampleRateHz = 480000;
+  const singleChannelMaxSampleRateHz = 2000000;
+  const dualChannelSampleRateHz = 200000;
   const defaultSampleCount = 8192;
   const singleChannelSampleCount = 16384;
   const dualChannelSampleCount = 8192;
   const defaultDisplayMode = "yt";
   const defaultProbeAttenuation = 10;
-  const settingsStorageKey = "teknisihub.oscilloscope.settings.v1";
+  const settingsStorageKey = "teknisihub.oscilloscope.settings.v2";
   const connectionPlaceholderLabel = "---- PILIH KONEKSI ----";
   const probeProfiles = {
     1: { value: 1, label: "1X 0-3.3V", min: 0, max: 3.3, minSpan: 0.5 },
@@ -45,6 +52,25 @@
     }
   };
   const defaultDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
+  const calPadModes = [
+    { key: "dc_low", label: "DC Low", frequencyHz: 0, dutyPercent: 0 },
+    { key: "dc_high", label: "DC High", frequencyHz: 0, dutyPercent: 100 },
+    { key: "square_10hz", label: "Square 10 Hz", frequencyHz: 10, dutyPercent: 50, lowRate: true },
+    { key: "square_100hz", label: "Square 100 Hz", frequencyHz: 100, dutyPercent: 50, lowRate: true },
+    { key: "square_1khz", label: "Square 1 kHz", frequencyHz: 1000, dutyPercent: 50 },
+    { key: "square_10khz", label: "Square 10 kHz", frequencyHz: 10000, dutyPercent: 50 },
+    { key: "duty_10", label: "Duty 10% @ 1 kHz", frequencyHz: 1000, dutyPercent: 10 },
+    { key: "duty_25", label: "Duty 25% @ 1 kHz", frequencyHz: 1000, dutyPercent: 25 },
+    { key: "duty_50", label: "Duty 50% @ 1 kHz", frequencyHz: 1000, dutyPercent: 50 },
+    { key: "duty_75", label: "Duty 75% @ 1 kHz", frequencyHz: 1000, dutyPercent: 75 },
+    { key: "duty_90", label: "Duty 90% @ 1 kHz", frequencyHz: 1000, dutyPercent: 90 },
+    { key: "pulse_100hz", label: "Pulse 100 Hz", frequencyHz: 100, dutyPercent: 5, lowRate: true },
+    { key: "step_10hz_10khz", label: "Step 10 Hz-10 kHz", frequencyHz: 0, dutyPercent: 50, lowRate: true, variable: true },
+    { key: "pwm_20khz_25", label: "PWM 20 kHz 25%", frequencyHz: 20000, dutyPercent: 25 },
+    { key: "pwm_20khz_50", label: "PWM 20 kHz 50%", frequencyHz: 20000, dutyPercent: 50 },
+    { key: "pwm_20khz_75", label: "PWM 20 kHz 75%", frequencyHz: 20000, dutyPercent: 75 }
+  ];
+  const calPadModeMap = Object.fromEntries(calPadModes.map((mode) => [mode.key, mode]));
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -53,6 +79,35 @@
       .replaceAll(">", "&gt;")
       .replaceAll("\"", "&quot;")
       .replaceAll("'", "&#39;");
+  }
+
+  function sanitizePublicMessage(value) {
+    let message = String(value ?? "").trim();
+    if (!message) {
+      return "";
+    }
+    if (
+      /\b(protocol|programmer|spi|vcc|wifi|endpoint)\s*=/i.test(message) ||
+      /\bGP\d+\b|\bGPIO\d+\b/i.test(message) ||
+      /\b(libusb|winusb|stack trace|exception)\b/i.test(message) ||
+      /[A-Z]:\\|\/Users\/|\/home\//i.test(message)
+    ) {
+      return message.toLowerCase().includes("terhubung")
+        ? "Device OSC terhubung."
+        : "Operasi OSC gagal. Periksa koneksi lalu coba lagi.";
+    }
+    return message
+      .replace(/\bLocalService\b/g, "aplikasi lokal")
+      .replace(/\blocal service\b/gi, "aplikasi lokal")
+      .replace(/\bLocal API\b/gi, "aplikasi lokal")
+      .replace(/\bbackend\b/gi, "sistem")
+      .replace(/\bGoogle\s+Drive\b/gi, "penyimpanan file")
+      .replace(/\bRTDB\b/gi, "sistem akses")
+      .replace(/\bRTD\b/gi, "sistem akses")
+      .replace(/\bregistry\b/gi, "data akses")
+      .replace(/\bFirebase\b/gi, "sistem akses")
+      .replace(/\bGemini\b/gi, "fitur saran")
+      .replace(/\bTelegram\b/g, "akun");
   }
 
   async function fetchJson(path, options = {}) {
@@ -70,7 +125,7 @@
       }
     }
     if (!response.ok) {
-      throw new Error(payload.message || payload.title || `Request gagal (${response.status}).`);
+      throw new Error(sanitizePublicMessage(payload.message || payload.title || `Request gagal (${response.status}).`));
     }
     return payload;
   }
@@ -95,6 +150,21 @@
       return `${formatNumber(rate / 1000, 1)} kSa/s`;
     }
     return `${formatNumber(rate)} Sa/s`;
+  }
+
+  function formatSampleRateOption(value) {
+    const rate = Number(value || 0);
+    const label = formatRate(rate);
+    if (rate === 480000 || rate === 500000) {
+      return `${label} (Rekomendasi)`;
+    }
+    if (rate === 1300000) {
+      return `${label} (High Speed)`;
+    }
+    if (rate === 2000000) {
+      return `${label} (Extreme)`;
+    }
+    return label;
   }
 
   function formatFrequency(value) {
@@ -165,6 +235,37 @@
     return Number(value) === 10 ? 10 : 1;
   }
 
+  function normalizeChannelVisibility(value, fallback = [true, false]) {
+    const source = Array.isArray(value) ? value : fallback;
+    const visibility = [
+      source[0] !== false,
+      source[1] === true
+    ];
+    if (!visibility[0] && !visibility[1]) {
+      visibility[0] = true;
+    }
+    return visibility;
+  }
+
+  function normalizeCalPadMode(value) {
+    const key = String(value || defaultCalPadMode).trim().toLowerCase().replaceAll("-", "_");
+    return calPadModeMap[key] ? key : defaultCalPadMode;
+  }
+
+  function calPadModeProfile(value) {
+    return calPadModeMap[normalizeCalPadMode(value)] || calPadModeMap[defaultCalPadMode];
+  }
+
+  function storedCalPadMode() {
+    const settings = readStoredSettings();
+    return normalizeCalPadMode(settings?.calPadMode);
+  }
+
+  function saveCalPadMode(mode) {
+    const settings = readStoredSettings();
+    writeStoredSettings({ ...settings, calPadMode: normalizeCalPadMode(mode) });
+  }
+
   function storedChannelProbeAttenuations() {
     const settings = readStoredSettings();
     const stored = Array.isArray(settings?.channelProbeAttenuations)
@@ -185,28 +286,33 @@
 
   function storedChannelVisibility() {
     const settings = readStoredSettings();
-    const stored = Array.isArray(settings?.channelVisibility)
-      ? settings.channelVisibility
-      : [];
-    const visibility = [
-      stored[0] !== false,
-      stored[1] !== false
-    ];
-    if (!visibility[0] && !visibility[1]) {
-      visibility[0] = true;
-    }
-    return visibility;
+    const hasStored = Array.isArray(settings?.channelVisibility);
+    return normalizeChannelVisibility(
+      hasStored ? settings.channelVisibility : null,
+      [true, false]
+    );
   }
 
   function saveChannelVisibility(channelVisibility) {
     const settings = readStoredSettings();
-    const visibility = Array.isArray(channelVisibility)
-      ? [channelVisibility[0] !== false, channelVisibility[1] !== false]
-      : [true, true];
-    if (!visibility[0] && !visibility[1]) {
-      visibility[0] = true;
-    }
+    const visibility = normalizeChannelVisibility(channelVisibility);
     writeStoredSettings({ ...settings, channelVisibility: visibility });
+    return visibility;
+  }
+
+  function storedSampleRateCorrection() {
+    const settings = readStoredSettings();
+    const correction = finiteNumber(settings?.sampleRateCorrection, 1);
+    return correction >= 0.05 && correction <= 128 ? correction : 1;
+  }
+
+  function saveSampleRateCorrection(correction) {
+    const value = finiteNumber(correction, 1);
+    if (value < 0.05 || value > 128) {
+      return;
+    }
+    const settings = readStoredSettings();
+    writeStoredSettings({ ...settings, sampleRateCorrection: value });
   }
 
   function readStoredSettings() {
@@ -319,6 +425,8 @@
       averageVoltage: 0,
       spanSeconds: 0,
       binHz: 0,
+      dutyCyclePercent: 0,
+      periodSeconds: 0,
       triggerLocked: false,
       triggerLevel: 0,
       periodicConfidence: 0
@@ -329,6 +437,7 @@
     const initialChannelProbeAttenuations = storedChannelProbeAttenuations();
     const initialChannelVisibility = storedChannelVisibility();
     const initialProbeAttenuation = initialChannelProbeAttenuations[0];
+    const initialCalPadMode = storedCalPadMode();
     return {
       device: {
         success: false,
@@ -359,7 +468,7 @@
       triggerEdge: "rising",
       triggerLevelPercent: 50,
       preTriggerPercent: 50,
-      autoReferenceOnRun: true,
+      autoReferenceOnRun: false,
       pendingRunReference: false,
       referenceWarmupValues: [],
       referenceWarmupChannelValues: [],
@@ -375,6 +484,10 @@
       frameBuffer: [],
       channelFrameBuffers: [],
       frameSampleRateHz: defaultSampleRateHz,
+      sampleRateCorrection: storedSampleRateCorrection(),
+      calPadMode: initialCalPadMode,
+      calPadExpectedFrequencyHz: calPadModeProfile(initialCalPadMode).frequencyHz || 0,
+      lastCalPadCorrectionRounded: "",
       latestCaptureVoltages: [],
       latestCaptureChannels: [],
       displayWindow: [],
@@ -384,6 +497,7 @@
       fftAverageBins: [],
       fftAverageKey: "",
       fftAverageCount: 0,
+      fftAverageByChannel: [],
       voltageHistory: [],
       lowestDropVoltage: null,
       channelVoltageHistories: [[], []],
@@ -399,7 +513,8 @@
       isBusy: false,
       isRecording: false,
       calPadEnabled: false,
-      message: "OSC siap. Pipeline: record buffer, trigger, pre-trigger, resample, render.",
+      pendingCalPadModeApply: false,
+      message: "OSC siap.",
       errorMessage: ""
     };
   }
@@ -455,10 +570,11 @@
 
     if (channelSamples?.length) {
       return channelSamples
-        .filter((channel) => Array.isArray(channel) && channel.length)
         .map((channel, index) => {
           const attenuation = normalizeProbeAttenuation(scaleState.channelProbeAttenuations?.[index] ?? scaleState.probeAttenuation);
-          return channel.map((sample) => Number(sample || 0) * baseVoltsPerCount * attenuation);
+          return Array.isArray(channel)
+            ? channel.map((sample) => Number(sample || 0) * baseVoltsPerCount * attenuation)
+            : [];
         });
     }
 
@@ -517,6 +633,15 @@
     });
   }
 
+  function effectiveSampleRateHz(rawRate, state) {
+    const baseRate = Number(rawRate || state.sampleRateHz || defaultSampleRateHz);
+    const correction = finiteNumber(state.sampleRateCorrection, 1);
+    if (!Number.isFinite(baseRate) || baseRate <= 0) {
+      return defaultSampleRateHz;
+    }
+    return Math.max(1, baseRate * (correction > 0 ? correction : 1));
+  }
+
   function appendRecordBuffer(state, values, sampleRateHz) {
     if (!values.length) {
       return;
@@ -553,6 +678,21 @@
       return next.length > maxRecordSamples ? next.slice(next.length - maxRecordSamples) : next;
     });
     state.frameBuffer = state.channelFrameBuffers[0] || [];
+  }
+
+  function resetLiveDisplayBuffers(state, { keepCapture = false } = {}) {
+    state.frameBuffer = [];
+    state.channelFrameBuffers = [];
+    state.latestCaptureVoltages = [];
+    state.latestCaptureChannels = [];
+    state.displayWindow = [];
+    state.displayChannelWindows = [];
+    state.displaySummary = emptySummary();
+    if (!keepCapture) {
+      state.capture = null;
+    }
+    clearVoltageHistories(state);
+    resetFftAverage(state);
   }
 
   function appendVoltageHistory(state, values) {
@@ -761,10 +901,47 @@
     return -1;
   }
 
+  function primaryAnalysisChannelIndex(state) {
+    const visibility = Array.isArray(state.channelVisibility)
+      ? state.channelVisibility
+      : [true, false];
+    const channels = Array.isArray(state.latestCaptureChannels)
+      ? state.latestCaptureChannels
+      : [];
+    const buffers = Array.isArray(state.channelFrameBuffers)
+      ? state.channelFrameBuffers
+      : [];
+    const candidateCount = Math.max(1, channels.length, buffers.length, visibility.length);
+    for (let index = 0; index < candidateCount; index++) {
+      if (visibility[index] === false) {
+        continue;
+      }
+      if ((channels[index]?.length || 0) > 0 || (buffers[index]?.length || 0) > 0) {
+        return index;
+      }
+    }
+    return visibility[0] === false && visibility[1] !== false ? 1 : 0;
+  }
+
   function prepareDisplayWindow(state) {
-    const primaryFrameBuffer = state.channelFrameBuffers?.[0]?.length ? state.channelFrameBuffers[0] : state.frameBuffer;
-    const primaryLatest = state.latestCaptureChannels?.[0]?.length ? state.latestCaptureChannels[0] : state.latestCaptureVoltages;
-    const source = primaryFrameBuffer.length >= 256 ? primaryFrameBuffer : primaryLatest;
+    const primaryIndex = primaryAnalysisChannelIndex(state);
+    const primaryFrameBuffer = state.channelFrameBuffers?.[primaryIndex]?.length
+      ? state.channelFrameBuffers[primaryIndex]
+      : primaryIndex === 0 ? state.frameBuffer : [];
+    const primaryLatest = state.latestCaptureChannels?.[primaryIndex]?.length
+      ? state.latestCaptureChannels[primaryIndex]
+      : primaryIndex === 0 ? state.latestCaptureVoltages : [];
+    const activeCalProfile = state.calPadEnabled ? calPadModeProfile(state.calPadMode) : null;
+    const preferLatestCalPadFrame = Boolean(activeCalProfile && primaryLatest.length >= 128);
+    const useFrameBuffer = !preferLatestCalPadFrame && primaryFrameBuffer.length >= 256;
+    const rawSource = useFrameBuffer ? primaryFrameBuffer : primaryLatest;
+    const requestedBaseCount = Math.floor(state.sampleCount || defaultSampleCount);
+    const preliminaryCount = clamp(requestedBaseCount, 128, rawSource.length);
+    const recentLimit = useFrameBuffer
+      ? Math.min(rawSource.length, preliminaryCount)
+      : rawSource.length;
+    const sourceOffset = Math.max(0, rawSource.length - recentLimit);
+    const source = rawSource.slice(sourceOffset);
     if (!source.length) {
       state.displayWindow = [];
       state.displayChannelWindows = [];
@@ -772,7 +949,7 @@
       return;
     }
 
-    const requestedCount = clamp(Math.floor(state.sampleCount || defaultSampleCount), 128, source.length);
+    const requestedCount = clamp(requestedBaseCount, 128, source.length);
     const level = triggerLevelFor(source, state);
     const triggerIndex = findTriggerIndex(source, level, state.triggerEdge);
     const locked = triggerIndex >= 0;
@@ -781,20 +958,23 @@
     const preferredStart = locked ? triggerIndex - Math.floor(requestedCount * preTrigger) : fallbackStart;
     const start = clamp(preferredStart, 0, Math.max(0, source.length - requestedCount));
     const windowValues = source.slice(start, start + requestedCount);
-    const sourceChannels = primaryFrameBuffer.length >= 256
+    const sourceChannels = useFrameBuffer
       ? state.channelFrameBuffers
       : state.latestCaptureChannels;
     state.displayChannelWindows = (sourceChannels?.length ? sourceChannels : [source])
-      .map((channelValues) => (channelValues || []).slice(start, start + requestedCount));
+      .map((channelValues) => (channelValues || []).slice(sourceOffset, sourceOffset + source.length).slice(start, start + requestedCount));
     const traceStats = statsFor(windowValues);
     const rate = Number(state.frameSampleRateHz || state.sampleRateHz || defaultSampleRateHz);
 
+    const pulseTiming = analyzePulseTiming(windowValues, rate);
     const periodic = analyzePeriodicSignal(windowValues, rate);
     const edgeSignal = periodic.confidence >= 0.82
       ? { frequencyHz: 0, confidence: 0 }
       : analyzeEdgeSignal(windowValues, rate);
-    const signalConfidence = Math.max(periodic.confidence, edgeSignal.confidence);
-    const frequencyHz = periodic.frequencyHz > 0 ? periodic.frequencyHz : edgeSignal.frequencyHz;
+    const signalConfidence = Math.max(periodic.confidence, edgeSignal.confidence, pulseTiming.confidence);
+    const frequencyHz = pulseTiming.frequencyHz > 0
+      ? pulseTiming.frequencyHz
+      : periodic.frequencyHz > 0 ? periodic.frequencyHz : edgeSignal.frequencyHz;
     const hasValidFrequency = frequencyHz >= 1;
     state.displayWindow = windowValues;
     state.displaySummary = {
@@ -807,6 +987,8 @@
       averageVoltage: traceStats.avg,
       spanSeconds: rate > 0 ? windowValues.length / rate : 0,
       binHz: rate > 0 && windowValues.length > 0 ? rate / windowValues.length : 0,
+      dutyCyclePercent: pulseTiming.dutyCyclePercent,
+      periodSeconds: pulseTiming.periodSeconds || (frequencyHz > 0 ? 1 / frequencyHz : 0),
       triggerLocked: locked && hasValidFrequency && signalConfidence >= 0.50,
       triggerLevel: level,
       periodicConfidence: hasValidFrequency ? signalConfidence : 0
@@ -819,7 +1001,7 @@
       return { frequencyHz: 0, confidence: 0 };
     }
     const traceStats = statsFor(values);
-    if (traceStats.vpp < 0.20) {
+    if (traceStats.vpp < minimumPulseDetectVpp) {
       return { frequencyHz: 0, confidence: 0 };
     }
     const level = traceStats.avg;
@@ -875,7 +1057,7 @@
     }
 
     const traceStats = statsFor(values);
-    if (traceStats.vpp < 0.12) {
+    if (traceStats.vpp < minimumPulseDetectVpp) {
       return { frequencyHz: 0, confidence: 0 };
     }
 
@@ -935,6 +1117,130 @@
     };
   }
 
+  function analyzePulseTiming(values, sampleRateHz) {
+    const rate = Number(sampleRateHz || 0);
+    if (!Array.isArray(values) || values.length < 32 || rate <= 0) {
+      return { frequencyHz: 0, dutyCyclePercent: 0, periodSamples: 0, periodSeconds: 0, confidence: 0 };
+    }
+
+    const traceStats = statsFor(values);
+    if (traceStats.vpp < minimumPulseDetectVpp) {
+      return { frequencyHz: 0, dutyCyclePercent: 0, periodSamples: 0, periodSeconds: 0, confidence: 0 };
+    }
+
+    const lowThreshold = traceStats.min + traceStats.vpp * 0.25;
+    const highThreshold = traceStats.min + traceStats.vpp * 0.75;
+    const midpoint = traceStats.min + traceStats.vpp * 0.5;
+    const rising = [];
+    const falling = [];
+    let stateZone = values[0] >= midpoint ? 1 : -1;
+    let highSamples = stateZone > 0 ? 1 : 0;
+    const crossingAtMidpoint = (index) => {
+      const previous = values[index - 1];
+      const current = values[index];
+      const denominator = current - previous;
+      if (Math.abs(denominator) <= 0.0000001) {
+        return index;
+      }
+      return index - 1 + clamp((midpoint - previous) / denominator, 0, 1);
+    };
+
+    for (let index = 1; index < values.length; index++) {
+      const value = values[index];
+      if (stateZone < 0 && value >= highThreshold) {
+        rising.push(crossingAtMidpoint(index));
+        stateZone = 1;
+      } else if (stateZone > 0 && value <= lowThreshold) {
+        falling.push(crossingAtMidpoint(index));
+        stateZone = -1;
+      }
+      if (stateZone > 0) {
+        highSamples += 1;
+      }
+    }
+
+    if (rising.length < 2) {
+      return {
+        frequencyHz: 0,
+        dutyCyclePercent: clamp(highSamples / values.length * 100, 0, 100),
+        periodSamples: 0,
+        periodSeconds: 0,
+        confidence: 0
+      };
+    }
+
+    const periods = [];
+    for (let index = 1; index < rising.length; index++) {
+      periods.push(rising[index] - rising[index - 1]);
+    }
+    periods.sort((a, b) => a - b);
+    const periodSamples = periods[Math.floor(periods.length / 2)] || 0;
+    if (periodSamples < 4) {
+      return { frequencyHz: 0, dutyCyclePercent: 0, periodSamples: 0, periodSeconds: 0, confidence: 0 };
+    }
+
+    const deviations = periods.map((period) => Math.abs(period - periodSamples)).sort((a, b) => a - b);
+    const medianDeviation = deviations[Math.floor(deviations.length / 2)] || 0;
+    const consistency = clamp(1 - medianDeviation / periodSamples, 0, 1);
+    const highDurations = [];
+    let fallingIndex = 0;
+    for (let index = 0; index < rising.length - 1; index++) {
+      const start = rising[index];
+      const end = rising[index + 1];
+      while (fallingIndex < falling.length && falling[fallingIndex] <= start) {
+        fallingIndex += 1;
+      }
+      if (fallingIndex < falling.length && falling[fallingIndex] < end) {
+        highDurations.push(falling[fallingIndex] - start);
+      }
+    }
+    highDurations.sort((a, b) => a - b);
+    const medianHighDuration = highDurations[Math.floor(highDurations.length / 2)] || 0;
+    const dutyCyclePercent = medianHighDuration > 0
+      ? clamp(medianHighDuration / periodSamples * 100, 0, 100)
+      : clamp(highSamples / values.length * 100, 0, 100);
+    return {
+      frequencyHz: rate / periodSamples,
+      dutyCyclePercent,
+      periodSamples,
+      periodSeconds: periodSamples / rate,
+      confidence: consistency
+    };
+  }
+
+  function updateCalPadSampleRateCorrection(state, values, rawSampleRateHz) {
+    const profile = calPadModeProfile(state.calPadMode);
+    const expectedHz = Number(state.calPadExpectedFrequencyHz ?? profile.frequencyHz ?? 0);
+    const rawRate = Number(rawSampleRateHz || 0);
+    if (!state.calPadEnabled || profile.variable || !values?.length || expectedHz <= 0 || rawRate <= 0) {
+      return false;
+    }
+
+    const timing = analyzePulseTiming(values, rawRate);
+    const traceStats = statsFor(values);
+    if (
+      timing.confidence < 0.85 ||
+      timing.periodSamples < 8 ||
+      timing.dutyCyclePercent < 2 ||
+      timing.dutyCyclePercent > 98 ||
+      traceStats.vpp < 0.05
+    ) {
+      return false;
+    }
+
+    const nextCorrection = clamp(expectedHz * timing.periodSamples / rawRate, 0.05, 128);
+    const previousCorrection = finiteNumber(state.sampleRateCorrection, 1);
+    const nextRounded = Number(nextCorrection.toFixed(4));
+    if (Math.abs(previousCorrection - nextCorrection) / Math.max(0.001, previousCorrection) < 0.005) {
+      return false;
+    }
+
+    state.sampleRateCorrection = nextCorrection;
+    state.lastCalPadCorrectionRounded = String(nextRounded);
+    saveSampleRateCorrection(nextCorrection);
+    return true;
+  }
+
   function estimateFrequency(values, sampleRateHz) {
     return analyzePeriodicSignal(values, sampleRateHz).frequencyHz;
   }
@@ -977,7 +1283,7 @@
       return { bins: [], peakFrequencyHz: 0, peakMagnitude: 0, binHz: 0 };
     }
 
-    const size = largestPowerOfTwo(Math.min(values.length, 4096));
+    const size = largestPowerOfTwo(Math.min(values.length, fftMaxSize));
     const source = detrendForFft(values.slice(values.length - size));
     const real = new Array(size);
     const imag = new Array(size).fill(0);
@@ -1037,6 +1343,9 @@
         peakFrequencyHz = frequencyHz;
       }
     }
+    if (peakMagnitude < minimumFftPeakMagnitude) {
+      peakFrequencyHz = 0;
+    }
     return { bins, peakFrequencyHz, peakMagnitude, binHz, lowCutHz: fftLowCutHz };
   }
 
@@ -1044,32 +1353,42 @@
     state.fftAverageBins = [];
     state.fftAverageKey = "";
     state.fftAverageCount = 0;
+    state.fftAverageByChannel = [];
   }
 
-  function averageSpectrum(state, spectrum) {
+  function averageSpectrum(state, spectrum, channelIndex = 0) {
     if (!spectrum.bins.length) {
-      resetFftAverage(state);
       return spectrum;
     }
 
     const key = `${Math.round(Number(state.frameSampleRateHz || 0))}:${spectrum.bins.length}:${formatNumber(spectrum.binHz, 6)}`;
-    if (state.fftAverageKey !== key || state.fftAverageBins.length !== spectrum.bins.length) {
-      state.fftAverageKey = key;
-      state.fftAverageBins = spectrum.bins.map((bin) => bin.magnitude);
-      state.fftAverageCount = 1;
+    const averageSlots = Array.isArray(state.fftAverageByChannel) ? state.fftAverageByChannel : [];
+    const previous = averageSlots[channelIndex] || { key: "", bins: [], count: 0 };
+    let nextBins;
+    let nextCount;
+    if (previous.key !== key || previous.bins.length !== spectrum.bins.length) {
+      nextBins = spectrum.bins.map((bin) => bin.magnitude);
+      nextCount = 1;
     } else {
       const alpha = 2 / (fftAverageDepth + 1);
-      state.fftAverageBins = spectrum.bins.map((bin, index) => (
-        state.fftAverageBins[index] * (1 - alpha) + bin.magnitude * alpha
+      nextBins = spectrum.bins.map((bin, index) => (
+        previous.bins[index] * (1 - alpha) + bin.magnitude * alpha
       ));
-      state.fftAverageCount = Math.min(fftAverageDepth, state.fftAverageCount + 1);
+      nextCount = Math.min(fftAverageDepth, previous.count + 1);
+    }
+    averageSlots[channelIndex] = { key, bins: nextBins, count: nextCount };
+    state.fftAverageByChannel = averageSlots;
+    if (channelIndex === 0) {
+      state.fftAverageKey = key;
+      state.fftAverageBins = nextBins;
+      state.fftAverageCount = nextCount;
     }
 
     let peakFrequencyHz = 0;
     let peakMagnitude = 0;
     const bins = spectrum.bins.map((bin, index) => {
-      const magnitude = state.fftAverageBins[index] || 0;
-      if (bin.frequencyHz >= fftLowCutHz && magnitude > peakMagnitude) {
+      const magnitude = nextBins[index] || 0;
+      if (bin.frequencyHz >= fftLowCutHz && magnitude >= minimumFftPeakMagnitude && magnitude > peakMagnitude) {
         peakMagnitude = magnitude;
         peakFrequencyHz = bin.frequencyHz;
       }
@@ -1081,7 +1400,7 @@
       bins,
       peakFrequencyHz,
       peakMagnitude,
-      averageCount: state.fftAverageCount
+      averageCount: nextCount
     };
   }
 
@@ -1208,21 +1527,23 @@
     };
   }
 
-  function drawTrace(ctx, bounds, values, axis, style = channelStyles[1]) {
+  function drawTrace(ctx, bounds, values, axis, style = channelStyles[1], options = {}) {
     if (values.length < 2) {
       return;
     }
     const span = Math.max(0.000001, axis.max - axis.min);
+    const crisp = Boolean(options.crisp);
     ctx.save();
     ctx.beginPath();
     ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
     ctx.clip();
-    ctx.shadowColor = style.shadow || "rgba(45, 228, 193, 0.26)";
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = crisp ? "transparent" : (style.shadow || "rgba(45, 228, 193, 0.26)");
+    ctx.shadowBlur = crisp ? 0 : 8;
     ctx.strokeStyle = style.line || "#2de4c1";
-    ctx.lineWidth = 1.7;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    ctx.lineWidth = crisp ? 1.45 : 1.7;
+    ctx.lineCap = crisp ? "butt" : "round";
+    ctx.lineJoin = crisp ? "miter" : "round";
+    ctx.miterLimit = crisp ? 1.5 : 10;
     ctx.beginPath();
     values.forEach((value, index) => {
       const x = bounds.left + bounds.width * index / Math.max(1, values.length - 1);
@@ -1263,13 +1584,153 @@
     const plateauFraction = (lowCount + highCount) / values.length;
     const lowFraction = lowCount / values.length;
     const highFraction = highCount / values.length;
-    const active = plateauFraction >= 0.62 && lowFraction >= 0.12 && highFraction >= 0.12;
+    const active = plateauFraction >= 0.62 && lowFraction >= 0.02 && highFraction >= 0.02;
     return {
       active,
       mid: traceStats.min + traceStats.vpp / 2,
       hysteresis: Math.max(traceStats.vpp * 0.08, 0.012),
       frequencyHz
     };
+  }
+
+  function digitalTraceInfo(values, summary, state) {
+    if (!values.length) {
+      return { active: false };
+    }
+
+    const traceStats = statsFor(values);
+    if (traceStats.vpp < minimumPulseDetectVpp) {
+      return { active: false };
+    }
+
+    const profile = state.calPadEnabled ? calPadModeProfile(state.calPadMode) : null;
+    const calPadDigital = Boolean(profile && (profile.frequencyHz > 0 || profile.variable));
+    const squareInfo = squareWaveDisplayInfo(values, summary);
+    if (!calPadDigital && !squareInfo.active) {
+      return { active: false };
+    }
+
+    const sorted = values.slice().sort((a, b) => a - b);
+    const lowCount = clamp(Math.floor(sorted.length * 0.12), 4, sorted.length);
+    const highCount = clamp(Math.floor(sorted.length * 0.04), 4, sorted.length);
+    const lowLevel = trimmedAverageFromSorted(sorted.slice(0, lowCount), 0.15, 0.85);
+    const highLevel = trimmedAverageFromSorted(sorted.slice(sorted.length - highCount), 0.15, 0.85);
+    const mid = (lowLevel + highLevel) / 2;
+    const hysteresis = Math.max((highLevel - lowLevel) * 0.10, 0.018);
+    const expectedHz = Number(profile?.frequencyHz || squareInfo.frequencyHz || summary?.frequencyHz || 0);
+    const sampleRateHz = Number(state.frameSampleRateHz || state.sampleRateHz || defaultSampleRateHz);
+    const dutyPercent = clamp(Number(profile?.dutyPercent || summary?.dutyCyclePercent || 50), 1, 99);
+    const narrowDutyFraction = Math.min(dutyPercent, 100 - dutyPercent) / 100;
+    const periodSamples = expectedHz > 0 && sampleRateHz > 0 ? sampleRateHz / expectedHz : 0;
+    const minSegmentSamples = periodSamples > 0
+      ? Math.max(2, Math.floor(periodSamples * Math.min(0.018, narrowDutyFraction * 0.35)))
+      : 2;
+    return {
+      active: highLevel - lowLevel >= minimumPulseDetectVpp,
+      lowLevel,
+      highLevel,
+      mid,
+      hysteresis,
+      minSegmentSamples
+    };
+  }
+
+  function digitalTraceSegments(values, info) {
+    if (values.length < 2 || !info?.active) {
+      return [];
+    }
+
+    const segments = [];
+    let high = values[0] >= info.mid;
+    let start = 0;
+    for (let index = 1; index < values.length; index++) {
+      const value = values[index];
+      const nextHigh = high
+        ? value > info.mid - info.hysteresis
+        : value >= info.mid + info.hysteresis;
+      if (nextHigh !== high) {
+        segments.push({ start, end: index - 1, high });
+        start = index;
+        high = nextHigh;
+      }
+    }
+    segments.push({ start, end: values.length - 1, high });
+
+    const minSamples = Math.max(1, Math.floor(info.minSegmentSamples || 1));
+    if (minSamples <= 1 || segments.length < 3) {
+      return segments;
+    }
+
+    const cleaned = segments.slice();
+    for (let index = 0; index < cleaned.length; index++) {
+      const segment = cleaned[index];
+      const length = segment.end - segment.start + 1;
+      if (length >= minSamples) {
+        continue;
+      }
+
+      const previous = cleaned[index - 1];
+      const next = cleaned[index + 1];
+      if (previous && next && previous.high === next.high) {
+        previous.end = next.end;
+        cleaned.splice(index, 2);
+        index = Math.max(-1, index - 2);
+      } else if (previous) {
+        previous.end = segment.end;
+        cleaned.splice(index, 1);
+        index = Math.max(-1, index - 2);
+      } else if (next) {
+        next.start = segment.start;
+        cleaned.splice(index, 1);
+        index = -1;
+      }
+    }
+    return cleaned;
+  }
+
+  function drawDigitalTrace(ctx, bounds, values, axis, style = channelStyles[0], info = null) {
+    if (values.length < 2 || !info?.active) {
+      return;
+    }
+
+    const segments = digitalTraceSegments(values, info);
+    if (!segments.length) {
+      return;
+    }
+
+    const span = Math.max(0.000001, axis.max - axis.min);
+    const xFor = (index) => bounds.left + bounds.width * index / Math.max(1, values.length - 1);
+    const yFor = (value) => bounds.bottom - (value - axis.min) / span * bounds.height;
+    const crisp = (value) => Math.round(value) + 0.5;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+    ctx.clip();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = style.line || "#ffd56f";
+    ctx.lineWidth = 1.45;
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "miter";
+    ctx.miterLimit = 1.5;
+    ctx.beginPath();
+
+    const yLevel = (segment) => crisp(yFor(segment.high ? info.highLevel : info.lowLevel));
+    ctx.moveTo(crisp(xFor(segments[0].start)), yLevel(segments[0]));
+    for (let index = 0; index < segments.length; index++) {
+      const segment = segments[index];
+      const currentY = yLevel(segment);
+      ctx.lineTo(crisp(xFor(segment.end)), currentY);
+      const next = segments[index + 1];
+      if (next) {
+        const x = crisp(xFor(next.start));
+        ctx.lineTo(x, currentY);
+        ctx.lineTo(x, yLevel(next));
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
   }
 
   function edgeAwareDisplayCondition(values, summary, sampleRateHz) {
@@ -1387,17 +1848,7 @@
   }
 
   function shouldUseDcConditioning(summary, values) {
-    const frequencyHz = Number(summary.frequencyHz || 0);
-    const confidence = Number(summary.periodicConfidence || 0);
-    if (frequencyHz < 1) {
-      return true;
-    }
-    if ((summary.triggerLocked && confidence >= 0.50) || (frequencyHz >= 10 && confidence >= 0.50)) {
-      return false;
-    }
-
-    const traceStats = statsFor(values || []);
-    return traceStats.vpp < 1.2;
+    return false;
   }
 
   function drawDcConditionedTrace(ctx, bounds, columns, axis, style = channelStyles[0]) {
@@ -1609,21 +2060,24 @@
     const visibleChannels = visibleChannelWindows(state);
     const values = state.displayWindow;
     if (!values.length || !visibleChannels.length) {
-      drawEmpty(ctx, bounds, "No capture");
+      drawEmpty(ctx, bounds, "Belum ada capture");
       return;
     }
     const targetCount = Math.max(320, Math.min(2400, Math.floor(bounds.width * 1.4)));
     const summary = state.displaySummary;
     const renderedChannels = visibleChannels.map((channel) => {
       const dcConditioned = shouldUseDcConditioning(summary, channel.values);
+      const digitalInfo = dcConditioned ? { active: false } : digitalTraceInfo(channel.values, summary, state);
       const dcColumns = dcConditioned
         ? buildDcColumns(channel.values, Math.max(180, Math.min(640, Math.floor(bounds.width * 0.62))))
         : [];
-      const edgeConditioned = dcConditioned
+      const edgeConditioned = dcConditioned || digitalInfo.active
         ? { values: channel.values, active: false }
         : edgeAwareDisplayCondition(channel.values, summary, state.frameSampleRateHz);
       const plotValues = dcConditioned
         ? dcColumns.flatMap((column) => [column.low, column.avg, column.high])
+        : digitalInfo.active
+          ? channel.values
         : edgeConditioned.active
           ? linearResample(edgeConditioned.values, targetCount)
           : resampleForDisplay(edgeConditioned.values, targetCount, state.sincInterpolation);
@@ -1631,6 +2085,7 @@
         ...channel,
         dcConditioned,
         dcColumns,
+        digitalInfo,
         edgeConditioned,
         plotValues,
         axis: verticalAxisFor(plotValues.length ? plotValues : channel.values, state, channel.index),
@@ -1681,8 +2136,12 @@
     for (const channel of renderedChannels) {
       if (channel.dcConditioned && channel.dcColumns.length) {
         drawDcConditionedTrace(ctx, bounds, channel.dcColumns, channel.axis, channel.style);
+      } else if (channel.digitalInfo?.active) {
+        drawDigitalTrace(ctx, bounds, channel.values, channel.axis, channel.style, channel.digitalInfo);
       } else {
-        drawTrace(ctx, bounds, channel.plotValues, channel.axis, channel.style);
+        drawTrace(ctx, bounds, channel.plotValues, channel.axis, channel.style, {
+          crisp: channel.edgeConditioned?.active
+        });
       }
     }
     drawChannelTextLegend(ctx, bounds, renderedChannels.map((channel) => ({
@@ -1694,29 +2153,30 @@
     ctx.font = "700 11px Consolas, monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(summary.triggerLocked ? (primaryRendered.edgeConditioned.active ? "TRIG DSP" : "TRIG") : "DC STABLE", bounds.left + 8, bounds.top + 8);
+    ctx.fillText(summary.triggerLocked ? "TRIG" : "AUTO", bounds.left + 8, bounds.top + 8);
   }
 
   function drawFft(ctx, bounds, state) {
     const channels = visibleChannelWindows(state);
     if (!channels.length) {
-      drawEmpty(ctx, bounds, "FFT waiting");
+      drawEmpty(ctx, bounds, "FFT menunggu data");
       return;
     }
 
     const spectra = channels
       .map((channel) => ({
         ...channel,
-        spectrum: buildSpectrum(channel.values, state.frameSampleRateHz)
+        spectrum: averageSpectrum(state, buildSpectrum(channel.values, state.frameSampleRateHz), channel.index)
       }))
       .filter((channel) => channel.spectrum.bins.length);
     state.spectrum = spectra[0]?.spectrum || null;
     if (!spectra.length) {
-      drawEmpty(ctx, bounds, "FFT waiting");
+      drawEmpty(ctx, bounds, "FFT menunggu data");
       return;
     }
 
-    const maxFrequency = Number(state.frameSampleRateHz || 0) / 2;
+    const nyquistFrequency = Number(state.frameSampleRateHz || 0) / 2;
+    const maxFrequency = fftDisplayMaxFrequencyHz(spectra, nyquistFrequency);
     const peakMagnitude = Math.max(...spectra.map((channel) => channel.spectrum.peakMagnitude));
     const maxMagnitude = Math.max(peakMagnitude * 1.25, 0.0005);
     drawGrid(ctx, bounds, ["0 Hz", formatFrequency(maxFrequency / 2), formatFrequency(maxFrequency)], [
@@ -1737,11 +2197,16 @@
       ctx.strokeStyle = channel.style.line;
       ctx.lineWidth = channel.index === 0 ? 1.35 : 1.55;
       ctx.beginPath();
+      let hasPoint = false;
       channel.spectrum.bins.forEach((bin, index) => {
+        if (bin.frequencyHz > maxFrequency) {
+          return;
+        }
         const x = bounds.left + bin.frequencyHz / Math.max(1, maxFrequency) * bounds.width;
         const y = bounds.bottom - bin.magnitude / maxMagnitude * bounds.height;
-        if (index === 0) {
+        if (!hasPoint) {
           ctx.moveTo(x, y);
+          hasPoint = true;
         } else {
           ctx.lineTo(x, y);
         }
@@ -1749,6 +2214,7 @@
       ctx.stroke();
       ctx.restore();
     });
+    drawFftPeakMarkers(ctx, bounds, spectra, maxFrequency, maxMagnitude);
 
     drawChannelTextLegend(ctx, bounds, spectra.map((channel) => ({
       color: channel.style.line,
@@ -1756,11 +2222,101 @@
     })));
   }
 
+  function niceCeilFrequencyHz(value) {
+    const safeValue = Math.max(1, Number(value || 0));
+    const exponent = Math.floor(Math.log10(safeValue));
+    const base = 10 ** exponent;
+    const normalized = safeValue / base;
+    const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return step * base;
+  }
+
+  function fftDisplayMaxFrequencyHz(spectra, nyquistFrequency) {
+    const nyquist = Math.max(1, Number(nyquistFrequency || 0));
+    let target = 0;
+    spectra.forEach((channel) => {
+      const spectrum = channel.spectrum || {};
+      if (spectrum.peakFrequencyHz > 0) {
+        target = Math.max(target, spectrum.peakFrequencyHz * 5);
+      }
+      const significantLevel = Math.max(minimumFftPeakMagnitude, Number(spectrum.peakMagnitude || 0) * 0.08);
+      (spectrum.bins || []).forEach((bin) => {
+        if (bin.magnitude >= significantLevel) {
+          target = Math.max(target, bin.frequencyHz * 1.15);
+        }
+      });
+    });
+
+    if (target <= 0) {
+      return nyquist;
+    }
+    const span = niceCeilFrequencyHz(target);
+    return clamp(span, Math.min(100, nyquist), nyquist);
+  }
+
+  function drawFftPeakMarkers(ctx, bounds, spectra, maxFrequency, maxMagnitude) {
+    const palette = getOscilloscopeCanvasPalette();
+    const labelled = spectra.filter((channel) => (
+      channel.spectrum?.peakFrequencyHz > 0 &&
+      channel.spectrum?.peakMagnitude >= minimumFftPeakMagnitude &&
+      channel.spectrum.peakFrequencyHz <= maxFrequency
+    ));
+    labelled.forEach((channel, index) => {
+      const spectrum = channel.spectrum;
+      const x = bounds.left + spectrum.peakFrequencyHz / Math.max(1, maxFrequency) * bounds.width;
+      const y = bounds.bottom - spectrum.peakMagnitude / maxMagnitude * bounds.height;
+      ctx.save();
+      ctx.strokeStyle = channel.style.line;
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, bounds.top);
+      ctx.lineTo(x, bounds.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const boxWidth = 134;
+      const boxHeight = 42;
+      const boxX = clamp(x + 8, bounds.left + 4, bounds.right - boxWidth - 4);
+      const boxY = bounds.top + 8 + index * (boxHeight + 6);
+      ctx.fillStyle = palette.tooltipBackground;
+      ctx.strokeStyle = channel.style.line;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 7);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = channel.style.line;
+      ctx.font = "800 10px Inter, Segoe UI, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(`${channel.style.label || `CH${channel.index + 1}`} PEAK`, boxX + 10, boxY + 7);
+      ctx.fillStyle = palette.tooltipText;
+      ctx.font = "900 16px Consolas, monospace";
+      ctx.fillText(formatFrequency(spectrum.peakFrequencyHz), boxX + 10, boxY + 21);
+      ctx.restore();
+
+      ctx.save();
+      ctx.fillStyle = channel.style.line;
+      ctx.beginPath();
+      ctx.arc(x, clamp(y, bounds.top, bounds.bottom), 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
   function drawXy(ctx, bounds, state) {
     const ch1 = state.displayChannelWindows?.[0] || state.displayWindow || [];
     const ch2 = state.displayChannelWindows?.[1] || [];
     if (state.channelVisibility?.[0] === false || state.channelVisibility?.[1] === false || ch1.length < 32 || ch2.length < 32) {
-      drawEmpty(ctx, bounds, "XY needs CH1 + CH2");
+      drawEmpty(ctx, bounds, "XY butuh CH1 dan CH2");
+      return;
+    }
+
+    const ch1Stats = statsFor(ch1);
+    const ch2Stats = statsFor(ch2);
+    if (ch1Stats.vpp < minimumPulseDetectVpp || ch2Stats.vpp < minimumPulseDetectVpp) {
+      drawEmpty(ctx, bounds, "XY butuh sinyal di CH1 dan CH2");
       return;
     }
 
@@ -1813,7 +2369,7 @@
     ]);
   }
 
-  function drawHistoryLine(ctx, bounds, points, key, axis, color, width = 1.5) {
+  function drawHistoryLine(ctx, bounds, points, key, axis, color, width = 1.5, alpha = 1) {
     if (points.length < 2) {
       return;
     }
@@ -1824,6 +2380,7 @@
     ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
     ctx.clip();
     ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
     ctx.lineWidth = width;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
@@ -1844,7 +2401,7 @@
   function drawDropTrend(ctx, bounds, state) {
     const channelHistories = visibleChannelHistories(state);
     if (!channelHistories.length) {
-      drawEmpty(ctx, bounds, "DROP waiting");
+      drawEmpty(ctx, bounds, "DROP menunggu data");
       return;
     }
 
@@ -1882,9 +2439,9 @@
     }
 
     channelHistories.forEach((channel) => {
-      drawHistoryLine(ctx, bounds, channel.history, "max", axis, channel.style.fill || channel.style.line, 1.0);
-      drawHistoryLine(ctx, bounds, channel.history, "avg", axis, channel.style.line, 1.9);
-      drawHistoryLine(ctx, bounds, channel.history, "min", axis, channel.style.shadow || channel.style.line, 1.1);
+      drawHistoryLine(ctx, bounds, channel.history, "max", axis, channel.style.line, 1.1, 0.48);
+      drawHistoryLine(ctx, bounds, channel.history, "avg", axis, channel.style.line, 2.0, 1);
+      drawHistoryLine(ctx, bounds, channel.history, "min", axis, channel.style.line, 1.3, 0.68);
 
       const lowest = state.channelLowestDropVoltages?.[channel.index]
         ?? Math.min(...channel.history.map((point) => point.min));
@@ -1967,7 +2524,7 @@
   }
 
   function createShellMarkup() {
-    const sampleRateOptions = [10000, 20000, 50000, 100000];
+    const sampleRateOptions = [10000, 20000, 50000, 100000, 200000, 250000, 400000, 480000, 500000, 800000, 1000000, 1300000, 2000000];
     const sampleCountOptions = [512, 1024, 2048, 4096, 8192, 16384];
     const voltsPerDivOptions = ["auto", 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
     const initialChannelProbes = storedChannelProbeAttenuations();
@@ -2019,6 +2576,8 @@
                 <span class="is-ch2">CH2 LOW <strong data-osc-ch2-low>-</strong></span>
                 <span class="is-ch2">CH2 CORR <strong data-osc-correction-ch2>1.000x</strong></span>
                 <span class="is-system">FREQ <strong data-osc-freq>-</strong></span>
+                <span class="is-system">PERIOD <strong data-osc-period>-</strong></span>
+                <span class="is-system">DUTY <strong data-osc-duty>-</strong></span>
                 <span class="is-system">REF <strong data-osc-ref>ABS</strong></span>
                 <span class="is-system">TRIG <strong data-osc-trigger>-</strong></span>
                 <span class="is-system">MODE <strong data-osc-mode>YT</strong></span>
@@ -2046,15 +2605,25 @@
                   </label>
                   <label>
                     Volts/Div CH1
-                    <select id="oscVoltsDivCh1">
-                      ${voltsPerDivOptions.map((value) => `
-                        <option value="${escapeHtml(value)}">${escapeHtml(value === "auto" ? "Auto" : `${value} V/div`)}</option>
-                      `).join("")}
-                    </select>
+                    <span class="oscilloscope-select-row">
+                      <select id="oscVoltsDivCh1">
+                        ${voltsPerDivOptions.map((value) => `
+                          <option value="${escapeHtml(value)}">${escapeHtml(value === "auto" ? "Auto" : `${value} V/div`)}</option>
+                        `).join("")}
+                      </select>
+                      <button type="button" id="oscAutoScaleCh1" class="ghost oscilloscope-icon-button" title="Auto scale CH1" aria-label="Auto scale CH1">
+                        <span class="material-symbols-outlined" aria-hidden="true">fit_screen</span>
+                      </button>
+                    </span>
                   </label>
                   <label>
                     Position CH1
-                    <input id="oscVerticalPositionCh1" type="range" min="-10" max="10" step="0.05" value="0">
+                    <span class="oscilloscope-position-row">
+                      <input id="oscVerticalPositionCh1" type="range" min="-10" max="10" step="0.05" value="0">
+                      <button type="button" id="oscResetPositionCh1" class="ghost oscilloscope-icon-button" title="Reset posisi CH1" aria-label="Reset posisi CH1">
+                        <span class="material-symbols-outlined" aria-hidden="true">my_location</span>
+                      </button>
+                    </span>
                   </label>
                 </div>
 
@@ -2078,79 +2647,25 @@
                   </label>
                   <label>
                     Volts/Div CH2
-                    <select id="oscVoltsDivCh2">
-                      ${voltsPerDivOptions.map((value) => `
-                        <option value="${escapeHtml(value)}">${escapeHtml(value === "auto" ? "Auto" : `${value} V/div`)}</option>
-                      `).join("")}
-                    </select>
+                    <span class="oscilloscope-select-row">
+                      <select id="oscVoltsDivCh2">
+                        ${voltsPerDivOptions.map((value) => `
+                          <option value="${escapeHtml(value)}">${escapeHtml(value === "auto" ? "Auto" : `${value} V/div`)}</option>
+                        `).join("")}
+                      </select>
+                      <button type="button" id="oscAutoScaleCh2" class="ghost oscilloscope-icon-button" title="Auto scale CH2" aria-label="Auto scale CH2">
+                        <span class="material-symbols-outlined" aria-hidden="true">fit_screen</span>
+                      </button>
+                    </span>
                   </label>
                   <label>
                     Position CH2
-                    <input id="oscVerticalPositionCh2" type="range" min="-10" max="10" step="0.05" value="0">
-                  </label>
-                </div>
-
-                <div class="oscilloscope-channel-row oscilloscope-channel-row-ch3 is-dummy">
-                  <p>Channel 3</p>
-                  <label class="oscilloscope-switch-row">
-                    <input type="checkbox" disabled>
-                    <span>Show CH3</span>
-                  </label>
-                  <label>
-                    Probe CH3
-                    <select disabled>
-                      ${Object.values(probeProfiles).map((profile) => `
-                        <option value="${escapeHtml(profile.value)}">${escapeHtml(profile.label)}</option>
-                      `).join("")}
-                    </select>
-                  </label>
-                  <label>
-                    Actual V CH3
-                    <input type="number" inputmode="decimal" step="0.001" placeholder="Future" disabled>
-                  </label>
-                  <label>
-                    Volts/Div CH3
-                    <select disabled>
-                      ${voltsPerDivOptions.map((value) => `
-                        <option value="${escapeHtml(value)}">${escapeHtml(value === "auto" ? "Auto" : `${value} V/div`)}</option>
-                      `).join("")}
-                    </select>
-                  </label>
-                  <label>
-                    Position CH3
-                    <input type="range" min="-10" max="10" step="0.05" value="0" disabled>
-                  </label>
-                </div>
-
-                <div class="oscilloscope-channel-row oscilloscope-channel-row-ch4 is-dummy">
-                  <p>Channel 4</p>
-                  <label class="oscilloscope-switch-row">
-                    <input type="checkbox" disabled>
-                    <span>Show CH4</span>
-                  </label>
-                  <label>
-                    Probe CH4
-                    <select disabled>
-                      ${Object.values(probeProfiles).map((profile) => `
-                        <option value="${escapeHtml(profile.value)}">${escapeHtml(profile.label)}</option>
-                      `).join("")}
-                    </select>
-                  </label>
-                  <label>
-                    Actual V CH4
-                    <input type="number" inputmode="decimal" step="0.001" placeholder="Future" disabled>
-                  </label>
-                  <label>
-                    Volts/Div CH4
-                    <select disabled>
-                      ${voltsPerDivOptions.map((value) => `
-                        <option value="${escapeHtml(value)}">${escapeHtml(value === "auto" ? "Auto" : `${value} V/div`)}</option>
-                      `).join("")}
-                    </select>
-                  </label>
-                  <label>
-                    Position CH4
-                    <input type="range" min="-10" max="10" step="0.05" value="0" disabled>
+                    <span class="oscilloscope-position-row">
+                      <input id="oscVerticalPositionCh2" type="range" min="-10" max="10" step="0.05" value="0">
+                      <button type="button" id="oscResetPositionCh2" class="ghost oscilloscope-icon-button" title="Reset posisi CH2" aria-label="Reset posisi CH2">
+                        <span class="material-symbols-outlined" aria-hidden="true">my_location</span>
+                      </button>
+                    </span>
                   </label>
                 </div>
               </div>
@@ -2173,6 +2688,14 @@
                   <span class="material-symbols-outlined" aria-hidden="true">radio_button_checked</span>
                   <span>Record</span>
                 </button>
+                <label>
+                  CAL PAD Mode
+                  <select id="oscCalPadMode">
+                    ${calPadModes.map((mode) => `
+                      <option value="${escapeHtml(mode.key)}"${mode.key === defaultCalPadMode ? " selected" : ""}>${escapeHtml(mode.label)}</option>
+                    `).join("")}
+                  </select>
+                </label>
                 <button type="button" id="oscCalPad" class="ghost oscilloscope-calpad-button">
                   <span class="material-symbols-outlined" aria-hidden="true">power_settings_new</span>
                   <span>CAL PAD Off</span>
@@ -2205,7 +2728,7 @@
                 </label>
                 <button type="button" id="oscClearDrop" class="ghost">
                   <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
-                  <span>Clear Drop</span>
+                  <span>Reset DROP</span>
                 </button>
               </div>
 
@@ -2215,7 +2738,7 @@
                   Sample Rate
                   <select id="oscSampleRate">
                     ${sampleRateOptions.map((rate) => `
-                      <option value="${escapeHtml(rate)}"${rate === defaultSampleRateHz ? " selected" : ""}>${escapeHtml(formatRate(rate))}</option>
+                      <option value="${escapeHtml(rate)}"${rate === defaultSampleRateHz ? " selected" : ""}>${escapeHtml(formatSampleRateOption(rate))}</option>
                     `).join("")}
                   </select>
                 </label>
@@ -2321,6 +2844,7 @@
         run: mountedContainer.querySelector("#oscRun"),
         single: mountedContainer.querySelector("#oscSingle"),
         record: mountedContainer.querySelector("#oscRecord"),
+        calPadMode: mountedContainer.querySelector("#oscCalPadMode"),
         calPad: mountedContainer.querySelector("#oscCalPad"),
         modeYt: mountedContainer.querySelector("#oscModeYt"),
         modeFft: mountedContainer.querySelector("#oscModeFft"),
@@ -2344,6 +2868,14 @@
           mountedContainer.querySelector("#oscVerticalPositionCh1"),
           mountedContainer.querySelector("#oscVerticalPositionCh2")
         ],
+        autoScaleButtons: [
+          mountedContainer.querySelector("#oscAutoScaleCh1"),
+          mountedContainer.querySelector("#oscAutoScaleCh2")
+        ],
+        resetPositionButtons: [
+          mountedContainer.querySelector("#oscResetPositionCh1"),
+          mountedContainer.querySelector("#oscResetPositionCh2")
+        ],
         sampleRate: mountedContainer.querySelector("#oscSampleRate"),
         sampleCount: mountedContainer.querySelector("#oscSampleCount"),
         triggerEdge: mountedContainer.querySelector("#oscTriggerEdge"),
@@ -2359,6 +2891,8 @@
           device: mountedContainer.querySelector("[data-osc-device-label]"),
           title: mountedContainer.querySelector("[data-osc-run-title]"),
           freq: mountedContainer.querySelector("[data-osc-freq]"),
+          period: mountedContainer.querySelector("[data-osc-period]"),
+          duty: mountedContainer.querySelector("[data-osc-duty]"),
           vpp: mountedContainer.querySelector("[data-osc-vpp]"),
           rms: mountedContainer.querySelector("[data-osc-rms]"),
           avg: mountedContainer.querySelector("[data-osc-avg]"),
@@ -2401,6 +2935,9 @@
       refs.calPad?.addEventListener("click", () => {
         void toggleCalPadFromUser();
       });
+      refs.calPadMode?.addEventListener("change", () => {
+        void changeCalPadMode(refs.calPadMode.value);
+      });
       refs.modeYt?.addEventListener("click", () => setDisplayMode("yt"));
       refs.modeFft?.addEventListener("click", () => setDisplayMode("fft"));
       refs.modeXy?.addEventListener("click", () => setDisplayMode("xy"));
@@ -2417,7 +2954,7 @@
           state.channelVisibility[0] = true;
           refs.showCh1.checked = true;
         }
-        saveChannelVisibility(state.channelVisibility);
+        state.channelVisibility = saveChannelVisibility(state.channelVisibility);
         updateInstrument();
       });
       refs.showCh2?.addEventListener("change", () => {
@@ -2426,7 +2963,7 @@
           state.channelVisibility[1] = true;
           refs.showCh2.checked = true;
         }
-        saveChannelVisibility(state.channelVisibility);
+        state.channelVisibility = saveChannelVisibility(state.channelVisibility);
         updateInstrument();
       });
       [refs.probeCh1, refs.probeCh2].forEach((probeSelect, channelIndex) => {
@@ -2467,6 +3004,9 @@
           updateInstrument();
         });
       });
+      refs.autoScaleButtons?.forEach((button, channelIndex) => {
+        button?.addEventListener("click", () => resetChannelScale(channelIndex));
+      });
       refs.verticalPositions?.forEach((input, channelIndex) => {
         input?.addEventListener("input", () => {
           const value = Number(input.value || 0);
@@ -2476,6 +3016,9 @@
           }
           updateInstrument();
         });
+      });
+      refs.resetPositionButtons?.forEach((button, channelIndex) => {
+        button?.addEventListener("click", () => resetChannelPosition(channelIndex));
       });
       refs.sampleRate?.addEventListener("change", () => {
         state.sampleRateHz = Number(refs.sampleRate.value || defaultSampleRateHz);
@@ -2532,6 +3075,20 @@
       return ch2 ? 2 : Math.max(1, Number(ch1));
     }
 
+    function requestedCaptureChannelCount() {
+      const supportsCh2 = supportsChannel2();
+      const ch1 = state.channelVisibility?.[0] !== false;
+      const ch2 = supportsCh2 && state.channelVisibility?.[1] !== false;
+      return ch1 && ch2 ? 2 : 1;
+    }
+
+    function selectedCaptureChannelIndex() {
+      const supportsCh2 = supportsChannel2();
+      const ch1 = state.channelVisibility?.[0] !== false;
+      const ch2 = supportsCh2 && state.channelVisibility?.[1] !== false;
+      return !ch1 && ch2 ? 1 : 0;
+    }
+
     function updateDevicePicker(acquisitionLocked = false) {
       const selectedDevice = normalizeDeviceSelection(state.selectedDevice);
       const profile = deviceProfiles[selectedDevice] || deviceProfiles[defaultDeviceType];
@@ -2554,7 +3111,34 @@
     }
 
     function channelSampleCountLimit() {
-      return activeChannelCount() <= 1 ? singleChannelSampleCount : dualChannelSampleCount;
+      return requestedCaptureChannelCount() <= 1 ? singleChannelSampleCount : dualChannelSampleCount;
+    }
+
+    function channelSampleRateLimit() {
+      return requestedCaptureChannelCount() <= 1 ? singleChannelMaxSampleRateHz : dualChannelSampleRateHz;
+    }
+
+    function syncSampleRateOptions() {
+      if (!refs.sampleRate) {
+        return;
+      }
+
+      const maxRate = channelSampleRateLimit();
+      let largestAllowed = null;
+      Array.from(refs.sampleRate.options).forEach((option) => {
+        const value = Number(option.value);
+        const allowed = Number.isFinite(value) && value <= maxRate;
+        option.disabled = !allowed;
+        if (allowed) {
+          largestAllowed = value;
+        }
+      });
+
+      const nextRate = Math.min(Number(state.sampleRateHz || defaultSampleRateHz), largestAllowed ?? maxRate);
+      if (largestAllowed !== null && Number(state.sampleRateHz) !== nextRate) {
+        state.sampleRateHz = nextRate;
+        refs.sampleRate.value = String(nextRate);
+      }
     }
 
     function syncSampleCountOptions() {
@@ -2577,7 +3161,7 @@
         }
       });
 
-      const preferredCount = activeChannelCount() <= 1 ? singleChannelSampleCount : Math.min(Number(state.sampleCount || defaultSampleCount), dualChannelSampleCount);
+      const preferredCount = requestedCaptureChannelCount() <= 1 ? singleChannelSampleCount : Math.min(Number(state.sampleCount || defaultSampleCount), dualChannelSampleCount);
       const nextCount = Math.min(preferredCount, largestAllowed ?? maxCount);
       if (largestAllowed !== null && Number(state.sampleCount) !== nextCount) {
         state.sampleCount = nextCount;
@@ -2592,16 +3176,27 @@
     }
 
     function updateHud() {
+      syncSampleRateOptions();
       syncSampleCountOptions();
       const labels = refs.labels || {};
       const device = state.device || {};
       const summary = state.displaySummary || emptySummary();
       const hasCapture = Boolean(state.capture);
-      const rate = hasCapture ? Number(state.capture.actualSampleRateHz || state.sampleRateHz) : state.sampleRateHz;
+      const rate = hasCapture
+        ? effectiveSampleRateHz(state.capture.actualSampleRateHz || state.sampleRateHz, state)
+        : effectiveSampleRateHz(state.sampleRateHz, state);
       const points = hasCapture ? Number(state.capture.sampleCount || state.sampleCount) : state.sampleCount;
       const spanSeconds = points / Math.max(1, rate);
       const modeLabel = state.displayMode.toUpperCase();
+      const supportsCh2 = supportsChannel2();
+      const ch1Visible = state.channelVisibility?.[0] !== false;
+      const ch2Visible = supportsCh2 && state.channelVisibility?.[1] !== false;
+      const channelVisible = [ch1Visible, ch2Visible];
+      const busy = state.isBusy || state.isCapturing;
+      const acquisitionLocked = busy || state.isRunning;
+      const deviceUnavailable = !isSelectedDeviceConnected(state);
       const channelCount = activeChannelCount();
+      const visibleChannelCount = channelVisible.filter(Boolean).length || 1;
       const ch1Window = state.displayChannelWindows?.[0] || state.displayWindow || [];
       const ch2Window = state.displayChannelWindows?.[1] || state.latestCaptureChannels?.[1] || [];
       const ch1Stats = ch1Window.length ? statsFor(ch1Window) : emptySummary();
@@ -2624,23 +3219,25 @@
 
       setText(labels.device, device.deviceLabel || "TEKNISIHUB_FLASH_OSC");
       setText(labels.title, `${state.isRunning ? "RUN" : "STOP"} ${modeLabel}`);
-      setText(labels.freq, hasCapture ? formatFrequency(summary.frequencyHz) : "-");
-      setText(labels.vpp, hasCapture && ch1Window.length ? formatVoltage(ch1Stats.vpp) : "-");
-      setText(labels.rms, hasCapture && ch1Window.length ? formatVoltage(ch1Stats.rms) : "-");
-      setText(labels.avg, hasCapture && Number.isFinite(ch1Average) ? formatVoltage(ch1Average) : "-");
-      setText(labels.ch2Vpp, hasCapture && channelCount >= 2 && ch2Window.length ? formatVoltage(ch2Stats.vpp) : "-");
-      setText(labels.ch2Rms, hasCapture && channelCount >= 2 && ch2Window.length ? formatVoltage(ch2Stats.rms) : "-");
-      setText(labels.ch2Avg, hasCapture && channelCount >= 2 && Number.isFinite(ch2Average) ? formatVoltage(ch2Average) : "-");
-      setText(labels.low, hasCapture && Number.isFinite(ch1Lowest) ? formatVoltage(ch1Lowest) : "-");
-      setText(labels.ch2Low, hasCapture && channelCount >= 2 && Number.isFinite(ch2Lowest) ? formatVoltage(ch2Lowest) : "-");
+      setText(labels.freq, hasCapture && summary.frequencyHz > 0 ? formatFrequency(summary.frequencyHz) : "-");
+      setText(labels.period, hasCapture && summary.periodSeconds > 0 ? formatDurationSeconds(summary.periodSeconds) : "-");
+      setText(labels.duty, hasCapture && summary.dutyCyclePercent > 0 ? `${formatNumber(summary.dutyCyclePercent, 1)}%` : "-");
+      setText(labels.vpp, hasCapture && ch1Visible && ch1Window.length ? formatVoltage(ch1Stats.vpp) : "-");
+      setText(labels.rms, hasCapture && ch1Visible && ch1Window.length ? formatVoltage(ch1Stats.rms) : "-");
+      setText(labels.avg, hasCapture && ch1Visible && Number.isFinite(ch1Average) ? formatVoltage(ch1Average) : "-");
+      setText(labels.ch2Vpp, hasCapture && ch2Visible && channelCount >= 2 && ch2Window.length ? formatVoltage(ch2Stats.vpp) : "-");
+      setText(labels.ch2Rms, hasCapture && ch2Visible && channelCount >= 2 && ch2Window.length ? formatVoltage(ch2Stats.rms) : "-");
+      setText(labels.ch2Avg, hasCapture && ch2Visible && channelCount >= 2 && Number.isFinite(ch2Average) ? formatVoltage(ch2Average) : "-");
+      setText(labels.low, hasCapture && ch1Visible && Number.isFinite(ch1Lowest) ? formatVoltage(ch1Lowest) : "-");
+      setText(labels.ch2Low, hasCapture && ch2Visible && channelCount >= 2 && Number.isFinite(ch2Lowest) ? formatVoltage(ch2Lowest) : "-");
       setText(labels.ref, state.pendingRunReference
-        ? `ZERO ${state.referenceWarmupValues.length}/${referenceWarmupFrames}`
+        ? `REF ${state.referenceWarmupValues.length}/${referenceWarmupFrames}`
         : state.referenceVoltage === null ? "ABS" : formatVoltage(state.referenceVoltage));
       setText(labels.correctionCh1, `${formatNumber(state.channelCorrectionGains?.[0] ?? 1, 3)}x`);
       setText(labels.correctionCh2, `${formatNumber(state.channelCorrectionGains?.[1] ?? 1, 3)}x`);
       setText(labels.trigger, hasCapture ? `${summary.triggerLocked ? "Lock" : "Auto"} ${formatVoltage(summary.triggerLevel)}` : "-");
       setText(labels.mode, `${modeLabel}${state.sincInterpolation ? " SINC" : " LIN"}`);
-      setText(labels.readoutChannels, `${formatNumber(channelCount)} CH`);
+      setText(labels.readoutChannels, `${formatNumber(visibleChannelCount)} CH`);
       setText(labels.message, state.errorMessage || state.message || device.message || "");
 
       refs.modeYt?.classList.toggle("is-active", state.displayMode === "yt");
@@ -2653,13 +3250,16 @@
       refs.run?.querySelector("span:last-child") && (refs.run.querySelector("span:last-child").textContent = state.isRunning ? "Stop" : "Run");
       refs.record?.classList.toggle("is-active", state.isRecording);
       refs.record?.querySelector("span:last-child") && (refs.record.querySelector("span:last-child").textContent = state.isRecording ? "Rec On" : "Record");
+      if (refs.record) {
+        refs.record.disabled = deviceUnavailable || (state.isBusy && !state.isRecording);
+      }
       refs.calPad?.classList.toggle("is-active", state.calPadEnabled);
       refs.calPad?.querySelector(".material-symbols-outlined") && (refs.calPad.querySelector(".material-symbols-outlined").textContent = "power_settings_new");
       refs.calPad?.querySelector("span:last-child") && (refs.calPad.querySelector("span:last-child").textContent = state.calPadEnabled ? "CAL PAD On" : "CAL PAD Off");
+      if (refs.calPadMode) {
+        refs.calPadMode.value = normalizeCalPadMode(state.calPadMode);
+      }
 
-      const busy = state.isBusy || state.isCapturing;
-      const acquisitionLocked = busy || state.isRunning;
-      const deviceUnavailable = !isSelectedDeviceConnected(state);
       updateDevicePicker(acquisitionLocked);
       if (refs.run) {
         refs.run.disabled = !state.isRunning && (busy || deviceUnavailable);
@@ -2672,8 +3272,6 @@
         }
       });
       [
-        refs.probeCh1,
-        refs.probeCh2,
         refs.triggerEdge,
         refs.preTrigger,
         refs.triggerLevel
@@ -2682,30 +3280,61 @@
           element.disabled = acquisitionLocked || deviceUnavailable;
         }
       });
+      [refs.probeCh1, refs.probeCh2].forEach((element, channelIndex) => {
+        if (element) {
+          element.disabled = acquisitionLocked || deviceUnavailable || !channelVisible[channelIndex];
+        }
+      });
       [
         refs.sampleRate,
         refs.sampleCount
       ].forEach((element) => {
         if (element) {
-          element.disabled = deviceUnavailable;
+          element.disabled = acquisitionLocked || deviceUnavailable;
         }
       });
       if (refs.calPad) {
         refs.calPad.disabled = deviceUnavailable;
       }
-      refs.actualVoltages?.forEach((element) => {
+      if (refs.calPadMode) {
+        refs.calPadMode.disabled = deviceUnavailable;
+      }
+      refs.actualVoltages?.forEach((element, channelIndex) => {
         if (element) {
-          element.disabled = deviceUnavailable;
+          element.disabled = acquisitionLocked || deviceUnavailable || !channelVisible[channelIndex];
+        }
+      });
+      refs.voltsDivs?.forEach((element, channelIndex) => {
+        if (element) {
+          element.disabled = deviceUnavailable || !channelVisible[channelIndex];
+        }
+      });
+      refs.autoScaleButtons?.forEach((element, channelIndex) => {
+        if (element) {
+          element.disabled = deviceUnavailable || !channelVisible[channelIndex];
+        }
+      });
+      refs.verticalPositions?.forEach((element, channelIndex) => {
+        if (element) {
+          element.disabled = deviceUnavailable || !channelVisible[channelIndex];
+        }
+      });
+      refs.resetPositionButtons?.forEach((element, channelIndex) => {
+        if (element) {
+          element.disabled = deviceUnavailable || !channelVisible[channelIndex];
         }
       });
       if (refs.showCh1) {
+        refs.showCh1.checked = ch1Visible;
         refs.showCh1.disabled = acquisitionLocked || deviceUnavailable;
       }
       if (refs.showCh2) {
-        refs.showCh2.disabled = acquisitionLocked || deviceUnavailable || !supportsChannel2();
+        refs.showCh2.checked = ch2Visible;
+        refs.showCh2.disabled = acquisitionLocked || deviceUnavailable || !supportsCh2;
       }
       if (refs.clearDrop) {
-        refs.clearDrop.disabled = state.isBusy || !hasVoltageHistory(state);
+        refs.clearDrop.classList.toggle("hidden", state.displayMode !== "drop");
+        refs.clearDrop.disabled = state.displayMode !== "drop" || !hasVoltageHistory(state);
       }
     }
 
@@ -2795,7 +3424,7 @@
       setText(refs.runConfirmTitle, `Pastikan probe CH1 ${ch1ProbeName}, CH2 ${ch2ProbeName}`);
       setText(
         refs.runConfirmDescription,
-        `Selector CH1 sekarang ${profile.label}. Pastikan switch fisik probe sama dengan selector masing-masing channel. Pastikan clip GND probe terhubung ke GND target sebelum Run, karena Run melakukan auto-zero.`
+        `Selector CH1 sekarang ${profile.label}. Pastikan switch fisik probe sama dengan selector masing-masing channel. Pastikan clip GND probe terhubung ke GND target sebelum Run.`
       );
       setText(refs.runConfirmTarget, `CH1: ${ch1ProbeName} | CH2: ${ch2ProbeName}`);
       refs.runConfirmModal.classList.remove("hidden");
@@ -2822,9 +3451,33 @@
       refs.run?.focus();
     }
 
+    function resetChannelScale(channelIndex = 0) {
+      state.channelVoltsPerDiv[channelIndex] = "auto";
+      if (channelIndex === 0) {
+        state.voltsPerDiv = "auto";
+      }
+      if (refs.voltsDivs?.[channelIndex]) {
+        refs.voltsDivs[channelIndex].value = "auto";
+      }
+      state.message = `Auto scale CH${channelIndex + 1}.`;
+      updateInstrument();
+    }
+
+    function resetChannelPosition(channelIndex = 0) {
+      state.channelVerticalPositions[channelIndex] = 0;
+      if (channelIndex === 0) {
+        state.verticalPosition = 0;
+      }
+      if (refs.verticalPositions?.[channelIndex]) {
+        refs.verticalPositions[channelIndex].value = "0";
+      }
+      state.message = `Posisi CH${channelIndex + 1} direset.`;
+      updateInstrument();
+    }
+
     function clearDropHistory() {
       clearVoltageHistories(state);
-      state.message = "Drop history dibersihkan.";
+      state.message = "Riwayat DROP dibersihkan.";
       updateInstrument();
     }
 
@@ -2982,8 +3635,8 @@
         };
         state.deviceConnectionStatus = devicePresent ? "connected" : "failed";
         state.message = transportMatches
-          ? (device.message || (devicePresent ? `${activeProfile.transport} terhubung.` : `${activeProfile.transport} tidak ditemukan.`))
-          : `LocalService belum memakai jalur ${activeProfile.transport} untuk OSC.`;
+          ? sanitizePublicMessage(device.message || (devicePresent ? `${activeProfile.transport} terhubung.` : `${activeProfile.transport} tidak ditemukan.`))
+          : `Aplikasi lokal belum memakai jalur ${activeProfile.transport} untuk OSC.`;
         if (devicePresent) {
           notify(state.message, "success");
           state.calPadEnabled = false;
@@ -3000,7 +3653,7 @@
           return;
         }
         state.deviceConnectionStatus = "failed";
-        state.errorMessage = error?.message || `${profile.transport} gagal dicek.`;
+        state.errorMessage = sanitizePublicMessage(error?.message || `${profile.transport} gagal dicek.`);
         state.message = state.errorMessage;
         notify(state.errorMessage, "warning");
       } finally {
@@ -3022,22 +3675,79 @@
       }
     }
 
+    function applyCalPadModeTimebase(mode) {
+      const profile = calPadModeProfile(mode);
+      const nextRate = profile.lowRate ? 10000 : channelSampleRateLimit();
+      let changed = false;
+      if (state.sampleRateHz !== nextRate) {
+        state.sampleRateHz = nextRate;
+        changed = true;
+        if (refs.sampleRate) {
+          refs.sampleRate.value = String(nextRate);
+        }
+      }
+      if (state.sampleCount < singleChannelSampleCount) {
+        state.sampleCount = singleChannelSampleCount;
+        changed = true;
+        if (refs.sampleCount) {
+          refs.sampleCount.value = String(singleChannelSampleCount);
+        }
+      }
+      if (changed) {
+        resetLiveDisplayBuffers(state);
+      }
+    }
+
+    async function changeCalPadMode(mode) {
+      const nextMode = normalizeCalPadMode(mode);
+      state.calPadMode = nextMode;
+      state.calPadExpectedFrequencyHz = calPadModeProfile(nextMode).frequencyHz || 0;
+      saveCalPadMode(nextMode);
+      applyCalPadModeTimebase(nextMode);
+      resetLiveDisplayBuffers(state);
+      if (state.calPadEnabled) {
+        if (state.isBusy || state.isCapturing) {
+          state.pendingCalPadModeApply = true;
+          state.message = `Mode CAL PAD: ${calPadModeProfile(nextMode).label}.`;
+          updateHud();
+          return;
+        }
+        await withBusy(async () => {
+          await setCalPadEnabled(true);
+        });
+        return;
+      }
+      updateHud();
+    }
+
     async function setCalPadEnabled(enabled, { silent = false } = {}) {
       if (!silent) {
         state.message = enabled ? "Mengaktifkan CAL PAD..." : "Menonaktifkan CAL PAD...";
         updateHud();
       }
+      if (enabled) {
+        state.calPadMode = normalizeCalPadMode(refs.calPadMode?.value || state.calPadMode);
+        saveCalPadMode(state.calPadMode);
+        applyCalPadModeTimebase(state.calPadMode);
+      }
+      resetLiveDisplayBuffers(state);
       const response = await fetchJson("/tools/oscilloscope/cal-pad", {
         method: "POST",
         body: JSON.stringify({
           deviceType: normalizeDeviceSelection(state.selectedDevice),
-          enabled
+          enabled,
+          mode: state.calPadMode
         })
       });
 
       state.calPadEnabled = Boolean(response.enabled);
+      state.calPadMode = normalizeCalPadMode(response.mode || state.calPadMode);
+      state.calPadExpectedFrequencyHz = Number.isFinite(Number(response.frequencyHz))
+        ? Number(response.frequencyHz)
+        : calPadModeProfile(state.calPadMode).frequencyHz || 0;
+      saveCalPadMode(state.calPadMode);
       if (!silent) {
-        state.message = response.message || (state.calPadEnabled ? "CAL PAD aktif." : "CAL PAD nonaktif.");
+        state.message = sanitizePublicMessage(response.message || (state.calPadEnabled ? "CAL PAD aktif." : "CAL PAD nonaktif."));
         notify(state.message, state.calPadEnabled ? "success" : "info");
         updateInstrument();
       }
@@ -3059,7 +3769,7 @@
       try {
         await toggleCalPad();
       } catch (error) {
-        state.errorMessage = error?.message || "Operasi CAL PAD gagal.";
+        state.errorMessage = sanitizePublicMessage(error?.message || "Operasi CAL PAD gagal.");
         notify(state.errorMessage, "warning");
       } finally {
         calPadRequestInFlight = false;
@@ -3072,9 +3782,10 @@
         method: "POST",
         body: JSON.stringify({
           deviceType: normalizeDeviceSelection(state.selectedDevice),
-          sampleRateHz: Number(state.sampleRateHz || defaultSampleRateHz),
+          sampleRateHz: Math.min(Number(state.sampleRateHz || defaultSampleRateHz), channelSampleRateLimit()),
           sampleCount: Number(state.sampleCount || defaultSampleCount),
-          channelCount: activeChannelCount(),
+          channelCount: requestedCaptureChannelCount(),
+          channelIndex: selectedCaptureChannelIndex(),
           probeAttenuation: Number(state.probeAttenuation || 1),
           probeAttenuations: [
             normalizeProbeAttenuation(state.channelProbeAttenuations?.[0] ?? state.probeAttenuation),
@@ -3101,7 +3812,7 @@
         ...state.device,
         success: true,
         isPresent: true,
-        message: result.message || state.device.message,
+        message: state.device.message || "Device OSC terhubung.",
         identity: result.identity || state.device.identity,
         bits: result.bits || state.device.bits,
         vrefMv: result.vrefMv || state.device.vrefMv,
@@ -3125,20 +3836,32 @@
       }
 
       const rawChannels = captureToVoltageChannels(result, state);
-      const rawVoltages = rawChannels[0] || [];
+      const capturePrimaryIndex = (() => {
+        const visibility = Array.isArray(state.channelVisibility) ? state.channelVisibility : [true, false];
+        const candidateCount = Math.max(1, rawChannels.length, visibility.length);
+        for (let index = 0; index < candidateCount; index++) {
+          if (visibility[index] !== false && (rawChannels[index]?.length || 0) > 0) {
+            return index;
+          }
+        }
+        return selectedCaptureChannelIndex();
+      })();
+      const rawVoltages = rawChannels[capturePrimaryIndex] || rawChannels[0] || [];
       state.channelLastRawStableVoltages = rawChannels.map((channelValues, channelIndex) => (
         channelValues.length
           ? stableReferenceVoltage(channelValues)
           : state.channelLastRawStableVoltages?.[channelIndex] ?? null
       ));
-      state.lastRawStableVoltage = rawVoltages.length ? state.channelLastRawStableVoltages[0] : state.lastRawStableVoltage;
+      state.lastRawStableVoltage = rawVoltages.length
+        ? state.channelLastRawStableVoltages[capturePrimaryIndex]
+        : state.lastRawStableVoltage;
       const correctedRawChannels = rawChannels.map((channelValues, channelIndex) => (
         applyCorrectionGain(channelValues, state.channelCorrectionGains?.[channelIndex] ?? 1)
       ));
-      const correctedRawVoltages = correctedRawChannels[0] || [];
+      const correctedRawVoltages = correctedRawChannels[capturePrimaryIndex] || correctedRawChannels[0] || [];
       if (state.pendingRunReference && state.autoReferenceOnRun && correctedRawVoltages.length) {
         const stableChannels = correctedRawChannels.map((channelValues) => stableReferenceVoltage(channelValues));
-        state.referenceWarmupValues.push(stableChannels[0]);
+        state.referenceWarmupValues.push(stableChannels[capturePrimaryIndex]);
         state.referenceWarmupChannelValues.push(stableChannels);
         state.capture = null;
         state.frameBuffer = [];
@@ -3150,7 +3873,7 @@
         state.spectrum = null;
         resetFftAverage(state);
         clearVoltageHistories(state);
-        state.message = `Zeroing REF ${state.referenceWarmupValues.length}/${referenceWarmupFrames}...`;
+        state.message = `Menyiapkan referensi ${state.referenceWarmupValues.length}/${referenceWarmupFrames}...`;
 
         if (state.referenceWarmupValues.length < referenceWarmupFrames) {
           return;
@@ -3171,10 +3894,13 @@
       }
 
       const channelVoltages = applyDisplayReferences(correctedRawChannels, state.referenceVoltages ?? state.referenceVoltage);
-      const voltages = channelVoltages[0] || [];
+      const voltages = channelVoltages[capturePrimaryIndex] || channelVoltages[0] || [];
+      const rawSampleRate = Number(result.actualSampleRateHz || state.sampleRateHz || defaultSampleRateHz);
+      const calibratedFromCalPad = updateCalPadSampleRateCorrection(state, correctedRawVoltages, rawSampleRate);
+      const displaySampleRate = effectiveSampleRateHz(rawSampleRate, state);
       state.latestCaptureChannels = channelVoltages;
       state.latestCaptureVoltages = voltages;
-      appendChannelRecordBuffers(state, channelVoltages, result.actualSampleRateHz || state.sampleRateHz);
+      appendChannelRecordBuffers(state, channelVoltages, displaySampleRate);
       appendChannelVoltageHistories(state, channelVoltages);
       if (countFrame) {
         state.framesCaptured += 1;
@@ -3183,10 +3909,12 @@
         state.recordFrameCount += 1;
         state.recordFilePath = result.recordFilePath || state.recordFilePath;
       }
-      state.message = options.message || (state.isRecording
+      state.message = options.message || (calibratedFromCalPad
+        ? "Kalibrasi waktu aktif."
+        : state.isRecording
         ? `Record berjalan: ${formatNumber(state.recordFrameCount)} frame.`
         : state.referenceVoltage === null
-          ? result.message || "Capture selesai."
+          ? "Capture selesai."
           : `REF ${formatVoltage(state.referenceVoltage)} aktif. Grafik relatif ke awal Run.`);
     }
 
@@ -3218,6 +3946,7 @@
       }
       state.isRunning = true;
       state.errorMessage = "";
+      resetLiveDisplayBuffers(state);
       if (state.autoReferenceOnRun) {
         state.pendingRunReference = true;
         state.referenceWarmupValues = [];
@@ -3226,16 +3955,7 @@
         state.referenceVoltages = null;
         state.lastRawStableVoltage = null;
         state.channelLastRawStableVoltages = [null, null];
-        state.capture = null;
-        state.frameBuffer = [];
-        state.channelFrameBuffers = [];
-        state.latestCaptureVoltages = [];
-        state.latestCaptureChannels = [];
-        state.displayWindow = [];
-        state.displayChannelWindows = [];
-        clearVoltageHistories(state);
-        resetFftAverage(state);
-        state.message = `Zeroing REF 0/${referenceWarmupFrames}...`;
+        state.message = `Menyiapkan referensi 0/${referenceWarmupFrames}...`;
       } else {
         state.message = "Run berjalan.";
       }
@@ -3269,7 +3989,7 @@
         state.message = "Run dihentikan. CAL PAD Off.";
         updateInstrument();
       } catch (error) {
-        state.errorMessage = `Run berhenti, tetapi CAL PAD gagal dimatikan: ${error?.message || "unknown"}`;
+        state.errorMessage = sanitizePublicMessage(error?.message || "CAL PAD gagal dimatikan.");
         notify(state.errorMessage, "warning");
         updateInstrument();
       }
@@ -3295,10 +4015,18 @@
     }
 
     async function captureContinuousFrame(generation) {
-      if (!state.isRunning || generation !== loopGeneration || state.isCapturing) {
+      if (!state.isRunning || generation !== loopGeneration) {
+        return;
+      }
+      if (state.isCapturing || state.isBusy) {
+        scheduleNextCapture(continuousDelayMs, generation);
         return;
       }
       try {
+        if (state.pendingCalPadModeApply && state.calPadEnabled) {
+          state.pendingCalPadModeApply = false;
+          await setCalPadEnabled(true);
+        }
         await captureWaveform({
           saveTemporary: !state.isRecording,
           recordEnabled: state.isRecording
@@ -3341,7 +4069,7 @@
       viewKey: "tool_oscilloscope",
       eyebrow: "Oscilloscope",
       title: "TEKNISIHUB_FLASH_OSC",
-      subtitle: "Pipeline render mengikuti pola Scoppy: buffer, trigger, pre-trigger, resampling.",
+      subtitle: "Tampilan sinyal realtime dengan trigger, zoom, dan rekam data.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;
@@ -3359,7 +4087,7 @@
           stopContinuous("Run dihentikan.", { silent: true });
           if (shouldTurnCalPadOff) {
             setCalPadEnabled(false, { silent: true }).catch((error) => {
-              state.errorMessage = `OSC disembunyikan, tetapi CAL PAD gagal dimatikan: ${error?.message || "unknown"}`;
+              state.errorMessage = sanitizePublicMessage(error?.message || "CAL PAD gagal dimatikan.");
               notify(state.errorMessage, "warning");
               updateInstrument();
             });

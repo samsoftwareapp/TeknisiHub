@@ -280,17 +280,17 @@
         <div class="spi-card-head">
           <div>
             <p class="label">Analisa AI</p>
-            <h4>Referensi Internet Gemini</h4>
+            <h4>Referensi Internet AI</h4>
           </div>
-          <span class="spi-mini-badge">${escapeHtml(state.aiModelName || "Gemini")}</span>
+          <span class="spi-mini-badge">AI</span>
         </div>
         <p class="spi-note">${escapeHtml(state.aiMessage || "AI lookup siap dipakai.")}</p>
-        ${state.aiGrounded ? '<div class="note">Google Search grounding aktif. Tetap verifikasi pinout, package, dan rating komponen sebelum substitusi.</div>' : ""}
+        ${state.aiGrounded ? '<div class="note">Pencarian web aktif. Tetap verifikasi pinout, package, dan rating komponen sebelum substitusi.</div>' : ""}
         ${hasAiAnswer ? `
           <div class="component-equivalent-ai-answer">${escapeHtml(state.aiAnswer).replaceAll("\n", "<br>")}</div>
         ` : `
           <div class="component-equivalent-ai-empty">
-            Gunakan tombol <strong>Cari via AI Gemini</strong> untuk menambahkan referensi internet dari AI.
+            Gunakan tombol <strong>Cari via AI</strong> untuk menambahkan referensi internet dari AI.
           </div>
         `}
         ${hasAiQueries ? `
@@ -365,7 +365,7 @@
               </button>
               <button id="componentEquivalentAiButton" type="button"${busy ? " disabled" : ""}>
                 <span class="material-symbols-outlined${busy === "ai" ? " is-spinning" : ""}">${busy === "ai" ? "progress_activity" : "travel_explore"}</span>
-                <span>${busy === "ai" ? "Cari via AI..." : "Cari via AI Gemini"}</span>
+                <span>${busy === "ai" ? "Cari via AI..." : "Cari via AI"}</span>
               </button>
               <button id="componentEquivalentDatabaseButton" type="button"${busy ? " disabled" : ""}>
                 <span class="material-symbols-outlined${databaseBusy ? " is-spinning" : ""}">${databaseActionIcon}</span>
@@ -589,7 +589,7 @@
 
       busy = "ai";
       state.query = trimmedQuery;
-      state.aiMessage = "Gemini sedang mencari referensi internet untuk part ini...";
+      state.aiMessage = "AI sedang mencari referensi internet untuk part ini...";
       render();
 
       try {
@@ -606,7 +606,7 @@
 
         state.aiMessage = result.message || "Lookup AI selesai.";
         state.aiAnswer = result.answer || "";
-        state.aiModelName = result.modelName || "Gemini";
+        state.aiModelName = "AI";
         state.aiGrounded = Boolean(result.groundedWithGoogleSearch);
         state.aiWebSearchQueries = Array.isArray(result.webSearchQueries) ? result.webSearchQueries : [];
         state.aiSources = Array.isArray(result.sources) ? result.sources : [];
@@ -628,7 +628,7 @@
       viewKey: "ComponentEquivalents",
       eyebrow: "Persamaan Part",
       title: "Persamaan Komponen",
-      subtitle: "Workbench cerdas untuk mencari keluarga part pengganti dari database backend local service.",
+      subtitle: "Workbench cerdas untuk mencari keluarga part pengganti dari koleksi data lokal.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

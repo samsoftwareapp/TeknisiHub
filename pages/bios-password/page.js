@@ -40,7 +40,7 @@
       normalizedCode: "",
       message: "Masukkan kode lock BIOS lalu jalankan generator.",
       notes: [
-        "Engine berjalan offline lewat local service.",
+        "Engine berjalan offline lewat aplikasi lokal.",
         "Hasil memakai basis algoritma pwgen-for-bios."
       ],
       catalog: [],
@@ -292,7 +292,7 @@
       viewKey: "tool_bios_password",
       eyebrow: "BIOS Password",
       title: "BIOS Password Generator",
-      subtitle: "Generator password BIOS offline yang dijalankan oleh local service.",
+      subtitle: "Generator password BIOS offline yang dijalankan oleh aplikasi lokal.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

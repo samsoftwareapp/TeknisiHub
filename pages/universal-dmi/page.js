@@ -186,7 +186,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Universal DMI</p>
-              <h4>C# native SMBIOS patcher</h4>
+              <h4>Patcher data perangkat</h4>
             </div>
             <button type="button" id="universalDmiPatchButton" class="ghost"${patchDisabled}>
               <span class="material-symbols-outlined${busyAction === "patch" ? " is-spinning" : ""}">${busyAction === "patch" ? "progress_activity" : "construction"}</span>
@@ -211,7 +211,7 @@
             </label>
             <label>
               Engine
-              <input type="text" value="${escapeHtml(state.manifest?.engine || "TeknisiHub Universal DMI C# native")}" readonly>
+              <input type="text" value="${escapeHtml(state.manifest?.engine || "TeknisiHub Universal DMI")}" readonly>
             </label>
           </div>
 
@@ -436,7 +436,7 @@
       viewKey: "tool_universal_dmi",
       eyebrow: "Bios Patch",
       title: "Universal DMI",
-      subtitle: "Native C# DMI patcher ringan tanpa runtime Python.",
+      subtitle: "Baca dan patch data DMI perangkat dari file BIOS.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202605310024">
+  <link rel="stylesheet" href="styles.css?v=202606010036">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -85,6 +85,15 @@
       <span class="material-symbols-outlined">dark_mode</span>
     </button>
     <button
+      id="helpButton"
+      type="button"
+      class="floating-utility-button"
+      aria-label="Bantuan halaman ini"
+      title="Bantuan halaman ini"
+    >
+      <span class="material-symbols-outlined">help</span>
+    </button>
+    <button
       id="backToTopButton"
       type="button"
       class="floating-utility-button"
@@ -100,7 +109,7 @@
     <section class="hero">
       <div class="status-card">
         <div>
-          <p class="label">Local service</p>
+          <p class="label">Aplikasi lokal</p>
           <div class="service-version-row">
             <p id="serviceVersion" class="service-version">Versi: mengecek...</p>
           </div>
@@ -138,11 +147,11 @@
         target="_blank"
         rel="noopener noreferrer"
       >
-        Download local service
+        Download aplikasi lokal
       </a>
       <button id="runLocalUpdateButton" type="button" class="hero-download hidden">
         <span class="material-symbols-outlined">system_update_alt</span>
-        <span>Update local service</span>
+        <span>Update aplikasi lokal</span>
       </button>
       <button id="viewPreviousVersionsButton" type="button" class="ghost hero-secondary-action hidden">
         <span class="material-symbols-outlined">history</span>
@@ -729,6 +738,51 @@
     </div>
   </div>
 
+  <div
+    id="helpModal"
+    class="catalog-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="helpModalTitle"
+    aria-describedby="helpModalSummary"
+  >
+    <div class="catalog-modal-card app-help-modal-card">
+      <span class="app-help-book-icon material-symbols-outlined" aria-hidden="true">menu_book</span>
+      <div class="catalog-modal-head app-help-modal-head">
+        <div>
+          <p id="helpModalEyebrow" class="label">Bantuan</p>
+          <h3 id="helpModalTitle">Dokumentasi TeknisiHub</h3>
+        </div>
+        <button id="helpModalCloseButton" type="button" class="ghost">
+          <span class="material-symbols-outlined">close</span>
+          <span>Tutup</span>
+        </button>
+      </div>
+
+      <div class="app-help-layout">
+        <aside class="app-help-sidebar" aria-label="Daftar topik bantuan">
+          <div id="helpTopicList" class="app-help-topic-list"></div>
+        </aside>
+        <section class="app-help-content">
+          <figure id="helpImageFrame" class="app-help-image-frame hidden">
+            <img id="helpImage" src="" alt="">
+          </figure>
+          <p id="helpModalSummary" class="app-help-summary"></p>
+          <div class="app-help-section">
+            <h4>Langkah cepat</h4>
+            <ol id="helpSteps" class="app-help-list"></ol>
+          </div>
+          <div class="app-help-section">
+            <h4>Catatan penting</h4>
+            <ul id="helpTips" class="app-help-list"></ul>
+          </div>
+          <div id="helpControls" class="app-help-control-guide"></div>
+          <div id="helpExtraSections" class="app-help-extra-sections"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div id="problemSolvingViewerModal" class="catalog-modal hidden">
     <div class="catalog-modal-card problem-solving-modal-card">
       <div class="catalog-modal-head">
@@ -749,7 +803,7 @@
     <div class="catalog-modal-card previous-versions-modal-card">
       <div class="catalog-modal-head">
         <div>
-          <p class="label">Update local service</p>
+          <p class="label">Update aplikasi lokal</p>
           <h3>Versi sebelumnya</h3>
         </div>
         <button id="previousVersionsCloseButton" type="button" class="ghost">
@@ -761,26 +815,27 @@
     </div>
   </div>
 
-  <script src="service-config.js?v=202605220002"></script>
-  <script src="pages/spi-flash/page.js?v=202605310018"></script>
-    <script src="pages/oscilloscope/page.js?v=202605310005"></script>
+  <script src="service-config.js?v=202606010001"></script>
+  <script src="pages/spi-flash/page.js?v=202606010001"></script>
+    <script src="pages/oscilloscope/page.js?v=202606020038"></script>
   <script src="pages/me-analyzer/page.js?v=202605210016"></script>
   <script src="pages/uefi-tool/page.js?v=202605210016"></script>
-  <script src="pages/universal-dmi/page.js?v=202605290001"></script>
+  <script src="pages/universal-dmi/page.js?v=202606010001"></script>
   <script src="pages/bios-vendor-detect/page.js?v=202605210016"></script>
   <script src="pages/file-hash-compare/page.js?v=202605210016"></script>
   <script src="pages/resistor-calculator/page.js?v=202605210016"></script>
-  <script src="pages/lenovo-bios-patch/page.js?v=202605210016"></script>
-  <script src="pages/dell-8fc8/page.js?v=202605210016"></script>
+  <script src="pages/lenovo-bios-patch/page.js?v=202606010001"></script>
+  <script src="pages/dell-8fc8/page.js?v=202606010001"></script>
   <script src="pages/ami-decryptor/page.js?v=202605210016"></script>
   <script src="pages/bios-memory-spd/page.js?v=202605240003"></script>
-  <script src="pages/bios-password/page.js?v=202605210016"></script>
-  <script src="pages/microscope/page.js?v=202605210016"></script>
+  <script src="pages/bios-password/page.js?v=202606010001"></script>
+  <script src="pages/microscope/page.js?v=202606010001"></script>
   <script src="pages/alien-server/page.js?v=202605210016"></script>
-  <script src="pages/boardviewer/page.js?v=202605210016"></script>
-  <script src="pages/dashboard-home/page.js?v=202605230002"></script>
+  <script src="pages/boardviewer/page.js?v=202606010001"></script>
+  <script src="pages/dashboard-home/page.js?v=202606010001"></script>
   <script src="pages/product/page.js?v=202605310001"></script>
-  <script src="pages/settings/page.js?v=202605230002"></script>
-    <script src="app.js?v=202605310019"></script>
+  <script src="pages/settings/page.js?v=202606010001"></script>
+  <script src="help-content.js?v=202606010035"></script>
+    <script src="app.js?v=202606010035"></script>
 </body>
 </html>

@@ -73,7 +73,7 @@
     }
 
     if (!originalFetch) {
-      throw new Error("Browser tidak mendukung fetch untuk Local API session.");
+        throw new Error("Browser tidak mendukung koneksi aplikasi lokal.");
     }
 
     localApiState.pending = originalFetch(`${runtimeConfig.serviceBaseUrl}/local-api/session`, {
@@ -92,7 +92,7 @@
 
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload?.nonce) {
-          throw new Error(payload?.message || `Local API session gagal (${response.status}).`);
+          throw new Error(payload?.message || `Koneksi aplikasi lokal gagal (${response.status}).`);
         }
 
         localApiState.unsupported = false;

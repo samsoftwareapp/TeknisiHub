@@ -91,7 +91,7 @@
       errorMessage: "",
       notes: [
         "Tool ini ditujukan untuk dump BIOS Dell dengan pola lock 8FC8.",
-        "Proses patch berjalan langsung di local service agar lebih nyaman daripada versi console.",
+        "Proses patch berjalan langsung di aplikasi lokal agar lebih nyaman daripada versi console.",
         "Jika patch berhasil, file hasil akan bernama patched_namafile_asli dan siap diunduh.",
         "Tetap verifikasi hasil patch sebelum proses flash ke perangkat target."
       ]
@@ -255,7 +255,7 @@
       viewKey: "tool_dell_8fc8",
       eyebrow: "Bios Patch",
       title: "Dell 8FC8",
-      subtitle: "Upload dump BIOS Dell lalu buat file patch hasil modifikasi langsung dari local service.",
+      subtitle: "Upload dump BIOS Dell lalu buat file patch hasil modifikasi langsung dari aplikasi lokal.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

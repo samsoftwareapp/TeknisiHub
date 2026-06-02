@@ -71,7 +71,7 @@
       nativeFileName: "",
       nativeFileSize: 0,
       nativeLaunchedAt: "-",
-      message: "Pilih file boardview lalu klik Open Boardviewer untuk membukanya lewat local service.",
+      message: "Pilih file boardview lalu klik Open Boardviewer untuk membukanya lewat aplikasi lokal.",
       nativeMessage: "Pilih file boardview untuk membuka Boardview TeknisiHub di tab baru.",
       errorMessage: "",
       nativeErrorMessage: ""
@@ -269,8 +269,8 @@
         state.fileSize = Number(selectedDesktopFile?.size || 0);
         state.errorMessage = "";
         state.message = selectedDesktopFile
-          ? "File siap dibuka. Klik Open Boardviewer untuk membukanya lewat local service."
-          : "Pilih file boardview lalu klik Open Boardviewer untuk membukanya lewat local service.";
+          ? "File siap dibuka. Klik Open Boardviewer untuk membukanya lewat aplikasi lokal."
+          : "Pilih file boardview lalu klik Open Boardviewer untuk membukanya lewat aplikasi lokal.";
         render();
       });
 

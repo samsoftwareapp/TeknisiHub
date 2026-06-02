@@ -87,9 +87,9 @@
       actualResolution: "Auto",
       devices: [],
       streamUrl: "",
-      message: "Klik Scan Camera untuk mendeteksi microscope USB atau kamera internal lewat local service.",
+      message: "Klik Scan Camera untuk mendeteksi microscope USB atau kamera internal lewat aplikasi lokal.",
       errorMessage: "",
-      debugLines: ["Mode microscope sekarang memakai LocalService untuk akses camera."]
+      debugLines: ["Mode microscope sekarang memakai aplikasi lokal untuk akses camera."]
     };
   }
 
@@ -176,7 +176,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Live Preview</p>
-              <h4>Stream dari Local Service</h4>
+              <h4>Stream dari aplikasi lokal</h4>
             </div>
             <div class="microscope-panel-actions">
               <button type="button" id="microscopeFullscreenButton" class="ghost"${disableAttr}>
@@ -191,11 +191,11 @@
             <img
               id="microscopePreviewImage"
               class="microscope-video${state.streaming ? " is-ready" : ""}"
-              alt="Microscope preview dari local service">
+              alt="Microscope preview dari aplikasi lokal">
             <div id="microscopeOverlay" class="microscope-overlay${state.streaming ? " hidden" : ""}">
               <span class="material-symbols-outlined">videocam</span>
               <strong>Preview belum aktif</strong>
-              <p>Scan camera lewat local service, pilih device, lalu klik Tampilkan.</p>
+              <p>Scan camera lewat aplikasi lokal, pilih device, lalu klik Tampilkan.</p>
             </div>
           </div>
 
@@ -314,8 +314,8 @@
       state.streamUrl = "";
       state.errorMessage = "";
       state.actualResolution = "Auto";
-      state.message = "Mendeteksi camera lewat local service...";
-      pushDebug("Scan camera dimulai lewat local service.");
+      state.message = "Mendeteksi camera lewat aplikasi lokal...";
+      pushDebug("Scan camera dimulai lewat aplikasi lokal.");
       render();
 
       try {
@@ -324,8 +324,8 @@
 
         if (!state.devices.length) {
           state.selectedDeviceId = "";
-          state.message = result.message || "Tidak ada camera yang terdeteksi oleh local service.";
-          pushDebug("Local service tidak menemukan camera yang bisa dibuka.");
+          state.message = result.message || "Tidak ada camera yang terdeteksi oleh aplikasi lokal.";
+          pushDebug("Aplikasi lokal tidak menemukan camera yang bisa dibuka.");
           return;
         }
 
@@ -333,14 +333,14 @@
           state.selectedDeviceId = state.devices[0].deviceId;
         }
 
-        state.message = result.message || `${state.devices.length} camera terdeteksi oleh local service.`;
+        state.message = result.message || `${state.devices.length} camera terdeteksi oleh aplikasi lokal.`;
         state.errorMessage = "";
-        pushDebug(`${state.devices.length} camera siap dipakai oleh local service.`);
+        pushDebug(`${state.devices.length} camera siap dipakai oleh aplikasi lokal.`);
         notify(state.message);
       } catch (error) {
         state.devices = [];
         state.selectedDeviceId = "";
-        state.errorMessage = error?.message || "Gagal mendeteksi camera dari local service.";
+        state.errorMessage = error?.message || "Gagal mendeteksi camera dari aplikasi lokal.";
         pushDebug(`Scan gagal: ${state.errorMessage}`);
       } finally {
         state.scanning = false;
@@ -363,8 +363,8 @@
         ? "Auto"
         : state.selectedResolution;
       state.streamUrl = buildStreamUrl();
-      state.message = `Meminta stream local service untuk ${selectedDevice?.label || "camera terpilih"}.`;
-      pushDebug(`Preview dimulai via local service: ${selectedDevice?.label || state.selectedDeviceId}, resolusi ${state.selectedResolution}.`);
+      state.message = `Meminta stream aplikasi lokal untuk ${selectedDevice?.label || "camera terpilih"}.`;
+      pushDebug(`Preview dimulai via aplikasi lokal: ${selectedDevice?.label || state.selectedDeviceId}, resolusi ${state.selectedResolution}.`);
       render();
     }
 
@@ -376,7 +376,7 @@
       previewImage.addEventListener("load", () => {
         if (previewImage.naturalWidth && previewImage.naturalHeight) {
           state.actualResolution = `${previewImage.naturalWidth}x${previewImage.naturalHeight}`;
-          state.message = "Preview microscope aktif dari local service.";
+          state.message = "Preview microscope aktif dari aplikasi lokal.";
           state.errorMessage = "";
           syncStatusText();
           syncPreviewMeta();
@@ -391,8 +391,8 @@
 
         state.streaming = false;
         state.streamUrl = "";
-        state.errorMessage = "Preview dari local service gagal dimuat. Pastikan camera tidak sedang dipakai aplikasi lain.";
-        pushDebug("Tag IMG gagal memuat stream MJPEG dari local service.");
+        state.errorMessage = "Preview dari aplikasi lokal gagal dimuat. Pastikan camera tidak sedang dipakai aplikasi lain.";
+        pushDebug("Tag IMG gagal memuat stream MJPEG dari aplikasi lokal.");
         render();
       }, { once: true });
 
@@ -456,7 +456,7 @@
         state.actualResolution = "Auto";
         state.errorMessage = "";
         state.message = state.selectedDeviceId
-          ? "Camera dipilih. Klik Tampilkan untuk membuka stream dari local service."
+          ? "Camera dipilih. Klik Tampilkan untuk membuka stream dari aplikasi lokal."
           : "Pilih camera terlebih dahulu.";
         pushDebug(`Device aktif diganti ke ${state.devices.find((device) => device.deviceId === state.selectedDeviceId)?.label || state.selectedDeviceId || "kosong"}.`);
 
@@ -509,7 +509,7 @@
       viewKey: "tool_microscope",
       eyebrow: "Microscope",
       title: "Microscope",
-      subtitle: "Preview microscope USB atau camera internal lewat local service.",
+      subtitle: "Preview microscope USB atau camera internal lewat aplikasi lokal.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

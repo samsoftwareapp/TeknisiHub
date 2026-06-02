@@ -42,7 +42,7 @@
       checkUpdateOnStartup: true,
       launchCommand: "-",
       members: [],
-      message: "Memuat pengaturan local service..."
+      message: "Memuat pengaturan aplikasi lokal..."
     };
   }
 
@@ -81,7 +81,7 @@
           <article class="catalog-card">
             <div class="catalog-card-top">
               <span class="catalog-category">${escapeHtml(member.role || "Member")}</span>
-              <span class="catalog-access">${escapeHtml(member.provider || "telegram")}</span>
+              <span class="catalog-access">akun</span>
             </div>
             <h4>${escapeHtml(member.displayName || member.email || "User")}</h4>
             <div class="catalog-file-row">
@@ -119,7 +119,7 @@
           <label class="settings-toggle-card">
             <input id="settingsStartupCheckbox" type="checkbox"${state.startWithWindows ? " checked" : ""}${disabledAttr}>
             <div>
-              <strong>Jalankan local service otomatis saat Windows startup</strong>
+              <strong>Jalankan aplikasi lokal otomatis saat Windows startup</strong>
               <p>Opsi ini akan menambah atau menghapus entry startup untuk user Windows yang sedang aktif.</p>
             </div>
           </label>
@@ -127,21 +127,21 @@
             <input id="settingsOpenWebUiCheckbox" type="checkbox"${state.openWebUiOnStartup ? " checked" : ""}${disabledAttr}>
             <div>
               <strong>Buka Web UI otomatis setelah service siap</strong>
-              <p>Default aktif. Saat local service berhasil start, browser akan langsung membuka dashboard TeknisiHub.</p>
+              <p>Default aktif. Saat aplikasi lokal berhasil start, browser akan langsung membuka dashboard TeknisiHub.</p>
             </div>
           </label>
           <label class="settings-toggle-card">
             <input id="settingsMinimizeToTrayCheckbox" type="checkbox"${state.minimizeToTrayOnClose ? " checked" : ""}${disabledAttr}>
             <div>
               <strong>Minimize ke tray saat jendela ditutup</strong>
-              <p>Untuk arsitektur saat ini, local service memang tetap berjalan di system tray walau tab/browser Web UI ditutup.</p>
+              <p>Untuk arsitektur saat ini, aplikasi lokal tetap berjalan di system tray walau tab/browser Web UI ditutup.</p>
             </div>
           </label>
           <label class="settings-toggle-card">
             <input id="settingsCheckUpdateOnStartupCheckbox" type="checkbox"${state.checkUpdateOnStartup ? " checked" : ""}${disabledAttr}>
             <div>
               <strong>Cek update otomatis saat startup</strong>
-              <p>Jika aktif, local service akan memeriksa metadata update segera setelah aplikasi berjalan.</p>
+              <p>Jika aktif, aplikasi lokal akan memeriksa metadata update segera setelah aplikasi berjalan.</p>
             </div>
           </label>
           <div class="settings-inline-meta">
@@ -176,7 +176,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Member Lokal</p>
-              <h4>Daftar akun Telegram yang pernah login di PC ini</h4>
+              <h4>Daftar akun yang pernah login di PC ini</h4>
             </div>
             <span class="spi-mini-badge">${escapeHtml(String(state.members.length))}</span>
           </div>
@@ -204,7 +204,7 @@
       }
 
       state.loading = true;
-      state.message = "Memuat pengaturan local service...";
+      state.message = "Memuat pengaturan aplikasi lokal...";
       render();
 
       try {
@@ -215,10 +215,10 @@
         state.checkUpdateOnStartup = settings.checkUpdateOnStartup !== false;
         state.launchCommand = settings.launchCommand || "-";
         state.message = state.startWithWindows
-          ? "Startup otomatis aktif. Local service akan mengikuti startup Windows."
-          : "Startup otomatis belum aktif. Centang lalu simpan jika ingin local service ikut berjalan saat Windows menyala.";
+          ? "Startup otomatis aktif. Aplikasi lokal akan mengikuti startup Windows."
+          : "Startup otomatis belum aktif. Centang lalu simpan jika ingin aplikasi lokal ikut berjalan saat Windows menyala.";
       } catch (error) {
-        state.message = error.message || "Pengaturan local service belum bisa dimuat.";
+        state.message = error.message || "Pengaturan aplikasi lokal belum bisa dimuat.";
       } finally {
         state.loading = false;
         render();
@@ -250,7 +250,7 @@
       }
 
       state.saving = true;
-      state.message = "Menyimpan pengaturan startup local service...";
+      state.message = "Menyimpan pengaturan startup aplikasi lokal...";
       render();
 
       try {
@@ -343,8 +343,8 @@
     return {
       viewKey: "settings",
       eyebrow: "Pengaturan",
-      title: "Pengaturan Local Service",
-      subtitle: "Startup dasar local service dan maintenance cache local service.",
+      title: "Pengaturan Aplikasi Lokal",
+      subtitle: "Startup dasar aplikasi lokal dan maintenance cache aplikasi lokal.",
       items: [],
       mount({ container }) {
         mountedContainer = container;

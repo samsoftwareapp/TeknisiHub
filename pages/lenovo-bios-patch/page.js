@@ -255,7 +255,7 @@
       viewKey: "tool_lenovo_dump_bios",
       eyebrow: "Bios Patch",
       title: "Dump Bios Lenovo",
-      subtitle: "Upload dump BIOS Lenovo lalu buat file patch hasil modifikasi langsung dari local service.",
+      subtitle: "Upload dump BIOS Lenovo lalu buat file patch hasil modifikasi langsung dari aplikasi lokal.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

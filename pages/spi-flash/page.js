@@ -19,14 +19,14 @@
       transport: "USB",
       status: "SPI + ENE/ITE KBC/EC + OSC",
       speed: "20 MHz request",
-      note: "Backend TEKNISIHUB_FLASH_OSC via USB WinUSB vendor bulk."
+      note: "Koneksi USB TEKNISIHUB_FLASH_OSC."
     },
     TEKNISIHUB_FLASH_OSC_WIFI: {
       label: "TEKNISIHUB_FLASH_OSC",
       transport: "WIFI",
       status: "SPI + ENE/ITE KBC/EC + OSC",
       speed: "20 MHz request",
-      note: "SSID TEKNISIHUB_FLASH_OSC, password teknisihub, TCP 192.168.4.1:2042."
+      note: "Koneksi WIFI TEKNISIHUB_FLASH_OSC."
     }
   };
 
@@ -59,6 +59,32 @@
       .replaceAll(">", "&gt;")
       .replaceAll("\"", "&quot;")
       .replaceAll("'", "&#39;");
+  }
+
+  function sanitizePublicMessage(value) {
+    let message = String(value ?? "").trim();
+    if (!message) {
+      return "";
+    }
+    if (
+      /\b(protocol|programmer|spi|vcc|wifi|endpoint)\s*=/i.test(message) ||
+      /\b(libusb|winusb|stack trace|exception)\b/i.test(message) ||
+      /[A-Z]:\\|\/Users\/|\/home\//i.test(message)
+    ) {
+      return "Operasi device gagal. Periksa koneksi lalu coba lagi.";
+    }
+    return message
+      .replace(/\bLocalService\b/g, "aplikasi lokal")
+      .replace(/\blocal service\b/gi, "aplikasi lokal")
+      .replace(/\bLocal API\b/gi, "aplikasi lokal")
+      .replace(/\bbackend\b/gi, "sistem")
+      .replace(/\bGoogle\s+Drive\b/gi, "penyimpanan file")
+      .replace(/\bRTDB\b/gi, "sistem akses")
+      .replace(/\bRTD\b/gi, "sistem akses")
+      .replace(/\bregistry\b/gi, "data akses")
+      .replace(/\bFirebase\b/gi, "sistem akses")
+      .replace(/\bGemini\b/gi, "fitur saran")
+      .replace(/\bTelegram\b/g, "akun");
   }
 
   function formatInteger(value) {
@@ -574,7 +600,7 @@
         ? `ENE ID ${state.jedec.replace(/^ENE\s+/i, "")}`
         : `JEDEC ${state.jedec}`) : "",
       state.fileName || ""
-    ].filter(Boolean).join(" - ") || "Menunggu update dari local service";
+    ].filter(Boolean).join(" - ") || "Menunggu update dari aplikasi lokal";
 
     if (hasActiveOperation) {
       const timestamp = Date.now();
@@ -783,7 +809,7 @@
       previewMode: false,
       backendMode: "local-service",
       selectedDevice: "",
-      connectionState: "Local service belum terhubung",
+      connectionState: "Aplikasi lokal belum terhubung",
       activeOperation: "Belum ada operasi",
       chipVendor: "",
       chipModel: "",
@@ -799,12 +825,12 @@
       fileName: "",
       fileSize: "",
       progress: 0,
-      lastResult: "Status backend belum tersedia",
+      lastResult: "Status aplikasi lokal belum tersedia",
       lastUpdated: "Belum dijalankan",
       hasReadBuffer: false,
       readBufferIsAllFf: false,
       logs: [
-        "[--:--:--] Local service SPI Flash belum bisa dijangkau dari Web UI."
+        "[--:--:--] Aplikasi lokal SPI Flash belum bisa dijangkau."
       ],
       progressHistory: [],
       fullProgressHistory: [],
@@ -932,7 +958,7 @@
     const monitorTarget = previousState?.selectedDevice === selectedDevice
       ? normalizeMonitorTarget(previousState.monitorTarget)
       : "";
-    const serviceFailureMessage = resolveServiceFailureMessage(session);
+    const serviceFailureMessage = sanitizePublicMessage(resolveServiceFailureMessage(session));
 
     return {
       serviceAvailable: true,
@@ -941,7 +967,7 @@
       previewMode: Boolean(session.previewMode),
       backendMode: session.backendMode || "local-service",
       selectedDevice,
-      connectionState: forceNoDeviceSelection ? "Belum ada device dipilih" : (session.connectionState || "Device belum terhubung"),
+      connectionState: forceNoDeviceSelection ? "Belum ada device dipilih" : sanitizePublicMessage(session.connectionState || "Device belum terhubung"),
       activeOperation: session.activeOperation || "Belum ada operasi",
       chipVendor: session.chipVendor || "",
       chipModel: session.chipModel || "",
@@ -957,7 +983,7 @@
       fileName: session.fileName || "",
       fileSize: session.fileSize || "",
       progress: Number(session.progress || 0),
-      lastResult: session.lastResult || "Belum ada operasi",
+      lastResult: sanitizePublicMessage(session.lastResult || "Belum ada operasi"),
       lastUpdated: session.lastUpdated || "Belum dijalankan",
       hasReadBuffer: Boolean(session.hasReadBuffer),
       readBufferIsAllFf: Boolean(session.readBufferIsAllFf),
@@ -997,7 +1023,7 @@
     }
 
     if (!response.ok) {
-      throw new Error(payload.message || payload.title || `Request gagal (${response.status}).`);
+      throw new Error(sanitizePublicMessage(payload.message || payload.title || `Request gagal (${response.status}).`));
     }
 
     return payload;
@@ -2045,7 +2071,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Status Service</p>
-              <h4>Koneksi backend bermasalah</h4>
+              <h4>Koneksi aplikasi bermasalah</h4>
             </div>
           </div>
           <p class="spi-note">${escapeHtml(state.errorMessage)}</p>
@@ -2682,7 +2708,7 @@
         deviceConnectionState = {
           deviceType: normalizedDevice,
           status: "connected",
-          message: connectedSession.connectionState || `${state.profile?.transport || "Device"} terhubung.`
+          message: sanitizePublicMessage(connectedSession.connectionState || `${state.profile?.transport || "Device"} terhubung.`)
         };
         render();
 
@@ -2700,7 +2726,7 @@
           return;
         }
 
-        state.errorMessage = error?.message || "Gagal memilih device SPI Flash.";
+        state.errorMessage = sanitizePublicMessage(error?.message || "Gagal memilih device SPI Flash.");
         deviceConnectionState = {
           deviceType: normalizedDevice,
           status: "failed",
@@ -2983,7 +3009,7 @@
             // Keep the original action error as the main feedback.
           }
         }
-        actionErrorMessage = error?.message || "Operasi SPI Flash gagal.";
+        actionErrorMessage = sanitizePublicMessage(error?.message || "Operasi SPI Flash gagal.");
         state.errorMessage = actionErrorMessage;
         notifyUser(state.errorMessage, "warning");
         render();
@@ -3017,7 +3043,7 @@
         const session = await fetchJson("/spi-flash/session");
         applySessionState(session, options);
       } catch (error) {
-        state = createUnavailableState(error?.message || "Local service SPI Flash belum tersedia.");
+        state = createUnavailableState(sanitizePublicMessage(error?.message || "Aplikasi lokal SPI Flash belum tersedia."));
         syncHexViewFromState({ resetScroll: true });
       }
     }
@@ -3026,7 +3052,7 @@
       viewKey: "tool_spi_flash",
       eyebrow: "SPI Flash Studio",
       title: "SPI Flash Studio",
-      subtitle: "Workbench web untuk operasi SPI flash yang disinkronkan langsung ke local service.",
+      subtitle: "Workbench web untuk operasi SPI flash yang disinkronkan langsung ke aplikasi lokal.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

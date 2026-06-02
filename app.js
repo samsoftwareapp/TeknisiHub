@@ -10,6 +10,7 @@ const codeSigningWarningLink = document.getElementById("codeSigningWarningLink")
 const serviceTrafficIndicator = document.getElementById("serviceTrafficIndicator");
 const serviceApiActivity = document.getElementById("serviceApiActivity");
 const themeToggleButton = document.getElementById("themeToggleButton");
+const helpButton = document.getElementById("helpButton");
 const backToTopButton = document.getElementById("backToTopButton");
 const downloadLocalServiceLink = document.getElementById("downloadLocalServiceLink");
 const runLocalUpdateButton = document.getElementById("runLocalUpdateButton");
@@ -157,6 +158,18 @@ const catalogAiSuggestionApplyButton = document.getElementById("catalogAiSuggest
 const aboutFooterButton = document.getElementById("aboutFooterButton");
 const aboutModal = document.getElementById("aboutModal");
 const aboutModalCloseButton = document.getElementById("aboutModalCloseButton");
+const helpModal = document.getElementById("helpModal");
+const helpModalCloseButton = document.getElementById("helpModalCloseButton");
+const helpModalEyebrow = document.getElementById("helpModalEyebrow");
+const helpModalTitle = document.getElementById("helpModalTitle");
+const helpModalSummary = document.getElementById("helpModalSummary");
+const helpTopicList = document.getElementById("helpTopicList");
+const helpImageFrame = document.getElementById("helpImageFrame");
+const helpImage = document.getElementById("helpImage");
+const helpSteps = document.getElementById("helpSteps");
+const helpTips = document.getElementById("helpTips");
+const helpControls = document.getElementById("helpControls");
+const helpExtraSections = document.getElementById("helpExtraSections");
 const navBios = document.getElementById("navBios");
 const navBoardview = document.getElementById("navBoardview");
 const navSchematics = document.getElementById("navSchematics");
@@ -191,7 +204,7 @@ const previousVersionsModal = document.getElementById("previousVersionsModal");
 const previousVersionsList = document.getElementById("previousVersionsList");
 const previousVersionsCloseButton = document.getElementById("previousVersionsCloseButton");
 const defaultDownloadLocalServiceUrl = downloadLocalServiceLink?.getAttribute("href") || "";
-const defaultDownloadLocalServiceLabel = downloadLocalServiceLink?.textContent?.trim() || "Download local service";
+const defaultDownloadLocalServiceLabel = downloadLocalServiceLink?.textContent?.trim() || "Download aplikasi lokal";
 let previousVersionNotes = [];
 let updateStatusPollTimeoutId = null;
 let updateRestartPollTimeoutId = null;
@@ -213,7 +226,7 @@ const oscilloscopePage = window.teknisiHubPages?.oscilloscope || {
   viewKey: "tool_oscilloscope",
   eyebrow: "Oscilloscope",
   title: "TEKNISIHUB_FLASH_OSC",
-  subtitle: "Capture analog single-channel dari local service.",
+  subtitle: "Capture analog single-channel dari aplikasi lokal.",
   items: [],
   mount() {},
   setVisible() {},
@@ -302,7 +315,7 @@ const dell8Fc8Page = window.teknisiHubPages?.dell8Fc8 || {
   viewKey: "tool_dell_8fc8",
   eyebrow: "Bios Patch",
   title: "Dell 8FC8",
-  subtitle: "Patch dump BIOS Dell 8FC8 langsung dari local service.",
+  subtitle: "Patch dump BIOS Dell 8FC8 langsung dari aplikasi lokal.",
   items: [],
   mount() {},
   setVisible() {},
@@ -324,7 +337,7 @@ const biosMemorySpdPage = window.teknisiHubPages?.biosMemorySpd || {
   viewKey: "tool_bios_memory_spd",
   eyebrow: "Bios Patch",
   title: "BIOS Memory SPD Cleaner",
-  subtitle: "Scan, export, dan clean blok SPD DDR3/DDR4 langsung dari local service.",
+  subtitle: "Scan, export, dan clean blok SPD DDR3/DDR4 langsung dari aplikasi lokal.",
   items: [],
   mount() {},
   setVisible() {},
@@ -335,7 +348,7 @@ const biosPasswordPage = window.teknisiHubPages?.biosPassword || {
   viewKey: "tool_bios_password",
   eyebrow: "BIOS Password",
   title: "BIOS Password Helper",
-  subtitle: "Analisa format kode lock BIOS secara offline lewat local service.",
+  subtitle: "Analisa format kode lock BIOS secara offline lewat aplikasi lokal.",
   items: [],
   mount() {},
   setVisible() {},
@@ -346,7 +359,7 @@ const boardViewerPage = window.teknisiHubPages?.boardViewer || {
   viewKey: "tool_boardviewer",
   eyebrow: "Boardviewer",
   title: "Boardviewer",
-  subtitle: "Utility lokal untuk membuka file boardview lewat local service.",
+  subtitle: "Utility lokal untuk membuka file boardview lewat aplikasi lokal.",
   items: [],
   mount() {},
   setVisible() {},
@@ -379,7 +392,7 @@ const settingsPage = window.teknisiHubPages?.settings || {
   viewKey: "settings",
   eyebrow: "Pengaturan",
   title: "Pengaturan",
-  subtitle: "Pengaturan dasar untuk local service.",
+  subtitle: "Pengaturan dasar aplikasi lokal.",
   items: [],
   mount() {},
   setVisible() {},
@@ -390,7 +403,7 @@ const dashboardHomePage = window.teknisiHubPages?.dashboardHome || {
   viewKey: "dashboard_home",
   eyebrow: "Dashboard",
   title: "Dashboard",
-  subtitle: "Ringkasan akses akun, status local service, dan pintasan kerja utama.",
+  subtitle: "Ringkasan akses akun, status aplikasi lokal, dan pintasan kerja utama.",
   items: [],
   mount() {},
   setVisible() {},
@@ -948,6 +961,9 @@ const hashRouteMap = {
   settings: settingsPage.viewKey
 };
 
+const helpRegistry = window.teknisiHubHelp || { topics: {}, order: [] };
+let activeHelpTopicKey = "";
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -955,6 +971,54 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function sanitizePublicMessage(value, options = {}) {
+  let message = String(value ?? "").trim();
+  if (!message) {
+    return "";
+  }
+
+  const lowerMessage = message.toLowerCase();
+  const sensitiveDeviceNames = [
+    ["r", "p", "2040"].join(""),
+    ["r", "b", "2040"].join(""),
+    ["s", "t", "m", "32"].join(""),
+    ["g", "p", "i", "o"].join("")
+  ];
+  const hasRawDeviceDebug =
+    /\b(protocol|programmer|spi|vcc|wifi|endpoint)\s*=/i.test(message) ||
+    sensitiveDeviceNames.some((term) => lowerMessage.includes(term)) ||
+    /\b(libusb|winusb|stack trace|exception)\b/i.test(message) ||
+    /[A-Z]:\\|\/Users\/|\/home\//i.test(message);
+
+  if (hasRawDeviceDebug) {
+    if (lowerMessage.includes("osc") && lowerMessage.includes("terhubung")) {
+      return "Device OSC terhubung.";
+    }
+    if (lowerMessage.includes("flash") || lowerMessage.includes("device")) {
+      return "Operasi device gagal. Periksa koneksi lalu coba lagi.";
+    }
+    return "Operasi belum berhasil. Coba ulangi beberapa saat lagi.";
+  }
+
+  message = message
+    .replace(/\bGoogle\s+Drive\b/gi, "penyimpanan file")
+    .replace(/\bLocalService\b/g, "aplikasi lokal")
+    .replace(/\blocal service\b/gi, "aplikasi lokal")
+    .replace(/\bLocal API\b/gi, "aplikasi lokal")
+    .replace(/\bbackend\b/gi, "sistem")
+    .replace(/\bR\s*T\s*D\s*B\b/g, "sistem akses")
+    .replace(/\bR\s*T\s*D\b/g, "sistem akses")
+    .replace(/\bregistry\b/gi, "data akses")
+    .replace(/\bFire\s*base\b/gi, "sistem akses")
+    .replace(/\bGemini\b/gi, "fitur saran");
+
+  if (!options.allowTelegram) {
+    message = message.replace(/\bTelegram\b/g, "akun");
+  }
+
+  return message;
 }
 
 function getViewButton(viewKey) {
@@ -1550,7 +1614,7 @@ function notifyCatalogSearchCacheMissValidation(viewKey, query) {
 
   catalogSearchCacheMissNoticeByQuery.set(noticeKey, now + catalogSearchCacheMissNoticeCooldownMs);
   const config = getTelegramCatalogConfig(viewKey);
-  setNotice(`Tidak ada hasil di cache ${config.displayName}. Backend sedang cek Google Drive di belakang.`, "info");
+  setNotice(`Tidak ada hasil di cache ${config.displayName}. Sistem sedang menyegarkan katalog.`, "info");
 }
 
 function getDisplayRoleForView(viewKey = currentCatalogView) {
@@ -1644,7 +1708,7 @@ function getJoinPromptConfig(viewKey = currentCatalogView) {
   if (viewKey === "Boardview") {
     return {
       title: "Gabung channel Boardview dulu untuk membuka katalog.",
-      description: "Setelah berhasil join, katalog Boardview bisa langsung dibuka dan tombol refresh akan memakai cache backend.",
+      description: "Setelah berhasil join, katalog Boardview bisa langsung dibuka dan tombol refresh akan memakai cache katalog.",
       buttonId: "boardviewJoinButton",
       buttonLabel: "Gabung Channel Boardview",
       link: currentBoardviewChannelInviteLink,
@@ -1952,6 +2016,7 @@ function setActiveNav(targetKey) {
     toolBiosPatchGroup.classList.toggle("is-active", isBiosPatchView);
   }
 
+  syncHelpButton(targetKey);
 }
 
 function setNavButtonLoading(button, loading) {
@@ -3357,7 +3422,7 @@ function openCatalogAiSuggestionModal(suggestion, triggerButton = null) {
   pendingCatalogMetadataAiSuggestionTriggerButton = triggerButton;
 
   if (!catalogAiSuggestionModal || !catalogAiSuggestionApplyButton) {
-    const confirmed = window.confirm("Gemini menemukan saran Model Device dan Code Board. Pakai saran ini?");
+    const confirmed = window.confirm("Fitur saran menemukan Model Device dan Code Board. Pakai saran ini?");
     if (confirmed) {
       applyCatalogAiSuggestionToForm();
     }
@@ -3367,7 +3432,7 @@ function openCatalogAiSuggestionModal(suggestion, triggerButton = null) {
   setText(catalogAiSuggestionTitle, `Pakai saran ${suggestion.category || currentCatalogView}?`);
   setText(
     catalogAiSuggestionDescription,
-    "Gemini mencari referensi dari nama file dan internet untuk membantu mengisi Model Device dan Code Board. Serial Number tetap diisi manual."
+    "Fitur saran mencari referensi dari nama file dan internet untuk membantu mengisi Model Device dan Code Board. Serial Number tetap diisi manual."
   );
   setText(catalogAiSuggestionTargetName, suggestion.fileName || "Nama file");
   setText(catalogAiSuggestionCategoryValue, suggestion.category || currentCatalogView);
@@ -3717,7 +3782,7 @@ function renderPreviousVersions(history = []) {
   previousVersionsList.innerHTML = history
     .map((entry) => {
       const date = escapeHtml((entry?.date || "").trim() || "Tanpa tanggal");
-      const text = escapeHtml((entry?.text || "").trim() || "Tidak ada catatan.");
+      const text = escapeHtml(sanitizePublicMessage((entry?.text || "").trim() || "Tidak ada catatan."));
 
       return `
         <article class="previous-version-item">
@@ -3743,7 +3808,12 @@ function closePreviousVersionsModal() {
 }
 
 function setPreviousVersionsState(visible, history = []) {
-  previousVersionNotes = Array.isArray(history) ? history : [];
+  previousVersionNotes = Array.isArray(history)
+    ? history.map((entry) => ({
+        ...entry,
+        text: sanitizePublicMessage(entry?.text || "")
+      }))
+    : [];
   toggleElement(viewPreviousVersionsButton, visible && previousVersionNotes.length > 0);
 
   if (!visible) {
@@ -3848,7 +3918,7 @@ async function viewProblemSolvingItem(messageId, button = null) {
     const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
 
     if (reconciledProgress?.active || ["preparing", "downloading", "loading"].includes(reconciledStage)) {
-      setNotice("Problem Solving masih disiapkan di local service. Progress akan lanjut di panel task.", "info");
+      setNotice("Problem Solving masih disiapkan. Progress akan lanjut di panel task.", "info");
       return;
     }
 
@@ -5022,17 +5092,17 @@ function upsertCatalogUploadTask(taskUpdate = {}) {
   const success = typeof taskUpdate.success === "boolean" ? taskUpdate.success : stage === "completed";
   const hasLastErrorUpdate = Object.prototype.hasOwnProperty.call(taskUpdate, "lastError");
   const lastError = hasLastErrorUpdate
-    ? String(taskUpdate.lastError || "").trim()
+    ? sanitizePublicMessage(taskUpdate.lastError || "")
     : success || stage === "completed"
       ? ""
-      : String(existingTask.lastError || "").trim();
+      : sanitizePublicMessage(existingTask.lastError || "");
   const nextTask = {
     operationId,
     source,
     fileName: String(taskUpdate.fileName || existingTask.fileName || "Proses").trim(),
     displayName: String(taskUpdate.displayName || existingTask.displayName || currentCatalogView || "Task").trim(),
     icon: String(taskUpdate.icon || existingTask.icon || "description").trim(),
-    message: String(taskUpdate.message || existingTask.message || "Menyiapkan proses...").trim(),
+    message: sanitizePublicMessage(taskUpdate.message || existingTask.message || "Menyiapkan proses..."),
     lastError,
     stage,
     active,
@@ -5094,8 +5164,8 @@ function syncCatalogUploadTasksFromEntries(entries = [], options = {}) {
           active: Boolean(entry.active),
           success: Boolean(entry.success),
           progressPercent: Math.max(0, Math.min(100, Math.round(Number(entry.progressPercent) || 0))),
-          message: String(entry.message || "Menyiapkan upload...").trim(),
-          lastError: String(entry.lastError || "").trim(),
+          message: sanitizePublicMessage(entry.message || "Menyiapkan upload..."),
+          lastError: sanitizePublicMessage(entry.lastError || ""),
           createdAt: entry.startedAtUtc || 0,
           updatedAt: entry.updatedAtUtc || entry.completedAtUtc || entry.startedAtUtc || 0,
           sortKey: entry.updatedAtUtc || entry.completedAtUtc || entry.startedAtUtc || 0
@@ -5131,7 +5201,7 @@ async function hydrateCatalogUploadTasksFromService() {
     }
   } catch (error) {
     stopCatalogUploadTaskSync();
-    console.warn("Gagal sinkronisasi task upload dari local service", error);
+    console.warn("Gagal sinkronisasi task upload dari aplikasi lokal", error);
   }
 }
 
@@ -5240,7 +5310,7 @@ async function reconcileCatalogUploadTaskFromService(operationId, taskContext = 
         }
       }
     } catch {
-      // Best effort reconcile from local service; keep retrying briefly.
+      // Best effort reconcile from the local app; keep retrying briefly.
     }
 
     if (attempt < attempts - 1) {
@@ -5431,6 +5501,11 @@ function setNotice(message, toneOrWarning = false, options = {}) {
     return;
   }
 
+  const publicMessage = sanitizePublicMessage(message, options);
+  if (!publicMessage) {
+    return;
+  }
+
   const tone = typeof toneOrWarning === "string"
     ? toneOrWarning
     : toneOrWarning
@@ -5441,7 +5516,7 @@ function setNotice(message, toneOrWarning = false, options = {}) {
     : tone === "info"
     ? "info"
     : "check_circle";
-  const signature = `${tone}:${message}`;
+  const signature = `${tone}:${publicMessage}`;
   const hasMatchingActiveToast = Array.from(
     toastContainer.querySelectorAll(".toast:not(.is-leaving)")
   ).some((toast) => toast.getAttribute("data-toast-signature") === signature);
@@ -5453,7 +5528,7 @@ function setNotice(message, toneOrWarning = false, options = {}) {
   }
 
   if (options.sound !== false) {
-    queueLocalNotificationSound(tone, message);
+    queueLocalNotificationSound(tone, publicMessage);
   }
   activeToastSignature = signature;
   const toast = document.createElement("div");
@@ -5461,7 +5536,7 @@ function setNotice(message, toneOrWarning = false, options = {}) {
   toast.setAttribute("data-toast-signature", signature);
   toast.innerHTML = `
     <span class="material-symbols-outlined toast-icon">${icon}</span>
-    <span class="toast-message">${escapeHtml(message)}</span>
+    <span class="toast-message">${escapeHtml(publicMessage)}</span>
     <button type="button" class="toast-close" aria-label="Tutup pesan">
       <span class="material-symbols-outlined">close</span>
     </button>
@@ -5514,6 +5589,234 @@ function toggleElement(element, visible) {
   }
 
   element.classList.toggle("hidden", !visible);
+}
+
+function getHelpTopics() {
+  return helpRegistry?.topics || {};
+}
+
+function getHelpTopicKeys() {
+  const topics = getHelpTopics();
+  const ordered = Array.isArray(helpRegistry?.order) ? helpRegistry.order : [];
+  return Array.from(new Set([...ordered, ...Object.keys(topics)]))
+    .filter((key) => Boolean(topics[key]));
+}
+
+function isAuthFlowVisible() {
+  return [phoneForm, codeForm, passwordForm, agreementPanel, channelJoinPanel]
+    .some((element) => element && !element.classList.contains("hidden"));
+}
+
+function resolveHelpTopicKey(viewKey = currentCatalogView) {
+  const topics = getHelpTopics();
+  if (isAuthFlowVisible() && topics.login_access) {
+    return "login_access";
+  }
+
+  if (topics[viewKey]) {
+    return viewKey;
+  }
+
+  if (topics.dashboard_home) {
+    return "dashboard_home";
+  }
+
+  return Object.keys(topics)[0] || "";
+}
+
+function getHelpTopic(topicKey = resolveHelpTopicKey()) {
+  const topics = getHelpTopics();
+  return topics[topicKey] || topics.dashboard_home || null;
+}
+
+function renderHelpNavigation(selectedKey) {
+  if (!helpTopicList) {
+    return;
+  }
+
+  const topics = getHelpTopics();
+  helpTopicList.innerHTML = getHelpTopicKeys()
+    .map((topicKey) => {
+      const topic = topics[topicKey];
+      return `
+        <button
+          type="button"
+          class="app-help-topic-button${topicKey === selectedKey ? " is-active" : ""}"
+          data-help-topic="${escapeHtml(topicKey)}"
+        >
+          <span>${escapeHtml(topic.eyebrow || "Bantuan")}</span>
+          <strong>${escapeHtml(topic.title || topicKey)}</strong>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function renderHelpList(container, items = [], ordered = false) {
+  if (!container) {
+    return;
+  }
+
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
+  container.innerHTML = safeItems
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+  container.classList.toggle("is-empty", safeItems.length === 0);
+  container.setAttribute("data-list-type", ordered ? "ordered" : "unordered");
+}
+
+function renderHelpSections(sections = []) {
+  if (!helpExtraSections) {
+    return;
+  }
+
+  const safeSections = Array.isArray(sections)
+    ? sections
+        .map((section) => ({
+          title: String(section?.title || "").trim(),
+          kind: String(section?.kind || "").trim(),
+          items: Array.isArray(section?.items) ? section.items.filter(Boolean) : []
+        }))
+        .filter((section) => section.title && section.items.length)
+    : [];
+
+  helpExtraSections.innerHTML = safeSections
+    .map((section) => `
+      <div class="app-help-section${section.kind ? ` is-${escapeHtml(section.kind)}` : ""}">
+        <h4>${escapeHtml(section.title)}</h4>
+        <ul class="app-help-list">
+          ${section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </div>
+    `)
+    .join("");
+  helpExtraSections.classList.toggle("is-empty", safeSections.length === 0);
+}
+
+function renderHelpControls(controls = []) {
+  if (!helpControls) {
+    return;
+  }
+
+  const safeControls = Array.isArray(controls)
+    ? controls
+        .map((control) => ({
+          title: String(control?.title || "").trim(),
+          description: String(control?.description || "").trim(),
+          image: String(control?.image || "").trim(),
+          imageAlt: String(control?.imageAlt || control?.title || "Screenshot kontrol bantuan").trim()
+        }))
+        .filter((control) => control.title && control.description)
+    : [];
+
+  helpControls.innerHTML = safeControls.length
+    ? `
+      <div class="app-help-section">
+        <h4>Panduan tombol bergambar</h4>
+        <div class="app-help-control-grid">
+          ${safeControls.map((control) => `
+            <article class="app-help-control-card">
+              ${control.image ? `
+                <figure class="app-help-control-shot">
+                  <img src="${escapeHtml(control.image)}" alt="${escapeHtml(control.imageAlt)}" loading="lazy">
+                </figure>
+              ` : ""}
+              <div>
+                <strong>${escapeHtml(control.title)}</strong>
+                <p>${escapeHtml(control.description)}</p>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </div>
+    `
+    : "";
+  helpControls.classList.toggle("is-empty", safeControls.length === 0);
+}
+
+function renderHelpTopic(topicKey = resolveHelpTopicKey()) {
+  const topic = getHelpTopic(topicKey);
+  if (!topic) {
+    return;
+  }
+
+  activeHelpTopicKey = getHelpTopics()[topicKey] ? topicKey : "dashboard_home";
+  setText(helpModalEyebrow, topic.eyebrow || "Bantuan");
+  setText(helpModalTitle, topic.title || "Dokumentasi TeknisiHub");
+  setText(helpModalSummary, topic.summary || "");
+  renderHelpList(helpSteps, topic.steps, true);
+  renderHelpList(helpTips, topic.tips, false);
+  renderHelpControls(topic.controls);
+  renderHelpSections(topic.sections);
+  renderHelpNavigation(activeHelpTopicKey);
+  const contentPanel = helpModal?.querySelector(".app-help-content");
+  if (contentPanel) {
+    contentPanel.scrollTop = 0;
+  }
+
+  if (helpImage && helpImageFrame) {
+    const imageSource = String(topic.image || "").trim();
+    helpImage.onload = () => toggleElement(helpImageFrame, true);
+    helpImage.onerror = () => toggleElement(helpImageFrame, false);
+    helpImage.alt = topic.imageAlt || topic.title || "Gambar bantuan TeknisiHub";
+    if (imageSource) {
+      helpImage.src = imageSource;
+      toggleElement(helpImageFrame, true);
+    } else {
+      helpImage.removeAttribute("src");
+      toggleElement(helpImageFrame, false);
+    }
+  }
+}
+
+function getHelpWheelTarget(event) {
+  const source = event.target instanceof Element ? event.target : null;
+  const sidebar = source?.closest(".app-help-sidebar");
+  if (sidebar) {
+    return sidebar;
+  }
+
+  return source?.closest(".app-help-content") || helpModal?.querySelector(".app-help-content") || null;
+}
+
+function handleHelpModalWheel(event) {
+  if (!helpModal || helpModal.classList.contains("hidden")) {
+    return;
+  }
+
+  const target = getHelpWheelTarget(event);
+  if (!target || target.scrollHeight <= target.clientHeight + 1) {
+    return;
+  }
+
+  event.preventDefault();
+  target.scrollTop += event.deltaY;
+}
+
+function syncHelpButton(viewKey = currentCatalogView) {
+  if (!helpButton) {
+    return;
+  }
+
+  const topic = getHelpTopic(resolveHelpTopicKey(viewKey));
+  const label = topic?.title ? `Bantuan: ${topic.title}` : "Bantuan halaman ini";
+  helpButton.title = label;
+  helpButton.setAttribute("aria-label", label);
+}
+
+function openHelpModal(topicKey = resolveHelpTopicKey()) {
+  if (!helpModal) {
+    return;
+  }
+
+  renderHelpTopic(topicKey);
+  toggleElement(helpModal, true);
+  helpModalCloseButton?.focus();
+}
+
+function closeHelpModal() {
+  toggleElement(helpModal, false);
+  helpButton?.focus();
 }
 
 function stopGoogleAuthPolling() {
@@ -5623,7 +5926,7 @@ function setDownloadLinkState(visible, href = defaultDownloadLocalServiceUrl, la
   toggleElement(downloadLocalServiceLink, visible);
 }
 
-function setLocalUpdateButtonState(visible, label = "Update local service") {
+function setLocalUpdateButtonState(visible, label = "Update aplikasi lokal") {
   if (!runLocalUpdateButton) {
     return;
   }
@@ -5745,7 +6048,7 @@ function getUpdateProgressLabel(operation) {
   }
 
   if (stage === "restarting") {
-    return "Menghentikan local service, melepas file lock, lalu menyalakan versi baru...";
+    return "Menghentikan aplikasi lokal, melepas file lock, lalu menyalakan versi baru...";
   }
 
   if (stage === "failed") {
@@ -5813,7 +6116,7 @@ async function checkUpdateOperationStatus() {
       setUpdateProgressState(
         true,
         99,
-        "Menghentikan local service, melepas file lock, lalu menyalakan versi baru...",
+        "Menghentikan aplikasi lokal, melepas file lock, lalu menyalakan versi baru...",
         `Target v.${pendingUpdateVersion}`
       );
       scheduleRestartPolling(3000);
@@ -5831,7 +6134,7 @@ async function waitForUpdatedService() {
     setUpdateProgressState(
       true,
       100,
-      "Update selesai. Local service terbaru sudah aktif.",
+      "Update selesai. Aplikasi lokal terbaru sudah aktif.",
       health?.version ? `Versi aktif v.${health.version}` : ""
     );
     scheduleHideUpdateProgress();
@@ -5843,7 +6146,7 @@ async function waitForUpdatedService() {
     setUpdateProgressState(
       true,
       99,
-      "Menghentikan local service, melepas file lock, lalu menyalakan versi baru...",
+      "Menghentikan aplikasi lokal, melepas file lock, lalu menyalakan versi baru...",
       pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : ""
     );
     scheduleRestartPolling(3000);
@@ -5855,7 +6158,7 @@ async function startLocalUpdate() {
     return;
   }
 
-  setButtonLoading(runLocalUpdateButton, true, "system_update_alt", "Update local service", "Menyiapkan update...");
+  setButtonLoading(runLocalUpdateButton, true, "system_update_alt", "Update aplikasi lokal", "Menyiapkan update...");
 
   try {
     const result = await fetchJson("/update/start", {
@@ -5877,7 +6180,7 @@ async function startLocalUpdate() {
   } catch (error) {
     setNotice(error.message || "Gagal memulai update otomatis.", true);
   } finally {
-    setButtonLoading(runLocalUpdateButton, false, "system_update_alt", "Update local service", "Menyiapkan update...");
+    setButtonLoading(runLocalUpdateButton, false, "system_update_alt", "Update aplikasi lokal", "Menyiapkan update...");
   }
 }
 
@@ -5899,22 +6202,22 @@ function applyUpdateRequirement(health) {
   const downloadUrl = canAutoUpdate
     ? (update.updaterUrl || update.downloadUrl || defaultDownloadLocalServiceUrl)
     : (update.installerUrl || update.downloadUrl || defaultDownloadLocalServiceUrl);
-  const updateMessage = update.message || `Update local service ke versi ${latestVersion} untuk lanjut menggunakan TeknisiHub.`;
+  const updateMessage = sanitizePublicMessage(update.message || `Update aplikasi lokal ke versi ${latestVersion} untuk lanjut menggunakan TeknisiHub.`);
   const noteDate = (update.noteDate || "").trim();
-  const noteText = (update.noteText || "").trim();
+  const noteText = sanitizePublicMessage((update.noteText || "").trim());
   const noteMessage = noteText
     ? ` Catatan rilis ${noteDate || "terbaru"}: ${noteText}`
-    : (update.notes ? ` Catatan: ${update.notes}` : "");
+    : (update.notes ? ` Catatan: ${sanitizePublicMessage(update.notes)}` : "");
 
   setServiceConnectivityStatus(true);
   setText(serviceVersion, `Versi: ${currentVersion} -> ${latestVersion}`);
   setServiceUpdateNotice(`${updateMessage}${noteMessage}`);
-  setLocalUpdateButtonState(canAutoUpdate, "Update local service");
-  setDownloadLinkState(!canAutoUpdate, downloadUrl, "Update local service");
+  setLocalUpdateButtonState(canAutoUpdate, "Update aplikasi lokal");
+  setDownloadLinkState(!canAutoUpdate, downloadUrl, "Update aplikasi lokal");
   hideInteractivePanels();
   setPreviousVersionsState(true, update.noteHistory || []);
   setError("");
-  setNotice(`Local service versi ${currentVersion} harus diperbarui ke ${latestVersion} sebelum lanjut menggunakan dashboard.`, true);
+  setNotice(`Aplikasi lokal versi ${currentVersion} harus diperbarui ke ${latestVersion} sebelum lanjut menggunakan dashboard.`, true);
   return true;
 }
 
@@ -5992,14 +6295,14 @@ function applyStatus(status) {
     setText(accessDisplayName, displayName);
     setText(accessRole, `Role: ${representativeRole.label} | ${accountIdentifier}`);
     setText(accessChannelCount, "Provider login: Telegram");
-    setText(dashboardChannelStatus, "Role akun dikelola dari RTD. User baru otomatis masuk sebagai Member sampai peran diperbarui.");
+    setText(dashboardChannelStatus, "Role akun dikelola dari sistem akses. User baru otomatis masuk sebagai Member sampai peran diperbarui.");
     setText(
       dashboardAgreementStatus,
       hasCompletedAgreement ? "Persetujuan tersimpan" : "Menunggu persetujuan"
     );
 
     if (hasCompletedAgreement) {
-      setText(dashboardSubtitle, "Sesi login Telegram tersimpan aman di local service.");
+      setText(dashboardSubtitle, "Sesi login Telegram tersimpan aman di aplikasi lokal.");
       setText(accessState, `Terhubung. Akun aktif dengan role ${representativeRole.label}.`);
       setNotice("");
       renderCatalog([], currentCatalogView);
@@ -6045,21 +6348,21 @@ function applyStatus(status) {
     if (autoFilledOtp) {
       if (lastAutoFilledOtpNoticeCode !== autoFilledOtp) {
         lastAutoFilledOtpNoticeCode = autoFilledOtp;
-        setNotice("Kode OTP Telegram terdeteksi dan sudah diisikan otomatis. Periksa lalu tekan Kirim kode.");
+        setNotice("Kode OTP Telegram terdeteksi dan sudah diisikan otomatis. Periksa lalu tekan Kirim kode.", "success", { allowTelegram: true });
       }
     } else {
       lastAutoFilledOtpNoticeCode = "";
-      setNotice("Masukkan kode verifikasi Telegram yang diterima user.");
+      setNotice("Masukkan kode verifikasi Telegram yang diterima user.", "success", { allowTelegram: true });
     }
     return;
   }
 
   if (status.requiresPassword) {
-    setNotice("Akun menggunakan 2FA. Lanjutkan dengan password Telegram.");
+    setNotice("Akun menggunakan 2FA. Lanjutkan dengan password Telegram.", "success", { allowTelegram: true });
     return;
   }
 
-  setNotice("Masukkan nomor Telegram untuk memulai login lewat local service.");
+  setNotice("Masukkan nomor Telegram untuk memulai login lewat aplikasi lokal.", "info", { allowTelegram: true });
 }
 
 function handleCatalogLoadFailureDuringRefresh(status, error) {
@@ -6099,7 +6402,7 @@ async function fetchJson(path, options = {}) {
       error.isAbortError = true;
       throw error;
     }
-    throw new Error(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
+    throw new Error(`Koneksi aplikasi lokal gagal: ${error.message || "unknown error"}`);
   } finally {
     endApiTraffic(trafficToken);
   }
@@ -6119,12 +6422,12 @@ async function fetchJson(path, options = {}) {
     const validationErrors = payload.errors && typeof payload.errors === "object"
       ? Object.values(payload.errors).flat().join(" ")
       : "";
-    throw new Error(
+    throw new Error(sanitizePublicMessage(
       payload.message ||
       payload.title ||
       validationErrors ||
       `Request gagal (${response.status}).`
-    );
+    ));
   }
 
   return payload;
@@ -6216,7 +6519,7 @@ function uploadFormData(path, formData, options = {}) {
 
     xhr.onerror = () => {
       stopPolling();
-      reject(new Error("Koneksi ke local service gagal: unknown error"));
+      reject(new Error("Koneksi aplikasi lokal gagal: unknown error"));
     };
 
     xhr.onabort = () => {
@@ -6313,7 +6616,7 @@ async function refreshStatus(options = {}) {
       setUpdateProgressState(
         true,
         99,
-        "Menunggu local service berhenti, file unlock, lalu service baru menyala...",
+        "Menunggu aplikasi lokal berhenti, file unlock, lalu versi baru menyala...",
         pendingUpdateVersion ? `Target v.${pendingUpdateVersion}` : ""
       );
       scheduleRestartPolling(3000);
@@ -6321,8 +6624,8 @@ async function refreshStatus(options = {}) {
       setDownloadLinkState(true);
       setUpdateProgressState(false);
     }
-    setError(`Koneksi ke local service gagal: ${error.message || "unknown error"}`);
-    setNotice("Local service belum aktif. Jalankan TeknisiHub.LocalService dulu, lalu refresh.", true);
+    setError(`Koneksi aplikasi lokal gagal: ${error.message || "unknown error"}`);
+    setNotice("Aplikasi pendukung belum aktif. Jalankan TeknisiHub lalu refresh.", true);
     throw error;
   }
 
@@ -6446,7 +6749,7 @@ async function submitCatalogEditor(submissionContext = {}) {
           active: true,
           success: false,
           progressPercent: roundedPercent,
-          message: `Mengirim file ${config.displayName} ke local service...`
+          message: `Mengirim file ${config.displayName} ke aplikasi lokal...`
         });
       },
       onServerProgress: (progress) => {
@@ -6466,7 +6769,7 @@ async function submitCatalogEditor(submissionContext = {}) {
     const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
 
     if (reconciledProgress?.active || ["preparing", "uploading", "sending"].includes(reconciledStage)) {
-      setNotice(`Upload ${config.displayName} masih diproses di local service. Progress akan lanjut di panel task.`, "info");
+      setNotice(`Upload ${config.displayName} masih diproses. Progress akan lanjut di panel task.`, "info");
       return;
     }
 
@@ -6600,7 +6903,7 @@ async function downloadCatalogItem(category, messageId) {
     const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
 
     if (reconciledProgress?.active || ["preparing", "uploading", "sending", "downloading", "extracting"].includes(reconciledStage)) {
-      setNotice(`Download ${config.displayName} masih diproses di local service. Progress akan lanjut di panel task.`, "info");
+      setNotice(`Download ${config.displayName} masih diproses. Progress akan lanjut di panel task.`, "info");
       return;
     }
 
@@ -7296,7 +7599,7 @@ function openPendingBoardviewTeknisiHubWindow(fileName) {
       mode: "pending",
       documentTitle: "Menyiapkan Boardview TeknisiHub",
       heading: "Menyiapkan viewer",
-      copyMarkup: `<p>Local service sedang menyiapkan session boardview untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>`,
+      copyMarkup: `<p>Aplikasi lokal sedang menyiapkan viewer untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>`,
       contentMarkup: `<div class="th-progress" aria-hidden="true"><span></span></div>`,
       footerMarkup: "Tab ini akan otomatis berpindah ke viewer begitu session siap."
     });
@@ -7319,7 +7622,7 @@ function renderBoardviewCandidateSelectionWindow(targetWindow, payload, context)
     disposePendingBoardviewTeknisiHubWindow(
       targetWindow,
       context?.fileName || "Boardview",
-      "Local service belum mengirim daftar file boardview yang bisa dipilih."
+      "Daftar file boardview yang bisa dipilih belum siap."
     );
     return false;
   }
@@ -7389,7 +7692,7 @@ function renderBoardviewCandidateLoadingWindow(targetWindow, fileName) {
       mode: "loading",
       documentTitle: "Menyiapkan Boardview TeknisiHub",
       heading: "Membuka pilihan file",
-      copyMarkup: `<p>Local service sedang membuat session untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>`,
+      copyMarkup: `<p>Aplikasi lokal sedang menyiapkan viewer untuk <strong>${escapeHtml(fileName || "Boardview")}</strong>.</p>`,
       contentMarkup: `<div class="th-progress" aria-hidden="true"><span></span></div>`,
       footerMarkup: "Tab ini akan otomatis berpindah ke viewer begitu session siap."
     });
@@ -7439,7 +7742,7 @@ async function openSelectedBoardviewCandidateFromPendingWindow(targetWindow, con
     }
 
     if (!result.sessionId) {
-      throw new Error("Session Boardview TeknisiHub belum diterima dari local service.");
+      throw new Error("Viewer Boardview TeknisiHub belum siap.");
     }
 
     finalizePendingBoardviewTeknisiHubWindow(targetWindow, result.sessionId);
@@ -7709,7 +8012,7 @@ async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FL
     const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
 
     if (reconciledProgress?.active || ["preparing", "uploading", "sending", "downloading", "extracting", "loading"].includes(reconciledStage)) {
-      setNotice("BIOS masih diproses di local service untuk SPI Flash. Progress akan lanjut di panel task.", "info");
+      setNotice("BIOS masih diproses untuk SPI Flash. Progress akan lanjut di panel task.", "info");
       return;
     }
 
@@ -7897,10 +8200,10 @@ phoneForm?.addEventListener("submit", async (event) => {
       body: JSON.stringify({ phoneNumber })
     });
     persistRememberedPhone();
-    setNotice(result.message);
+    setNotice(result.message, "success", { allowTelegram: true });
     await refreshStatus();
   } catch (error) {
-    setNotice(error.message, true);
+    setNotice(error.message, true, { allowTelegram: true });
   } finally {
     setButtonLoading(phoneSubmitButton, false, "send_to_mobile", "Minta kode login", "Meminta kode...");
   }
@@ -7920,10 +8223,10 @@ codeForm?.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify({ verificationCode })
     });
-    setNotice(result.message);
+    setNotice(result.message, "success", { allowTelegram: true });
     await refreshStatus();
   } catch (error) {
-    setNotice(error.message, true);
+    setNotice(error.message, true, { allowTelegram: true });
   } finally {
     setButtonLoading(codeSubmitButton, false, "password", "Kirim kode", "Mengirim kode...");
     syncCodeSubmitButtonState();
@@ -7940,10 +8243,10 @@ passwordForm?.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify({ password })
     });
-    setNotice(result.message);
+    setNotice(result.message, "success", { allowTelegram: true });
     await refreshStatus();
   } catch (error) {
-    setNotice(error.message, true);
+    setNotice(error.message, true, { allowTelegram: true });
   } finally {
     setButtonLoading(passwordSubmitButton, false, "lock_open_right", "Selesaikan login", "Memverifikasi...");
   }
@@ -8001,10 +8304,10 @@ if (logoutButton) {
       sessionStorage.removeItem(activeOtpPhoneStorageKey);
       syncVerificationPhoneDisplay();
       resetCatalog();
-      setNotice(result.message);
+      setNotice(result.message, "success", { allowTelegram: true });
       await refreshStatus();
     } catch (error) {
-      setNotice(error.message, true);
+      setNotice(error.message, true, { allowTelegram: true });
     }
   });
 }
@@ -8023,7 +8326,7 @@ if (changePhoneButton) {
     toggleElement(passwordForm, false);
     toggleElement(phoneForm, true);
     phoneNumberInput?.focus();
-    setNotice("Ganti nomor aktif. Masukkan nomor Telegram lain lalu minta kode login baru.", "info");
+    setNotice("Ganti nomor aktif. Masukkan nomor Telegram lain lalu minta kode login baru.", "info", { allowTelegram: true });
   });
 }
 
@@ -8067,6 +8370,29 @@ if (refreshButton) {
 
 dashboardJoinButton?.addEventListener("click", joinSelectedChannels);
 themeToggleButton?.addEventListener("click", toggleThemeMode);
+helpButton?.addEventListener("click", () => openHelpModal());
+helpModalCloseButton?.addEventListener("click", closeHelpModal);
+helpModal?.addEventListener("click", (event) => {
+  if (event.target === helpModal) {
+    closeHelpModal();
+  }
+});
+helpModal?.addEventListener("wheel", handleHelpModalWheel, { passive: false });
+helpTopicList?.addEventListener("click", (event) => {
+  const topicButton = event.target instanceof Element
+    ? event.target.closest("[data-help-topic]")
+    : null;
+  if (!topicButton) {
+    return;
+  }
+
+  renderHelpTopic(topicButton.getAttribute("data-help-topic") || "");
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && helpModal && !helpModal.classList.contains("hidden")) {
+    closeHelpModal();
+  }
+});
 backToTopButton?.addEventListener("click", scrollPageToTop);
 window.addEventListener("scroll", syncBackToTopButtonVisibility, { passive: true });
 window.addEventListener("storage", handleSharedThemeModeStorageChange);
@@ -8089,6 +8415,7 @@ const initialHashRouteState = parseHashRouteState();
 currentHashShareViewKey = initialHashRouteState.shareViewKey;
 currentHashShareMessageId = initialHashRouteState.messageId;
 currentCatalogView = initialHashRouteState.viewKey || dashboardHomePage.viewKey;
+syncHelpButton(currentCatalogView);
 syncBackToTopButtonVisibility();
 syncFloatingUtilityOffset();
 refreshStatus();
@@ -8200,7 +8527,7 @@ if (catalogList) {
           setNotice(reconciledProgress?.message || "Schematics siap dibuka.");
         } else {
           if (reconciledProgress?.active || ["preparing", "downloading", "extracting", "loading"].includes(reconciledStage)) {
-            setNotice("Membuka Schematics masih diproses di local service. Progress akan lanjut di panel task.", "info");
+            setNotice("Membuka Schematics masih diproses. Progress akan lanjut di panel task.", "info");
             return;
           }
 
@@ -8282,7 +8609,7 @@ if (catalogList) {
           setNotice(reconciledProgress?.message || "Datasheets siap dibuka.");
         } else {
           if (reconciledProgress?.active || ["preparing", "downloading", "loading"].includes(reconciledStage)) {
-            setNotice("Membuka Datasheets masih diproses di local service. Progress akan lanjut di panel task.", "info");
+            setNotice("Membuka Datasheets masih diproses. Progress akan lanjut di panel task.", "info");
             return;
           }
 
@@ -8449,7 +8776,7 @@ if (catalogList) {
             }
 
             if (!result.sessionId) {
-              throw new Error("Session Boardview TeknisiHub belum diterima dari local service.");
+              throw new Error("Viewer Boardview TeknisiHub belum siap.");
             }
 
             finalizePendingBoardviewTeknisiHubWindow(pendingBoardviewWindow, result.sessionId);
@@ -8480,9 +8807,9 @@ if (catalogList) {
             disposePendingBoardviewTeknisiHubWindow(
               pendingBoardviewWindow,
               fileName,
-              "Proses masih berjalan di local service. Silakan tunggu hingga task selesai lalu klik Buka lagi."
+              "Proses masih berjalan. Silakan tunggu hingga task selesai lalu klik Buka lagi."
             );
-            setNotice("Membuka Boardview masih diproses di local service. Progress akan lanjut di panel task.", "info");
+            setNotice("Membuka Boardview masih diproses. Progress akan lanjut di panel task.", "info");
             return;
           }
 
@@ -8501,7 +8828,7 @@ if (catalogList) {
             disposePendingBoardviewTeknisiHubWindow(
               pendingBoardviewWindow,
               fileName,
-              "Session sudah selesai di local service, tetapi tab viewer perlu dibuka ulang dari tombol Buka."
+              "Proses sudah selesai, tetapi tab viewer perlu dibuka ulang dari tombol Buka."
             );
             setNotice(completedMessage);
             shouldRefreshCatalog = markBoardviewItemHasLocalCache(messageId);

@@ -317,8 +317,8 @@
       items.push({
         tone: "danger",
         icon: "settings_alert",
-        title: "Local service belum siap",
-        meta: "Cek konfigurasi service"
+        title: "Aplikasi lokal belum siap",
+        meta: "Cek aplikasi pendukung"
       });
     } else if (!state.isLoggedIn) {
       items.push({
