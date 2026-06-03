@@ -3755,6 +3755,220 @@ body.is-dark-mode .spi-card.is-failed span {
   grid-column: 1 / -1;
 }
 
+.spi-firmware-card {
+  grid-column: 1 / -1;
+}
+
+.spi-firmware-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.spi-firmware-status-grid div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 151, 169, 0.16);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.spi-firmware-status-grid small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.spi-firmware-status-grid strong {
+  min-width: 0;
+  color: var(--deep);
+  font-size: 0.88rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.spi-firmware-status-grid .has-update {
+  border-color: rgba(21, 184, 166, 0.38);
+  background: rgba(222, 252, 246, 0.72);
+}
+
+.spi-firmware-action-row {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) minmax(180px, 0.5fr);
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+
+.spi-firmware-action-row button {
+  min-height: 44px;
+  justify-content: center;
+}
+
+.spi-firmware-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(148px, auto);
+  gap: 10px;
+  align-items: end;
+}
+
+.spi-firmware-grid label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  min-height: 60px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 151, 169, 0.16);
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.spi-firmware-grid label select {
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 151, 169, 0.18);
+  background: #fff;
+  color: var(--deep);
+  font: inherit;
+  text-transform: none;
+}
+
+.spi-firmware-grid .spi-file-picker-control {
+  min-height: 34px;
+  gap: 8px;
+}
+
+.spi-firmware-grid .spi-file-picker-button {
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 0.76rem;
+}
+
+.spi-firmware-update-button {
+  min-width: 0;
+  min-height: 52px;
+  border-radius: 8px;
+  justify-content: center;
+}
+
+body.is-dark-mode .spi-firmware-status-grid div {
+  border-color: rgba(118, 151, 169, 0.2);
+  background-color: #07111a;
+}
+
+body.is-dark-mode .spi-firmware-status-grid strong {
+  color: #e4f0fb;
+}
+
+body.is-dark-mode .spi-firmware-status-grid .has-update {
+  border-color: rgba(21, 184, 166, 0.48);
+  background: rgba(10, 36, 34, 0.88);
+}
+
+body.is-dark-mode .spi-firmware-grid label {
+  border-color: rgba(118, 151, 169, 0.2);
+  background-color: #07111a;
+}
+
+body.is-dark-mode .spi-firmware-grid label select {
+  border-color: rgba(118, 151, 169, 0.22);
+  background: #0a1722;
+  color: #e4f0fb;
+}
+
+.spi-firmware-route-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 12, 20, 0.62);
+  backdrop-filter: blur(8px);
+}
+
+.spi-firmware-route-dialog {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 151, 169, 0.28);
+  background: #eaf6fd;
+  box-shadow: 0 22px 60px rgba(4, 15, 24, 0.36);
+}
+
+.spi-firmware-route-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.spi-firmware-route-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 40px;
+  margin-bottom: 12px;
+}
+
+.spi-firmware-route-head > .material-symbols-outlined {
+  color: var(--accent);
+  font-size: 1.6rem;
+}
+
+.spi-firmware-route-head h4 {
+  margin: 2px 0 0;
+  color: var(--deep);
+  font-size: 1.05rem;
+}
+
+.spi-firmware-route-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.spi-firmware-route-actions button {
+  min-height: 46px;
+  justify-content: center;
+}
+
+.spi-firmware-route-actions .is-default {
+  outline: 2px solid rgba(21, 184, 166, 0.26);
+  outline-offset: 2px;
+}
+
+body.is-dark-mode .spi-firmware-route-dialog {
+  border-color: rgba(118, 151, 169, 0.24);
+  background: #07111a;
+}
+
+body.is-dark-mode .spi-firmware-route-head h4 {
+  color: #f3fbff;
+}
+
 .spi-operation-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -8886,6 +9100,15 @@ button.ghost {
   line-height: 1.15;
 }
 
+.spi-scope-title-block small {
+  display: block;
+  margin-top: 5px;
+  color: #d7f3ff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .spi-scope-device-picker {
   justify-self: end;
   display: inline-flex;
@@ -9476,6 +9699,10 @@ body:not(.is-dark-mode) .spi-scope-title-block p,
 body:not(.is-dark-mode) .spi-scope-theme .label,
 body:not(.is-dark-mode) .spi-scope-theme .spi-card-head .label {
   color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-scope-title-block small {
+  color: #0f5d75;
 }
 
 body:not(.is-dark-mode) .spi-scope-title-block h4,
@@ -11040,6 +11267,9 @@ body.is-compact-ui .quote-intro-close {
   }
 
   .spi-operation-card .spi-form-grid,
+  .spi-firmware-status-grid,
+  .spi-firmware-action-row,
+  .spi-firmware-grid,
   .spi-action-toolbar,
   .spi-action-command-grid,
   .spi-action-command-main,
