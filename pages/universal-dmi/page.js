@@ -110,7 +110,7 @@
   function createInitialState() {
     return {
       manifest: null,
-      brand: "Auto Detect",
+      brand: "",
       values: createInitialValues(),
       official: null,
       dump: null,
@@ -126,10 +126,11 @@
   function createBrandOptions(state) {
     const brands = state.manifest?.brands?.length
       ? state.manifest.brands
-      : ["Auto Detect", "Lenovo", "ASUS", "Acer", "Dell", "HP", "Toshiba", "Generic"];
-    return brands
-      .map((brand) => `<option value="${escapeHtml(brand)}"${state.brand === brand ? " selected" : ""}>${escapeHtml(brand)}</option>`)
-      .join("");
+      : ["Lenovo", "ASUS", "Acer", "Dell", "HP", "MSI", "Gigabyte", "Toshiba", "Samsung", "Sony", "Fujitsu", "Generic"];
+    return [
+      `<option value=""${state.brand ? "" : " selected"}>----Select Brand ---</option>`,
+      ...brands.map((brand) => `<option value="${escapeHtml(brand)}"${state.brand === brand ? " selected" : ""}>${escapeHtml(brand)}</option>`)
+    ].join("");
   }
 
   function createFieldsMarkup(state, busy) {
@@ -177,7 +178,8 @@
   function createWorkbenchMarkup(state, busyAction) {
     const busy = Boolean(busyAction);
     const disabled = busy ? " disabled" : "";
-    const patchDisabled = busy || (!state.official && !state.dump) ? " disabled" : "";
+    const brandReady = Boolean(state.brand);
+    const patchDisabled = busy || !brandReady || (!state.official && !state.dump) ? " disabled" : "";
     const downloadDisabled = state.downloadUrl ? "" : " disabled";
 
     return `
@@ -216,11 +218,11 @@
           </div>
 
           <div class="boardviewer-actions lenovo-bios-patch-download">
-            <button type="button" id="universalDmiReadOfficialButton" class="ghost"${busy || !state.official ? " disabled" : ""}>
+            <button type="button" id="universalDmiReadOfficialButton" class="ghost"${busy || !brandReady || !state.official ? " disabled" : ""}>
               <span class="material-symbols-outlined${busyAction === "readOfficial" ? " is-spinning" : ""}">${busyAction === "readOfficial" ? "progress_activity" : "source"}</span>
               <span>Read official</span>
             </button>
-            <button type="button" id="universalDmiReadDumpButton" class="ghost"${busy || !state.dump ? " disabled" : ""}>
+            <button type="button" id="universalDmiReadDumpButton" class="ghost"${busy || !brandReady || !state.dump ? " disabled" : ""}>
               <span class="material-symbols-outlined${busyAction === "readDump" ? " is-spinning" : ""}">${busyAction === "readDump" ? "progress_activity" : "memory"}</span>
               <span>Read dump</span>
             </button>
@@ -293,7 +295,8 @@
       mountedContainer.innerHTML = createWorkbenchMarkup(state, busyAction);
 
       mountedContainer.querySelector("#universalDmiBrandSelect")?.addEventListener("change", (event) => {
-        state.brand = event.target.value || "Auto Detect";
+        state.brand = event.target.value || "";
+        render();
       });
 
       mountedContainer.querySelector("#universalDmiOfficialInput")?.addEventListener("change", (event) => {
@@ -347,7 +350,7 @@
         }
       });
       state.values = next;
-      if (values?.brand && state.brand === "Auto Detect") {
+      if (values?.brand && !state.brand) {
         state.brand = values.brand;
       }
     }
@@ -356,6 +359,9 @@
       const file = kind === "official" ? state.official : state.dump;
       if (!file) {
         throw new Error(kind === "official" ? "Pilih Official BIOS dulu." : "Pilih Dump BIOS dulu.");
+      }
+      if (!state.brand) {
+        throw new Error("Pilih brand dulu sebelum baca DMI.");
       }
 
       const formData = new FormData();
@@ -384,6 +390,9 @@
       await withBusy("patch", async () => {
         if (!state.official && !state.dump) {
           throw new Error("Pilih Official BIOS atau Dump BIOS dulu.");
+        }
+        if (!state.brand) {
+          throw new Error("Pilih brand dulu sebelum patch.");
         }
 
         const formData = new FormData();

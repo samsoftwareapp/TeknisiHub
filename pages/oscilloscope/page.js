@@ -130,6 +130,129 @@
     return payload;
   }
 
+  function chooseFirmwareUpdateRoute(defaultRoute = "usb") {
+    const normalizedDefault = defaultRoute === "wifi" ? "wifi" : "usb";
+    const existingModal = document.querySelector(".spi-firmware-route-modal");
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    return new Promise((resolve) => {
+      const modal = document.createElement("div");
+      modal.className = "spi-firmware-route-modal";
+      modal.innerHTML = `
+        <div class="spi-firmware-route-dialog" role="dialog" aria-modal="true" aria-labelledby="oscFirmwareRouteTitle">
+          <button type="button" class="spi-firmware-route-close" data-route-cancel="1" aria-label="Tutup">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+          <div class="spi-firmware-route-head">
+            <span class="material-symbols-outlined">system_update</span>
+            <div>
+              <p class="label">Update Firmware</p>
+              <h4 id="oscFirmwareRouteTitle">Pilih Jalur Update</h4>
+            </div>
+          </div>
+          <div class="spi-firmware-route-actions">
+            <button type="button" class="is-hero-action${normalizedDefault === "usb" ? " is-default" : ""}" data-route="usb">
+              <span class="material-symbols-outlined">usb</span>
+              <span>USB</span>
+            </button>
+            <button type="button" class="is-hero-action${normalizedDefault === "wifi" ? " is-default" : ""}" data-route="wifi">
+              <span class="material-symbols-outlined">wifi</span>
+              <span>WIFI</span>
+            </button>
+          </div>
+        </div>
+      `;
+
+      let settled = false;
+      const close = (value) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        document.removeEventListener("keydown", handleKeyDown);
+        modal.remove();
+        resolve(value);
+      };
+      const handleKeyDown = (event) => {
+        if (event.key === "Escape") {
+          close("");
+        }
+      };
+
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal || event.target.closest("[data-route-cancel]")) {
+          close("");
+          return;
+        }
+
+        const routeButton = event.target.closest("[data-route]");
+        if (routeButton) {
+          close(routeButton.getAttribute("data-route") === "wifi" ? "wifi" : "usb");
+        }
+      });
+      document.addEventListener("keydown", handleKeyDown);
+      document.body.append(modal);
+      modal.querySelector(`[data-route="${normalizedDefault}"]`)?.focus();
+    });
+  }
+
+  function extractFirmwareVersion(identity) {
+    const text = String(identity || "");
+    const match = text.match(/(?:^|[\s|;,])(?:fw|firmware|firmware_version)\s*=\s*([0-9A-Za-z._-]+)/i);
+    return match ? match[1].trim() : "";
+  }
+
+  function createFirmwareUpdateMarkup(state, disableAttr) {
+    const currentVersion = String(state?.firmwareVersion || "").trim();
+    const latestVersion = String(state?.firmwareLatestVersion || "").trim();
+    const updateAvailable = Boolean(state?.firmwareUpdateAvailable);
+    const currentLabel = currentVersion ? `v${currentVersion}` : "Belum terbaca";
+    const latestLabel = latestVersion ? `v${latestVersion}` : "Belum dicek";
+    const statusLabel = state?.firmwareUpdateMessage || (updateAvailable ? "Update tersedia." : "Cek update untuk membandingkan versi.");
+    const updateDisableAttr = disableAttr || (!updateAvailable ? " disabled" : "");
+    return `
+      <section class="spi-card spi-firmware-card">
+        <div class="spi-card-head">
+          <div>
+            <p class="label">Firmware</p>
+            <h4>Update Firmware</h4>
+          </div>
+          <span class="spi-mini-badge">${escapeHtml(currentLabel)}</span>
+        </div>
+        <div class="spi-firmware-status-grid">
+          <div>
+            <small>Versi Device</small>
+            <strong>${escapeHtml(currentLabel)}</strong>
+          </div>
+          <div>
+            <small>Versi Terbaru</small>
+            <strong>${escapeHtml(latestLabel)}</strong>
+          </div>
+          <div class="${updateAvailable ? "has-update" : ""}">
+            <small>Status</small>
+            <strong>${escapeHtml(statusLabel)}</strong>
+          </div>
+        </div>
+        <div class="spi-firmware-action-row">
+          <button type="button" class="ghost" id="oscFirmwareCheckButton"${disableAttr}>
+            <span class="material-symbols-outlined">sync</span>
+            <span>Cek Update</span>
+          </button>
+          <button type="button" class="is-hero-action spi-firmware-update-button" id="oscFirmwareCloudUpdateButton"${updateDisableAttr}>
+            <span class="material-symbols-outlined">system_update_alt</span>
+            <span class="spi-action-copy">
+              <strong>${updateAvailable ? "Update Firmware" : "Sudah Terbaru"}</strong>
+              <small>${latestVersion ? escapeHtml(latestLabel) : "Cek versi"}</small>
+            </span>
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
   function formatNumber(value, fractionDigits = 0) {
     const number = Number(value);
     if (!Number.isFinite(number)) {
@@ -508,6 +631,13 @@
       recordFilePath: "",
       selectedDevice: "",
       deviceConnectionStatus: "idle",
+      firmwareVersion: "",
+      firmwareLatestVersion: "",
+      firmwareUpdateAvailable: false,
+      firmwareUpdateMessage: "",
+      firmwareUpdateFileName: "",
+      firmwareUpdateFileSize: "",
+      firmwareUpdateCheckedAtUtc: "",
       isRunning: false,
       isCapturing: false,
       isBusy: false,
@@ -2814,6 +2944,8 @@
             </div>
           </div>
         </div>
+
+        <div class="oscilloscope-firmware-slot" data-osc-firmware-card></div>
       </div>
     `;
   }
@@ -2829,6 +2961,7 @@
     let runConfirmResolver = null;
     let themeListenerBound = false;
     let deviceSelectionToken = 0;
+    let firmwareUpdateCheckToken = 0;
     let calPadRequestInFlight = false;
 
     function mountShell() {
@@ -2876,6 +3009,7 @@
           mountedContainer.querySelector("#oscResetPositionCh1"),
           mountedContainer.querySelector("#oscResetPositionCh2")
         ],
+        firmwareCard: mountedContainer.querySelector("[data-osc-firmware-card]"),
         sampleRate: mountedContainer.querySelector("#oscSampleRate"),
         sampleCount: mountedContainer.querySelector("#oscSampleCount"),
         triggerEdge: mountedContainer.querySelector("#oscTriggerEdge"),
@@ -3053,12 +3187,112 @@
           closeRunConfirmation(false);
         }
       });
+      refs.firmwareCard?.addEventListener("click", (event) => {
+        const eventTarget = event.target instanceof Element ? event.target : null;
+        const checkButton = eventTarget?.closest("#oscFirmwareCheckButton");
+        const updateButton = eventTarget?.closest("#oscFirmwareCloudUpdateButton");
+        if (checkButton && !checkButton.disabled) {
+          void withBusy(async () => {
+            await refreshFirmwareUpdateStatus({ notifyIfAvailable: true });
+            if (!state.firmwareUpdateAvailable && state.firmwareUpdateMessage) {
+              notify(state.firmwareUpdateMessage, "info");
+            }
+          });
+          return;
+        }
+
+        if (updateButton && !updateButton.disabled) {
+          if (!state.firmwareUpdateAvailable) {
+            notify(state.firmwareUpdateMessage || "Firmware device sudah terbaru.", "info");
+            return;
+          }
+
+          const selectedRoute = String(state?.selectedDevice || "").toUpperCase().includes("WIFI") ? "wifi" : "usb";
+          void (async () => {
+            const route = await chooseFirmwareUpdateRoute(selectedRoute);
+            if (!route) {
+              return;
+            }
+
+            await withBusy(async () => {
+              const response = await fetchJson("/spi-flash/flash-osc/firmware-update/latest", {
+                method: "POST",
+                body: JSON.stringify({ route })
+              });
+              notify(
+                sanitizePublicMessage(response?.message || "Update firmware berhasil dikirim."),
+                response?.success === false ? "warning" : "success"
+              );
+              await refreshFirmwareUpdateStatus();
+            });
+          })();
+        }
+      });
     }
 
     function setText(element, value) {
       if (element) {
         element.textContent = value;
       }
+    }
+
+    function getCurrentFirmwareVersion() {
+      const explicitVersion = String(state.firmwareVersion || "").trim();
+      if (explicitVersion) {
+        return explicitVersion;
+      }
+
+      return extractFirmwareVersion(state.device?.identity);
+    }
+
+    function applyFirmwareUpdateStatus(payload) {
+      state.firmwareUpdateAvailable = Boolean(payload?.updateAvailable);
+      state.firmwareUpdateMessage = sanitizePublicMessage(payload?.message || "");
+      state.firmwareLatestVersion = String(payload?.latestVersion || "").trim();
+      state.firmwareUpdateFileName = String(payload?.fileName || "").trim();
+      state.firmwareUpdateFileSize = String(payload?.fileSize || "").trim();
+      state.firmwareUpdateCheckedAtUtc = payload?.checkedAtUtc || "";
+      if (payload?.currentVersion) {
+        state.firmwareVersion = String(payload.currentVersion || "").trim();
+      }
+    }
+
+    async function refreshFirmwareUpdateStatus(options = {}) {
+      const currentVersion = getCurrentFirmwareVersion();
+      const query = currentVersion ? `?currentVersion=${encodeURIComponent(currentVersion)}` : "";
+      const checkToken = ++firmwareUpdateCheckToken;
+      try {
+        const payload = await fetchJson(`/spi-flash/flash-osc/firmware-update/latest${query}`);
+        if (checkToken !== firmwareUpdateCheckToken) {
+          return;
+        }
+
+        applyFirmwareUpdateStatus(payload);
+        if (options.notifyIfAvailable && state.firmwareUpdateAvailable) {
+          notify(state.firmwareUpdateMessage || "Update firmware tersedia.", "info");
+        }
+        updateInstrument();
+      } catch (error) {
+        if (checkToken !== firmwareUpdateCheckToken) {
+          return;
+        }
+
+        state.firmwareUpdateMessage = sanitizePublicMessage(error?.message || "Gagal mengecek update firmware.");
+        updateInstrument();
+      }
+    }
+
+    function updateFirmwareCard(disabled = false) {
+      if (!refs.firmwareCard) {
+        return;
+      }
+
+      const currentVersion = getCurrentFirmwareVersion();
+      if (currentVersion) {
+        state.firmwareVersion = currentVersion;
+      }
+      const disableAttr = disabled ? " disabled" : "";
+      refs.firmwareCard.innerHTML = createFirmwareUpdateMarkup(state, disableAttr);
     }
 
     function supportsChannel2() {
@@ -3336,6 +3570,7 @@
         refs.clearDrop.classList.toggle("hidden", state.displayMode !== "drop");
         refs.clearDrop.disabled = state.displayMode !== "drop" || !hasVoltageHistory(state);
       }
+      updateFirmwareCard(acquisitionLocked);
     }
 
     function requestDraw() {
@@ -3633,6 +3868,10 @@
           channelCount: supportedChannelCount,
           supportedChannelCount
         };
+        const selectedFirmwareVersion = extractFirmwareVersion(state.device.identity);
+        if (selectedFirmwareVersion) {
+          state.firmwareVersion = selectedFirmwareVersion;
+        }
         state.deviceConnectionStatus = devicePresent ? "connected" : "failed";
         state.message = transportMatches
           ? sanitizePublicMessage(device.message || (devicePresent ? `${activeProfile.transport} terhubung.` : `${activeProfile.transport} tidak ditemukan.`))
@@ -3645,6 +3884,7 @@
           } catch (_error) {
             state.calPadEnabled = false;
           }
+          void refreshFirmwareUpdateStatus({ notifyIfAvailable: true });
         } else {
           notify(state.message, "warning");
         }
@@ -3820,6 +4060,10 @@
         supportedChannelCount,
         capturedChannelCount
       };
+      const capturedFirmwareVersion = extractFirmwareVersion(state.device.identity);
+      if (capturedFirmwareVersion) {
+        state.firmwareVersion = capturedFirmwareVersion;
+      }
       const responseProbeAttenuations = Array.isArray(result.probeAttenuations)
         ? result.probeAttenuations
         : state.channelProbeAttenuations;

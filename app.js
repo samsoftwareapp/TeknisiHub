@@ -9356,7 +9356,10 @@ toolUniversalDmi?.addEventListener("click", (event) => {
     return;
   }
 
-  void universalDmiPage.launch?.();
+  updateViewHash(universalDmiPage.viewKey);
+  currentCatalogView = universalDmiPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
 });
 
 toolBiosVendorDetect?.addEventListener("click", (event) => {

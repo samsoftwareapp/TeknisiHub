@@ -2232,8 +2232,6 @@
 
         ${isFlashOscDevice(state.selectedDevice) ? createPinMonitorMarkup(state, disableAttr) : ""}
 
-        ${isFlashOscDevice(state.selectedDevice) ? createFirmwareUpdateMarkup(state, disableAttr) : ""}
-
         <section class="spi-card spi-operation-card">
           <div class="spi-card-head">
             <div>
@@ -2327,6 +2325,8 @@
           </div>
           ${createHexPreviewMarkup(state, hexView)}
         </section>
+
+        ${isFlashOscDevice(state.selectedDevice) ? createFirmwareUpdateMarkup(state, disableAttr) : ""}
       </div>
       </div>
     `;

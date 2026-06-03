@@ -7933,6 +7933,14 @@ body.is-dark-mode .microscope-debug-log {
   display: block;
 }
 
+.oscilloscope-firmware-slot {
+  margin-top: 14px;
+}
+
+.oscilloscope-firmware-slot:empty {
+  display: none;
+}
+
 .oscilloscope-scope-panel {
   overflow: hidden;
   border: 1px solid rgba(118, 151, 169, 0.24);
