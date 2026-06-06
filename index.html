@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202606030045">
+  <link rel="stylesheet" href="styles.css?v=202606060006">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -329,8 +329,17 @@
                     <a id="toolSpiFlash" href="#SpiFlash" class="sidebar-nav-button is-active">
                       <span>SPI Flash</span>
                     </a>
+                    <a id="toolFlashPhone" href="#AndroidTools" class="sidebar-nav-button">
+                      <span>Android Tools</span>
+                    </a>
                     <a id="toolOscilloscope" href="#Oscilloscope" class="sidebar-nav-button">
                       <span>Oscilloscope</span>
+                    </a>
+                    <a id="toolLogicAnalyzer" href="#LogicAnalyzer" class="sidebar-nav-button">
+                      <span>Logic Analyzer</span>
+                    </a>
+                    <a id="toolFirmwareUpdate" href="#UpdateFirmwareTeknisiHub" class="sidebar-nav-button">
+                      <span>Update Firmware TeknisiHub</span>
                     </a>
                     <a id="toolMeAnalyzer" href="#MeAnalyzer" class="sidebar-nav-button">
                       <span>ME Analyzer</span>
@@ -420,7 +429,10 @@
             <section id="dashboardHomeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="productWorkbench" class="spi-workbench product-workbench hidden" aria-live="polite"></section>
             <section id="spiFlashWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="flashPhoneWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="oscilloscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="logicAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="firmwareUpdateWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="universalDmiWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -816,8 +828,11 @@
   </div>
 
   <script src="service-config.js?v=202606010001"></script>
-  <script src="pages/spi-flash/page.js?v=202606030044"></script>
-    <script src="pages/oscilloscope/page.js?v=202606030045"></script>
+  <script src="pages/spi-flash/page.js?v=202606060004"></script>
+  <script src="pages/flash-phone/page.js?v=202606060002"></script>
+    <script src="pages/oscilloscope/page.js?v=202606060004"></script>
+  <script src="pages/logic-analyzer/page.js?v=202606060002"></script>
+  <script src="pages/firmware-update/page.js?v=202606060005"></script>
   <script src="pages/me-analyzer/page.js?v=202605210016"></script>
   <script src="pages/uefi-tool/page.js?v=202605210016"></script>
   <script src="pages/universal-dmi/page.js?v=202606030048"></script>
@@ -836,6 +851,6 @@
   <script src="pages/product/page.js?v=202605310001"></script>
   <script src="pages/settings/page.js?v=202606010001"></script>
   <script src="help-content.js?v=202606010035"></script>
-    <script src="app.js?v=202606030046"></script>
+    <script src="app.js?v=202606060004"></script>
 </body>
 </html>

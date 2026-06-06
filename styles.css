@@ -3865,6 +3865,345 @@ body.is-dark-mode .spi-card.is-failed span {
   justify-content: center;
 }
 
+.firmware-update-workbench {
+  display: grid;
+  gap: 16px;
+}
+
+.firmware-update-simple {
+  max-width: 920px;
+}
+
+.firmware-device-gate-card,
+.firmware-detected-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.firmware-device-gate-card.is-missing {
+  border-color: rgba(194, 65, 12, 0.24);
+}
+
+.firmware-device-gate-icon,
+.firmware-detected-main > .material-symbols-outlined {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(38, 154, 180, 0.14);
+  color: var(--accent);
+}
+
+.firmware-device-gate-icon.is-checking .material-symbols-outlined {
+  animation: material-spin 1.1s linear infinite;
+}
+
+.firmware-device-gate-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.firmware-device-gate-copy h3,
+.firmware-device-gate-copy p {
+  margin: 0;
+}
+
+.firmware-device-gate-copy p:not(.label) {
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.firmware-retry-button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.firmware-detected-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.firmware-detected-main h3 {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.firmware-detected-main small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.firmware-version-pill {
+  display: grid;
+  gap: 3px;
+  min-width: 160px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(21, 184, 166, 0.28);
+  background: rgba(222, 252, 246, 0.66);
+}
+
+.firmware-version-pill small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.firmware-version-pill strong {
+  color: #0f5b6e;
+  overflow-wrap: anywhere;
+}
+
+.firmware-update-device-card {
+  display: grid;
+  gap: 16px;
+}
+
+.firmware-update-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.firmware-update-grid label {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.firmware-update-grid select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(21, 89, 128, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.firmware-update-device-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "icon title"
+    "icon meta";
+  gap: 2px 10px;
+  align-items: center;
+  min-height: 46px;
+  border: 1px solid rgba(21, 89, 128, 0.14);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.firmware-update-device-state .material-symbols-outlined {
+  grid-area: icon;
+  color: var(--accent);
+}
+
+.firmware-update-device-state strong {
+  grid-area: title;
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.firmware-update-device-state small {
+  grid-area: meta;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.firmware-update-route-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.firmware-update-source-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.firmware-next-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.firmware-update-action-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.48fr) minmax(180px, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.firmware-update-action-row button {
+  min-height: 48px;
+  justify-content: center;
+}
+
+.firmware-update-device-card .spi-firmware-action-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.firmware-source-button,
+.firmware-route-button {
+  min-height: 42px;
+  border: 1px solid rgba(21, 89, 128, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.firmware-source-button {
+  min-height: 48px;
+  justify-content: center;
+}
+
+.firmware-source-button.is-active,
+.firmware-route-button.is-active {
+  border-color: rgba(38, 154, 180, 0.42);
+  background: linear-gradient(135deg, rgba(38, 154, 180, 0.16), rgba(66, 211, 146, 0.16));
+  color: #0f5b6e;
+}
+
+.firmware-manual-file-panel {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.firmware-manual-file-picker {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "icon title"
+    "icon meta";
+  gap: 2px 10px;
+  align-items: center;
+  min-height: 58px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed rgba(21, 89, 128, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.firmware-manual-file-picker.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.firmware-manual-file-picker .material-symbols-outlined {
+  grid-area: icon;
+  color: var(--accent);
+}
+
+.firmware-manual-file-picker strong {
+  grid-area: title;
+  min-width: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.firmware-manual-file-picker small {
+  grid-area: meta;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.firmware-manual-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.firmware-manual-file-input:disabled {
+  cursor: not-allowed;
+}
+
+.firmware-manual-file-summary {
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(21, 89, 128, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.firmware-manual-file-summary.has-file {
+  color: var(--text);
+  border-color: rgba(21, 184, 166, 0.34);
+  background: rgba(222, 252, 246, 0.62);
+}
+
+.firmware-manual-file-summary span,
+.firmware-manual-file-summary small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.firmware-manual-file-summary small {
+  color: var(--muted);
+}
+
+.firmware-update-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.firmware-update-message {
+  border: 1px solid rgba(21, 89, 128, 0.12);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.firmware-update-message.is-error {
+  border-color: rgba(194, 65, 12, 0.28);
+  color: #9a3412;
+  background: rgba(255, 247, 237, 0.9);
+}
+
 body.is-dark-mode .spi-firmware-status-grid div {
   border-color: rgba(118, 151, 169, 0.2);
   background-color: #07111a;
@@ -3888,6 +4227,36 @@ body.is-dark-mode .spi-firmware-grid label select {
   border-color: rgba(118, 151, 169, 0.22);
   background: #0a1722;
   color: #e4f0fb;
+}
+
+body.is-dark-mode .firmware-update-grid select,
+body.is-dark-mode .firmware-update-device-state,
+body.is-dark-mode .firmware-device-gate-icon,
+body.is-dark-mode .firmware-detected-main > .material-symbols-outlined,
+body.is-dark-mode .firmware-version-pill,
+body.is-dark-mode .firmware-source-button,
+body.is-dark-mode .firmware-route-button,
+body.is-dark-mode .firmware-manual-file-picker,
+body.is-dark-mode .firmware-manual-file-summary,
+body.is-dark-mode .firmware-update-message {
+  background: rgba(13, 26, 40, 0.86);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: #e5edf7;
+}
+
+body.is-dark-mode .firmware-source-button.is-active,
+body.is-dark-mode .firmware-route-button.is-active {
+  background: linear-gradient(135deg, rgba(38, 154, 180, 0.24), rgba(66, 211, 146, 0.2));
+  color: #a7f3d0;
+}
+
+body.is-dark-mode .firmware-version-pill strong {
+  color: #a7f3d0;
+}
+
+body.is-dark-mode .firmware-manual-file-summary.has-file {
+  border-color: rgba(45, 212, 191, 0.32);
+  background: rgba(12, 48, 45, 0.7);
 }
 
 .spi-firmware-route-modal {
@@ -11278,6 +11647,9 @@ body.is-compact-ui .quote-intro-close {
   .spi-firmware-status-grid,
   .spi-firmware-action-row,
   .spi-firmware-grid,
+  .firmware-update-grid,
+  .firmware-update-source-row,
+  .firmware-manual-file-panel,
   .spi-action-toolbar,
   .spi-action-command-grid,
   .spi-action-command-main,
@@ -11874,4 +12246,1042 @@ body.is-dark-mode .universal-dmi-variant-strip span,
 body.is-dark-mode .universal-dmi-cleanme {
   border-color: rgba(45, 212, 191, 0.2);
   background: rgba(20, 184, 166, 0.08);
+}
+
+.flash-phone-hero-card {
+  overflow: hidden;
+}
+
+.flash-phone-hero-copy,
+.flash-phone-platform-copy,
+.flash-phone-roadmap-item p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.flash-phone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.flash-phone-platform-card {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.flash-phone-platform-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flash-phone-platform-head h4,
+.flash-phone-roadmap-item h5 {
+  margin: 4px 0 0;
+  color: var(--text);
+}
+
+.flash-phone-count {
+  flex: 0 0 auto;
+  border: 1px solid rgba(20, 184, 166, 0.22);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.flash-phone-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: auto;
+}
+
+.flash-phone-chip-row span {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.flash-phone-roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.flash-phone-roadmap-item {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.035);
+}
+
+body.is-dark-mode .flash-phone-chip-row span,
+body.is-dark-mode .flash-phone-roadmap-item {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.flash-phone-control-card {
+  display: grid;
+  gap: 14px;
+}
+
+.flash-phone-head {
+  align-items: center;
+}
+
+.flash-phone-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.flash-phone-status.is-connected,
+.flash-phone-status.is-running {
+  border-color: rgba(20, 184, 166, 0.28);
+  background: rgba(20, 184, 166, 0.1);
+  color: #0f766e;
+}
+
+.flash-phone-status.is-waiting {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+}
+
+.flash-phone-status.is-failed,
+.flash-phone-status.is-offline {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+}
+
+.flash-phone-control-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.flash-phone-control-grid.is-wide {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.flash-phone-control-grid label,
+.flash-phone-qfil-port-row label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.flash-phone-control-grid select,
+.flash-phone-qfil-port-row select {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 10px 11px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+  font: inherit;
+}
+
+.flash-phone-subtool-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flash-phone-subtool-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.flash-phone-subtool-button .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.flash-phone-subtool-button.is-active {
+  border-color: rgba(20, 184, 166, 0.34);
+  background: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
+}
+
+.flash-phone-subtool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.flash-phone-qfil-port-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 340px);
+  gap: 10px;
+}
+
+.flash-phone-qfil-card,
+.flash-phone-qfil-body {
+  display: grid;
+  gap: 12px;
+}
+
+.flash-phone-actions,
+.flash-phone-platform-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flash-phone-work-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flash-phone-work-tab {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 8px 11px;
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.flash-phone-work-tab.is-active {
+  border-color: rgba(20, 184, 166, 0.34);
+  background: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
+}
+
+.flash-phone-actions .ghost {
+  min-width: 110px;
+}
+
+.flash-phone-actions .ghost.is-start:not(:disabled) {
+  border-color: rgba(20, 184, 166, 0.34);
+  background: rgba(20, 184, 166, 0.1);
+  color: #0f766e;
+}
+
+.flash-phone-actions .ghost.is-stop:not(:disabled) {
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+}
+
+.flash-phone-actions .ghost:disabled,
+.flash-phone-control-grid select:disabled,
+.flash-phone-detail-grid select:disabled,
+.flash-phone-detail-grid input:disabled,
+.flash-phone-work-tab:disabled,
+.flash-phone-platform-pill:disabled,
+.flash-phone-action-option.is-disabled,
+.flash-phone-file-control.is-disabled,
+.flash-phone-check.is-disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+  opacity: 0.52;
+}
+
+.flash-phone-action-option.is-disabled,
+.flash-phone-check.is-disabled {
+  pointer-events: none;
+}
+
+.flash-phone-progress {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.flash-phone-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #14b8a6, #22c55e);
+  transition: width 180ms ease;
+}
+
+.flash-phone-platform-pill {
+  min-width: 58px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.flash-phone-platform-pill.is-active {
+  border-color: rgba(20, 184, 166, 0.34);
+  background: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
+}
+
+.flash-phone-work-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+  gap: 12px;
+}
+
+.flash-phone-action-card,
+.flash-phone-detail-card,
+.flash-phone-run-card {
+  display: grid;
+  gap: 12px;
+}
+
+.flash-phone-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
+  gap: 8px;
+}
+
+.flash-phone-action-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.flash-phone-action-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #14b8a6;
+}
+
+.flash-phone-action-option.is-selected {
+  border-color: rgba(20, 184, 166, 0.3);
+  background: rgba(20, 184, 166, 0.1);
+  color: var(--text);
+}
+
+.flash-phone-detail-grid,
+.flash-phone-file-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.flash-phone-detail-grid label,
+.flash-phone-file-field {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.flash-phone-detail-grid select,
+.flash-phone-detail-grid input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 10px 11px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+  font: inherit;
+}
+
+.flash-phone-file-control {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.flash-phone-file-name {
+  overflow: hidden;
+  width: 100%;
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  padding: 10px 11px;
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flash-phone-file-name.has-file {
+  border-style: solid;
+  border-color: rgba(20, 184, 166, 0.28);
+  color: var(--text);
+}
+
+.flash-phone-file-control input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.flash-phone-flag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flash-phone-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.flash-phone-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #14b8a6;
+}
+
+.flash-phone-qc-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.035);
+}
+
+.flash-phone-qc-menubar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.flash-phone-qc-menubar span {
+  border-radius: 5px;
+  padding: 6px 10px;
+  background: #0f6fae;
+  color: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.flash-phone-qc-head,
+.flash-phone-qc-loaded-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.flash-phone-qc-head strong,
+.flash-phone-qc-loaded-head strong {
+  color: var(--deep);
+}
+
+.flash-phone-qc-head span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.flash-phone-qc-head .is-port-empty {
+  color: #b45309;
+}
+
+.flash-phone-qc-head .is-port-ready {
+  color: #0f766e;
+}
+
+.flash-phone-qc-actions,
+.flash-phone-qc-tools,
+.flash-phone-qc-menu,
+.flash-phone-qc-package,
+.flash-phone-qc-partitions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flash-phone-qc-actions .ghost,
+.flash-phone-qc-menu .ghost {
+  min-width: 112px;
+  min-height: 36px;
+}
+
+.flash-phone-qc-build,
+.flash-phone-qc-section {
+  display: grid;
+  gap: 8px;
+}
+
+.flash-phone-qc-build > strong,
+.flash-phone-qc-section > strong {
+  color: var(--deep);
+  font-size: 0.84rem;
+}
+
+.flash-phone-qc-build-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flash-phone-qc-build-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.flash-phone-qc-build-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #0f766e;
+}
+
+.flash-phone-qc-build-option.is-selected {
+  border-color: rgba(20, 184, 166, 0.28);
+  background: rgba(20, 184, 166, 0.08);
+  color: var(--text);
+}
+
+.flash-phone-qc-path {
+  display: grid;
+  grid-template-columns: minmax(92px, 130px) minmax(0, 1fr) minmax(116px, 140px);
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.flash-phone-qc-path-value {
+  overflow: hidden;
+  min-height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 5px;
+  padding: 8px 10px;
+  background:
+    repeating-linear-gradient(-45deg, rgba(148, 163, 184, 0.11) 0 8px, rgba(255, 255, 255, 0.7) 8px 16px);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flash-phone-qc-path-value.has-file {
+  border-color: rgba(20, 184, 166, 0.28);
+  background: rgba(20, 184, 166, 0.07);
+}
+
+.flash-phone-qc-browse {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border-radius: 5px;
+  padding: 8px 12px;
+  background: #3f4650;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.flash-phone-qc-browse input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.flash-phone-qc-browse.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.flash-phone-qc-meta-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.flash-phone-qc-meta-row label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.flash-phone-qc-meta-row select {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 5px;
+  padding: 8px 9px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+  font: inherit;
+}
+
+.flash-phone-qc-rawpatch {
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+}
+
+.flash-phone-qc-rawpatch-head,
+.flash-phone-qc-rawpatch-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.flash-phone-qc-rawpatch-head {
+  background: #3f4650;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.flash-phone-qc-rawpatch-head span,
+.flash-phone-qc-rawpatch-row span {
+  overflow: hidden;
+  padding: 8px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flash-phone-qc-rawpatch-row {
+  min-height: 36px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.flash-phone-qc-hint {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.flash-phone-qc-tool,
+.flash-phone-qc-package span,
+.flash-phone-qc-partitions span {
+  display: inline-grid;
+  gap: 3px;
+  min-width: 116px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.flash-phone-qc-tool strong,
+.flash-phone-qc-package strong,
+.flash-phone-qc-partitions strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.flash-phone-qc-tool.is-found {
+  border-color: rgba(20, 184, 166, 0.24);
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.flash-phone-qc-tool.is-found strong {
+  color: #0f766e;
+}
+
+.flash-phone-qc-tool.is-missing {
+  border-color: rgba(245, 158, 11, 0.24);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.flash-phone-qc-tool.is-missing strong {
+  color: #b45309;
+}
+
+.flash-phone-qc-select {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.flash-phone-qc-select select {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 10px 11px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+  font: inherit;
+}
+
+.flash-phone-qc-loaded {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  padding-top: 10px;
+}
+
+.flash-phone-qc-missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.flash-phone-qc-missing span {
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #b45309;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.flash-phone-qc-partitions em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 0.72rem;
+}
+
+.flash-phone-log-card {
+  display: grid;
+  gap: 10px;
+}
+
+.flash-phone-log {
+  min-height: 150px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--muted);
+  font: 0.82rem/1.55 Consolas, "Liberation Mono", monospace;
+}
+
+body.is-dark-mode .flash-phone-status,
+body.is-dark-mode .flash-phone-control-grid select,
+body.is-dark-mode .flash-phone-qfil-port-row select,
+body.is-dark-mode .flash-phone-detail-grid select,
+body.is-dark-mode .flash-phone-detail-grid input,
+body.is-dark-mode .flash-phone-work-tab,
+body.is-dark-mode .flash-phone-subtool-button,
+body.is-dark-mode .flash-phone-action-option,
+body.is-dark-mode .flash-phone-platform-pill,
+body.is-dark-mode .flash-phone-file-name,
+body.is-dark-mode .flash-phone-check,
+body.is-dark-mode .flash-phone-qc-panel,
+body.is-dark-mode .flash-phone-qc-select select,
+body.is-dark-mode .flash-phone-qc-build-option,
+body.is-dark-mode .flash-phone-qc-path-value,
+body.is-dark-mode .flash-phone-qc-meta-row select,
+body.is-dark-mode .flash-phone-qc-rawpatch-row,
+body.is-dark-mode .flash-phone-qc-tool,
+body.is-dark-mode .flash-phone-qc-package span,
+body.is-dark-mode .flash-phone-qc-partitions span,
+body.is-dark-mode .flash-phone-log {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.28);
+}
+
+body.is-dark-mode .flash-phone-status.is-connected,
+body.is-dark-mode .flash-phone-status.is-running,
+body.is-dark-mode .flash-phone-work-tab.is-active,
+body.is-dark-mode .flash-phone-subtool-button.is-active,
+body.is-dark-mode .flash-phone-action-option.is-selected,
+body.is-dark-mode .flash-phone-qc-build-option.is-selected,
+body.is-dark-mode .flash-phone-platform-pill.is-active {
+  border-color: rgba(45, 212, 191, 0.25);
+  background: rgba(20, 184, 166, 0.1);
+  color: #5eead4;
+}
+
+body.is-dark-mode .flash-phone-status.is-waiting {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+}
+
+body.is-dark-mode .flash-phone-actions .ghost.is-start:not(:disabled) {
+  border-color: rgba(45, 212, 191, 0.25);
+  background: rgba(20, 184, 166, 0.1);
+  color: #5eead4;
+}
+
+body.is-dark-mode .flash-phone-actions .ghost.is-stop:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.32);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+body.is-dark-mode .flash-phone-qc-head strong,
+body.is-dark-mode .flash-phone-qc-loaded-head strong,
+body.is-dark-mode .flash-phone-qc-build > strong,
+body.is-dark-mode .flash-phone-qc-section > strong,
+body.is-dark-mode .flash-phone-qc-tool strong,
+body.is-dark-mode .flash-phone-qc-package strong,
+body.is-dark-mode .flash-phone-qc-partitions strong {
+  color: #e4f0fb;
+}
+
+@media (max-width: 1120px) {
+  .flash-phone-control-grid.is-wide,
+  .flash-phone-work-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .flash-phone-control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .flash-phone-detail-grid,
+  .flash-phone-file-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .flash-phone-qc-path,
+  .flash-phone-qc-meta-row {
+    grid-template-columns: 1fr;
+  }
+
+  .flash-phone-qc-browse {
+    width: 100%;
+  }
+
+  .flash-phone-actions .ghost {
+    flex: 1 1 130px;
+  }
+
+  .flash-phone-platform-pill {
+    flex: 1 1 72px;
+  }
+}
+
+.logic-analyzer-control-card,
+.logic-analyzer-display-card {
+  gap: 14px;
+}
+
+.logic-analyzer-actions,
+.logic-analyzer-readouts,
+.logic-analyzer-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.logic-analyzer-actions {
+  justify-content: flex-end;
+}
+
+.logic-analyzer-form-grid {
+  grid-template-columns: minmax(180px, 1.2fr) minmax(170px, 1fr) repeat(3, minmax(130px, 0.7fr));
+  align-items: end;
+}
+
+.logic-analyzer-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-height: 42px;
+}
+
+.logic-analyzer-mode-button {
+  width: 100%;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid rgba(39, 52, 72, 0.12);
+  background: rgba(248, 250, 252, 0.78);
+  color: var(--text);
+}
+
+.logic-analyzer-mode-button.is-active {
+  border-color: rgba(20, 184, 166, 0.32);
+  background: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
+}
+
+.logic-analyzer-checkline {
+  display: grid;
+  gap: 8px;
+}
+
+.logic-analyzer-checkline > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(39, 52, 72, 0.12);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.78);
+}
+
+.logic-analyzer-canvas-shell {
+  width: 100%;
+  min-height: 260px;
+  aspect-ratio: 20 / 7;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: #08111f;
+}
+
+.logic-analyzer-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.logic-analyzer-table-wrap {
+  overflow: auto;
+  max-height: 360px;
+  border: 1px solid rgba(39, 52, 72, 0.10);
+  border-radius: 8px;
+}
+
+.logic-analyzer-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.logic-analyzer-table th,
+.logic-analyzer-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(39, 52, 72, 0.08);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.logic-analyzer-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(248, 250, 252, 0.96);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.logic-analyzer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  color: var(--muted);
+  border: 1px dashed rgba(39, 52, 72, 0.16);
+  border-radius: 8px;
+}
+
+body.is-dark-mode .logic-analyzer-mode-button,
+body.is-dark-mode .logic-analyzer-checkline > span,
+body.is-dark-mode .logic-analyzer-table-wrap,
+body.is-dark-mode .logic-analyzer-empty {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.28);
+}
+
+body.is-dark-mode .logic-analyzer-mode-button.is-active {
+  border-color: rgba(45, 212, 191, 0.3);
+  background: rgba(20, 184, 166, 0.12);
+  color: #5eead4;
+}
+
+body.is-dark-mode .logic-analyzer-table th {
+  background: rgba(15, 23, 42, 0.96);
+}
+
+body.is-dark-mode .logic-analyzer-table th,
+body.is-dark-mode .logic-analyzer-table td {
+  border-bottom-color: rgba(148, 163, 184, 0.12);
+}
+
+@media (max-width: 1120px) {
+  .logic-analyzer-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .logic-analyzer-actions {
+    width: 100%;
+  }
+
+  .logic-analyzer-actions button {
+    flex: 1 1 140px;
+  }
+
+  .logic-analyzer-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .logic-analyzer-canvas-shell {
+    min-height: 320px;
+    aspect-ratio: 1 / 1;
+  }
 }

@@ -65,7 +65,10 @@ const dashboardJoinButton = document.getElementById("dashboardJoinButton");
 const dashboardHomeWorkbench = document.getElementById("dashboardHomeWorkbench");
 const productWorkbench = document.getElementById("productWorkbench");
 const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
+const flashPhoneWorkbench = document.getElementById("flashPhoneWorkbench");
 const oscilloscopeWorkbench = document.getElementById("oscilloscopeWorkbench");
+const logicAnalyzerWorkbench = document.getElementById("logicAnalyzerWorkbench");
+const firmwareUpdateWorkbench = document.getElementById("firmwareUpdateWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
 const universalDmiWorkbench = document.getElementById("universalDmiWorkbench");
@@ -180,7 +183,10 @@ const navProduct = document.getElementById("navProduct");
 const navTools = document.getElementById("navTools");
 const navSettings = document.getElementById("navSettings");
 const toolSpiFlash = document.getElementById("toolSpiFlash");
+const toolFlashPhone = document.getElementById("toolFlashPhone");
 const toolOscilloscope = document.getElementById("toolOscilloscope");
+const toolLogicAnalyzer = document.getElementById("toolLogicAnalyzer");
+const toolFirmwareUpdate = document.getElementById("toolFirmwareUpdate");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
 const toolUniversalDmi = document.getElementById("toolUniversalDmi");
@@ -222,11 +228,44 @@ const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   refresh() {}
 };
 
+const flashPhonePage = window.teknisiHubPages?.flashPhone || {
+  viewKey: "tool_flash_phone",
+  eyebrow: "Android Tools",
+  title: "Android Tools",
+  subtitle: "Workbench multi-platform untuk flash phone.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
 const oscilloscopePage = window.teknisiHubPages?.oscilloscope || {
   viewKey: "tool_oscilloscope",
   eyebrow: "Oscilloscope",
   title: "TEKNISIHUB_FLASH_OSC",
   subtitle: "Capture analog single-channel dari aplikasi lokal.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const logicAnalyzerPage = window.teknisiHubPages?.logicAnalyzer || {
+  viewKey: "tool_logic_analyzer",
+  eyebrow: "Logic Analyzer",
+  title: "Logic Analyzer",
+  subtitle: "Capture digital I2C/SPI dari TEKNISIHUB_FLASH_OSC.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const firmwareUpdatePage = window.teknisiHubPages?.firmwareUpdate || {
+  viewKey: "tool_firmware_update",
+  eyebrow: "Firmware",
+  title: "Update Firmware TeknisiHub",
+  subtitle: "Update firmware TEKNISIHUB_FLASH_OSC dari satu halaman khusus.",
   items: [],
   mount() {},
   setVisible() {},
@@ -577,8 +616,23 @@ spiFlashPage.mount?.({
   }
 });
 
+flashPhonePage.mount?.({
+  container: flashPhoneWorkbench,
+  notify: (message, tone) => setNotice(message, tone)
+});
+
 oscilloscopePage.mount?.({
   container: oscilloscopeWorkbench,
+  notify: (message, tone) => setNotice(message, tone)
+});
+
+logicAnalyzerPage.mount?.({
+  container: logicAnalyzerWorkbench,
+  notify: (message, tone) => setNotice(message, tone)
+});
+
+firmwareUpdatePage.mount?.({
+  container: firmwareUpdateWorkbench,
   notify: (message, tone) => setNotice(message, tone)
 });
 
@@ -737,10 +791,28 @@ const toolViewMap = {
     subtitle: spiFlashPage.subtitle,
     channelLink: null
   },
+  [flashPhonePage.viewKey]: {
+    eyebrow: flashPhonePage.eyebrow,
+    title: flashPhonePage.title,
+    subtitle: flashPhonePage.subtitle,
+    channelLink: null
+  },
   [oscilloscopePage.viewKey]: {
     eyebrow: oscilloscopePage.eyebrow,
     title: oscilloscopePage.title,
     subtitle: oscilloscopePage.subtitle,
+    channelLink: null
+  },
+  [logicAnalyzerPage.viewKey]: {
+    eyebrow: logicAnalyzerPage.eyebrow,
+    title: logicAnalyzerPage.title,
+    subtitle: logicAnalyzerPage.subtitle,
+    channelLink: null
+  },
+  [firmwareUpdatePage.viewKey]: {
+    eyebrow: firmwareUpdatePage.eyebrow,
+    title: firmwareUpdatePage.title,
+    subtitle: firmwareUpdatePage.subtitle,
     channelLink: null
   },
   tool_me_analyzer: {
@@ -839,7 +911,10 @@ const localWorkbenchViewKeys = new Set([
   dashboardHomePage.viewKey,
   productPage.viewKey,
   spiFlashPage.viewKey,
+  flashPhonePage.viewKey,
   oscilloscopePage.viewKey,
+  logicAnalyzerPage.viewKey,
+  firmwareUpdatePage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
   universalDmiPage.viewKey,
@@ -866,7 +941,10 @@ const documentTitleLabels = {
   ProblemSolving: "Problem Solving",
   Datasheets: "Datasheets",
   [spiFlashPage.viewKey]: "SPI Flash",
+  [flashPhonePage.viewKey]: "Android Tools",
   [oscilloscopePage.viewKey]: "Oscilloscope",
+  [logicAnalyzerPage.viewKey]: "Logic Analyzer",
+  [firmwareUpdatePage.viewKey]: "Update Firmware TeknisiHub",
   [meAnalyzerPage.viewKey]: "ME Analyzer",
   [uefiToolPage.viewKey]: "UEFI Tools",
   [universalDmiPage.viewKey]: "Universal DMI",
@@ -893,7 +971,10 @@ const viewHashMap = {
   ProblemSolving: "ProblemSolving",
   Datasheets: "Datasheets",
   [spiFlashPage.viewKey]: "SpiFlash",
+  [flashPhonePage.viewKey]: "AndroidTools",
   [oscilloscopePage.viewKey]: "Oscilloscope",
+  [logicAnalyzerPage.viewKey]: "LogicAnalyzer",
+  [firmwareUpdatePage.viewKey]: "UpdateFirmwareTeknisiHub",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
   [universalDmiPage.viewKey]: "UniversalDmi",
@@ -923,8 +1004,17 @@ const hashRouteMap = {
   datasheets: "Datasheets",
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
+  androidtools: flashPhonePage.viewKey,
+  toolandroidtools: flashPhonePage.viewKey,
+  flashphone: flashPhonePage.viewKey,
+  toolflashphone: flashPhonePage.viewKey,
   oscilloscope: oscilloscopePage.viewKey,
   tooloscilloscope: oscilloscopePage.viewKey,
+  logicanalyzer: logicAnalyzerPage.viewKey,
+  toollogicanalyzer: logicAnalyzerPage.viewKey,
+  updatefirmwareteknisihub: firmwareUpdatePage.viewKey,
+  firmwareupdate: firmwareUpdatePage.viewKey,
+  toolfirmwareupdate: firmwareUpdatePage.viewKey,
   meanalyzer: meAnalyzerPage.viewKey,
   toolmeanalyzer: meAnalyzerPage.viewKey,
   uefitools: uefiToolPage.viewKey,
@@ -1031,7 +1121,10 @@ function getViewButton(viewKey) {
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
     [spiFlashPage.viewKey]: toolSpiFlash,
+    [flashPhonePage.viewKey]: toolFlashPhone,
     [oscilloscopePage.viewKey]: toolOscilloscope,
+    [logicAnalyzerPage.viewKey]: toolLogicAnalyzer,
+    [firmwareUpdatePage.viewKey]: toolFirmwareUpdate,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
     [universalDmiPage.viewKey]: toolUniversalDmi,
@@ -1784,7 +1877,10 @@ function showWorkbenchOnly(viewKey) {
   dashboardHomePage.setVisible?.(viewKey === dashboardHomePage.viewKey);
   productPage.setVisible?.(viewKey === productPage.viewKey);
   spiFlashPage.setVisible?.(viewKey === spiFlashPage.viewKey);
+  flashPhonePage.setVisible?.(viewKey === flashPhonePage.viewKey);
   oscilloscopePage.setVisible?.(viewKey === oscilloscopePage.viewKey);
+  logicAnalyzerPage.setVisible?.(viewKey === logicAnalyzerPage.viewKey);
+  firmwareUpdatePage.setVisible?.(viewKey === firmwareUpdatePage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
   universalDmiPage.setVisible?.(viewKey === universalDmiPage.viewKey);
@@ -1813,8 +1909,20 @@ function showWorkbenchOnly(viewKey) {
     spiFlashPage.refresh?.();
   }
 
+  if (viewKey === flashPhonePage.viewKey) {
+    flashPhonePage.refresh?.();
+  }
+
   if (viewKey === oscilloscopePage.viewKey) {
     oscilloscopePage.refresh?.();
+  }
+
+  if (viewKey === logicAnalyzerPage.viewKey) {
+    logicAnalyzerPage.refresh?.();
+  }
+
+  if (viewKey === firmwareUpdatePage.viewKey) {
+    firmwareUpdatePage.refresh?.();
   }
 
   if (viewKey === meAnalyzerPage.viewKey) {
@@ -1882,7 +1990,10 @@ function hideWorkbench() {
   dashboardHomePage.setVisible?.(false);
   productPage.setVisible?.(false);
   spiFlashPage.setVisible?.(false);
+  flashPhonePage.setVisible?.(false);
   oscilloscopePage.setVisible?.(false);
+  logicAnalyzerPage.setVisible?.(false);
+  firmwareUpdatePage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
   universalDmiPage.setVisible?.(false);
@@ -1980,7 +2091,10 @@ function setActiveNav(targetKey) {
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
     tool_spi_flash: toolSpiFlash,
+    [flashPhonePage.viewKey]: toolFlashPhone,
     [oscilloscopePage.viewKey]: toolOscilloscope,
+    [logicAnalyzerPage.viewKey]: toolLogicAnalyzer,
+    [firmwareUpdatePage.viewKey]: toolFirmwareUpdate,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
     [universalDmiPage.viewKey]: toolUniversalDmi,
@@ -2276,6 +2390,10 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? `${productPage.items?.length || 0} PRD`
         : viewKey === spiFlashPage.viewKey
         ? "SPI UI"
+        : viewKey === logicAnalyzerPage.viewKey
+        ? "LA UI"
+        : viewKey === firmwareUpdatePage.viewKey
+        ? "FW UI"
         : viewKey === meAnalyzerPage.viewKey
         ? "MEA UI"
         : viewKey === uefiToolPage.viewKey
@@ -9318,6 +9436,17 @@ toolSpiFlash?.addEventListener("click", (event) => {
   filterCatalogItems();
 });
 
+toolFlashPhone?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(flashPhonePage.viewKey);
+  currentCatalogView = flashPhonePage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
 toolOscilloscope?.addEventListener("click", (event) => {
   if (!shouldHandleSidebarNavigationClick(event)) {
     return;
@@ -9325,6 +9454,28 @@ toolOscilloscope?.addEventListener("click", (event) => {
 
   updateViewHash(oscilloscopePage.viewKey);
   currentCatalogView = oscilloscopePage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolLogicAnalyzer?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(logicAnalyzerPage.viewKey);
+  currentCatalogView = logicAnalyzerPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolFirmwareUpdate?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(firmwareUpdatePage.viewKey);
+  currentCatalogView = firmwareUpdatePage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });

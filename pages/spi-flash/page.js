@@ -34,7 +34,6 @@
   const disabledDeviceSelections = new Set();
   let latestSpiFlashFailureSignature = "";
   let latestSpiFlashFailureTimestamp = 0;
-  let firmwareUpdateCheckToken = 0;
 
   function isTeknisiHubFlasherDevice(deviceType) {
     const normalizedDevice = String(deviceType || "").trim().toUpperCase();
@@ -1096,76 +1095,6 @@
     pageNotifier(message, tone);
   }
 
-  function chooseFirmwareUpdateRoute(defaultRoute = "usb") {
-    const normalizedDefault = defaultRoute === "wifi" ? "wifi" : "usb";
-    const existingModal = document.querySelector(".spi-firmware-route-modal");
-    if (existingModal) {
-      existingModal.remove();
-    }
-
-    return new Promise((resolve) => {
-      const modal = document.createElement("div");
-      modal.className = "spi-firmware-route-modal";
-      modal.innerHTML = `
-        <div class="spi-firmware-route-dialog" role="dialog" aria-modal="true" aria-labelledby="spiFirmwareRouteTitle">
-          <button type="button" class="spi-firmware-route-close" data-route-cancel="1" aria-label="Tutup">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-          <div class="spi-firmware-route-head">
-            <span class="material-symbols-outlined">system_update</span>
-            <div>
-              <p class="label">Update Firmware</p>
-              <h4 id="spiFirmwareRouteTitle">Pilih Jalur Update</h4>
-            </div>
-          </div>
-          <p class="spi-note">File dicek dulu. Jika download, validasi, atau koneksi gagal, update tidak dijalankan.</p>
-          <div class="spi-firmware-route-actions">
-            <button type="button" class="is-hero-action${normalizedDefault === "usb" ? " is-default" : ""}" data-route="usb">
-              <span class="material-symbols-outlined">usb</span>
-              <span>USB</span>
-            </button>
-            <button type="button" class="is-hero-action${normalizedDefault === "wifi" ? " is-default" : ""}" data-route="wifi">
-              <span class="material-symbols-outlined">wifi</span>
-              <span>WIFI</span>
-            </button>
-          </div>
-        </div>
-      `;
-
-      let settled = false;
-      const close = (value) => {
-        if (settled) {
-          return;
-        }
-
-        settled = true;
-        document.removeEventListener("keydown", handleKeyDown);
-        modal.remove();
-        resolve(value);
-      };
-      const handleKeyDown = (event) => {
-        if (event.key === "Escape") {
-          close("");
-        }
-      };
-
-      modal.addEventListener("click", (event) => {
-        if (event.target === modal || event.target.closest("[data-route-cancel]")) {
-          close("");
-          return;
-        }
-
-        const routeButton = event.target.closest("[data-route]");
-        if (routeButton) {
-          close(routeButton.getAttribute("data-route") === "wifi" ? "wifi" : "usb");
-        }
-      });
-      document.addEventListener("keydown", handleKeyDown);
-      document.body.append(modal);
-      modal.querySelector(`[data-route="${normalizedDefault}"]`)?.focus();
-    });
-  }
-
   function openDatabaseEditor() {
     const editorUrl = new URL("pages/spi-flash/database-editor.html", window.location.href);
     const nextWindow = window.open(editorUrl.toString(), "_blank", "noopener");
@@ -2036,54 +1965,6 @@
     `;
   }
 
-  function createFirmwareUpdateMarkup(state, disableAttr) {
-    const currentVersion = String(state?.firmwareVersion || "").trim();
-    const latestVersion = String(state?.firmwareLatestVersion || "").trim();
-    const updateAvailable = Boolean(state?.firmwareUpdateAvailable);
-    const currentLabel = currentVersion ? `v${currentVersion}` : "Belum terbaca";
-    const latestLabel = latestVersion ? `v${latestVersion}` : "Belum dicek";
-    const statusLabel = state?.firmwareUpdateMessage || (updateAvailable ? "Update tersedia." : "Cek update untuk membandingkan versi.");
-    const cloudUpdateDisableAttr = disableAttr || (!updateAvailable ? " disabled" : "");
-    return `
-      <section class="spi-card spi-firmware-card">
-        <div class="spi-card-head">
-          <div>
-            <p class="label">Firmware</p>
-            <h4>Update Firmware</h4>
-          </div>
-          <span class="spi-mini-badge">${escapeHtml(currentLabel)}</span>
-        </div>
-        <div class="spi-firmware-status-grid">
-          <div>
-            <small>Versi Device</small>
-            <strong>${escapeHtml(currentLabel)}</strong>
-          </div>
-          <div>
-            <small>Versi Terbaru</small>
-            <strong>${escapeHtml(latestLabel)}</strong>
-          </div>
-          <div class="${updateAvailable ? "has-update" : ""}">
-            <small>Status</small>
-            <strong>${escapeHtml(statusLabel)}</strong>
-          </div>
-        </div>
-        <div class="spi-firmware-action-row">
-          <button type="button" class="ghost" id="spiFirmwareCheckButton"${disableAttr}>
-            <span class="material-symbols-outlined">sync</span>
-            <span>Cek Update</span>
-          </button>
-          <button type="button" class="is-hero-action spi-firmware-update-button" id="spiFirmwareCloudUpdateButton"${cloudUpdateDisableAttr}>
-            <span class="material-symbols-outlined">system_update_alt</span>
-            <span class="spi-action-copy">
-              <strong>${updateAvailable ? "Update Firmware" : "Sudah Terbaru"}</strong>
-              <small>${latestVersion ? escapeHtml(latestLabel) : "Cek versi"}</small>
-            </span>
-          </button>
-        </div>
-      </section>
-    `;
-  }
-
   function getDevicePickerState(state, busy, deviceBusy, isDeviceConnected, deviceConnectionState = null) {
     const connectionText = String(state.connectionState || "").trim();
     if (!state.selectedDevice) {
@@ -2326,7 +2207,6 @@
           ${createHexPreviewMarkup(state, hexView)}
         </section>
 
-        ${isFlashOscDevice(state.selectedDevice) ? createFirmwareUpdateMarkup(state, disableAttr) : ""}
       </div>
       </div>
     `;
@@ -2425,45 +2305,6 @@
         state.chunkSizeBytes = previousChunkSizeBytes;
       }
       syncHexViewFromState(options);
-    }
-
-    function applyFirmwareUpdateStatus(payload) {
-      state.firmwareUpdateAvailable = Boolean(payload?.updateAvailable);
-      state.firmwareUpdateMessage = sanitizePublicMessage(payload?.message || "");
-      state.firmwareLatestVersion = String(payload?.latestVersion || "").trim();
-      state.firmwareUpdateFileName = String(payload?.fileName || "").trim();
-      state.firmwareUpdateFileSize = String(payload?.fileSize || "").trim();
-      state.firmwareUpdateCheckedAtUtc = payload?.checkedAtUtc || "";
-      if (payload?.currentVersion) {
-        state.firmwareVersion = String(payload.currentVersion || "").trim();
-      }
-    }
-
-    async function refreshFirmwareUpdateStatus(options = {}) {
-      if (!state.serviceAvailable || !isFlashOscDevice(state.selectedDevice)) {
-        return;
-      }
-
-      const checkToken = ++firmwareUpdateCheckToken;
-      try {
-        const payload = await fetchJson("/spi-flash/flash-osc/firmware-update/latest");
-        if (checkToken !== firmwareUpdateCheckToken) {
-          return;
-        }
-
-        applyFirmwareUpdateStatus(payload);
-        if (options.notifyIfAvailable && state.firmwareUpdateAvailable) {
-          notifyUser(state.firmwareUpdateMessage || "Update firmware tersedia.", "info");
-        }
-        render();
-      } catch (error) {
-        if (checkToken !== firmwareUpdateCheckToken) {
-          return;
-        }
-
-        state.firmwareUpdateMessage = sanitizePublicMessage(error?.message || "Gagal mengecek update firmware.");
-        render();
-      }
     }
 
     function updateHexPreviewDom() {
@@ -2889,7 +2730,6 @@
           message: sanitizePublicMessage(connectedSession.connectionState || `${state.profile?.transport || "Device"} terhubung.`)
         };
         render();
-        void refreshFirmwareUpdateStatus({ notifyIfAvailable: true });
 
         void fetchDriverInfo(normalizedDevice)
           .then(() => {
@@ -3020,52 +2860,6 @@
           applySessionState(session, { resetScroll: true });
           render();
         }));
-      }
-
-      const firmwareCheckButton = mountedContainer.querySelector("#spiFirmwareCheckButton");
-      if (firmwareCheckButton) {
-        firmwareCheckButton.addEventListener("click", () => withBusy(async () => {
-          await refreshFirmwareUpdateStatus({ notifyIfAvailable: true });
-          if (!state.firmwareUpdateAvailable && state.firmwareUpdateMessage) {
-            notifyUser(state.firmwareUpdateMessage, "info");
-          }
-        }, {
-          activeOperation: "Cek Update Firmware"
-        }));
-      }
-
-      const firmwareCloudUpdateButton = mountedContainer.querySelector("#spiFirmwareCloudUpdateButton");
-      if (firmwareCloudUpdateButton) {
-        firmwareCloudUpdateButton.addEventListener("click", async () => {
-          if (!state.firmwareUpdateAvailable) {
-            notifyUser(state.firmwareUpdateMessage || "Firmware device sudah terbaru.", "info");
-            return;
-          }
-
-          const selectedRoute = String(state?.selectedDevice || "").toUpperCase().includes("WIFI") ? "wifi" : "usb";
-          const route = await chooseFirmwareUpdateRoute(selectedRoute);
-          if (!route) {
-            return;
-          }
-
-          const routeLabel = route === "wifi" ? "WIFI" : "USB";
-          void withBusy(async () => {
-            const response = await fetchJson("/spi-flash/flash-osc/firmware-update/latest", {
-              method: "POST",
-              body: JSON.stringify({ route })
-            });
-            notifyUser(
-              sanitizePublicMessage(response?.message || "Update firmware berhasil dikirim."),
-              response?.success === false ? "warning" : "success"
-            );
-
-            const session = await fetchJson("/spi-flash/session");
-            applySessionState(session, { resetScroll: true });
-            render();
-          }, {
-            activeOperation: `Update Firmware ${routeLabel}`
-          });
-        });
       }
 
       mountedContainer.querySelectorAll("[data-spi-action]").forEach((button) => {
@@ -3287,9 +3081,6 @@
         reportTask = typeof options.reportTask === "function" ? options.reportTask : () => {};
         await loadSessionFromService({ forceNoDeviceSelection: !state.selectedDevice });
         render();
-        if (state.selectedDevice && state.firmwareVersion) {
-          void refreshFirmwareUpdateStatus();
-        }
       },
       setVisible(visible) {
         if (!mountedContainer) {
@@ -3301,9 +3092,6 @@
       async refresh() {
         await loadSessionFromService();
         render();
-        if (state.selectedDevice && state.firmwareVersion) {
-          void refreshFirmwareUpdateStatus();
-        }
       },
       clearTaskHistoryLocally() {
         taskHistoryClearedAtMs = Date.now();
