@@ -12,6 +12,11 @@
   const rolePriority = {
     owner: 3,
     admin: 2,
+    pro: 1.3,
+    vip: 1.3,
+    basic: 1.2,
+    biasa: 1.2,
+    free: 1,
     member: 1
   };
 
@@ -91,11 +96,32 @@
       return 100;
     }
 
+    if (normalizedRole === "pro" || normalizedRole === "vip") {
+      return 10;
+    }
+
+    if (normalizedRole === "basic" || normalizedRole === "biasa") {
+      return 5;
+    }
+
     return 5;
   }
 
   function getRoleLabel(value) {
     const role = String(value || "").trim();
+    const normalizedRole = role.toLowerCase();
+    if (normalizedRole === "member" || normalizedRole === "free") {
+      return "Free";
+    }
+
+    if (normalizedRole === "pro" || normalizedRole === "vip") {
+      return "Pro";
+    }
+
+    if (normalizedRole === "basic" || normalizedRole === "biasa") {
+      return "Basic";
+    }
+
     return role || "-";
   }
 
@@ -107,7 +133,7 @@
         const leftScore = rolePriority[String(left).toLowerCase()] || 0;
         const rightScore = rolePriority[String(right).toLowerCase()] || 0;
         return rightScore - leftScore;
-      })[0] || getRoleLabel(fallbackRole || "Member");
+      })[0] || getRoleLabel(fallbackRole || "Free");
   }
 
   function isAccessActive(roleValue) {
@@ -244,10 +270,10 @@
       displayName: "TeknisiHub User",
       identity: "-",
       provider: "Telegram",
-      role: "Member",
+      role: "Free",
       lastLoginUtc: "",
       totalLocalMembers: 0,
-      quota: resolveQuota(null, "Member"),
+      quota: resolveQuota(null, "Free"),
       cacheStats: {},
       cacheStatsLoaded: false,
       updateLabel: { tone: "neutral", label: "Belum dicek", value: "-" },
@@ -446,8 +472,8 @@
       {
         target: "tool_spi_flash",
         icon: "developer_board",
-        label: "SPI Flash",
-        meta: "Read / write",
+        label: "BIOS/EC Programmer",
+        meta: "BIOS / EC",
         badge: "Tool",
         active: true
       },

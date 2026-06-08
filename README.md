@@ -14,7 +14,7 @@ TeknisiHub merupakan web interface untuk membantu teknisi mengakses layanan dan 
 - Login akses menggunakan nomor Telegram dan verifikasi kode.
 - Integrasi dengan local service untuk membaca status koneksi dan versi service.
 - Dashboard akses member untuk kebutuhan BIOS, Boardview, dan tools teknisi.
-- SPI Flash workbench berbasis Web UI untuk proses read, write, erase, detect, dan verify.
+- BIOS/EC Programmer berbasis Web UI untuk proses read, write, erase, detect, dan verify BIOS 25 Series serta EC/KBC.
 - Katalog file dan tools lokal untuk kebutuhan teknisi.
 
 ## Support Partner
@@ -27,7 +27,7 @@ TeknisiHub merupakan web interface untuk membantu teknisi mengakses layanan dan 
 - `index.html` untuk tampilan utama aplikasi.
 - `styles.css` untuk styling antarmuka.
 - `app.js` untuk logika utama aplikasi.
-- `pages/spi-flash/page.js` untuk halaman dan logic SPI Flash.
+- `pages/spi-flash/page.js` untuk halaman dan logic BIOS/EC Programmer. Path internal tetap `spi-flash`.
 - `assets/` untuk kebutuhan aset visual.
 
 ## Penggunaan

@@ -10,8 +10,9 @@
   const usbDefaultChunkSizeBytes = 61440;
   const wifiDefaultChunkSizeBytes = 8192;
   const eneDefaultChunkSizeBytes = 4096;
-  const iteDefaultChunkSizeBytes = 256;
+  const iteDefaultChunkSizeBytes = 8192;
   const connectionPlaceholderLabel = "---- PILIH KONEKSI ----";
+  const programmerDisplayName = "BIOS/EC Programmer";
 
   const deviceProfiles = {
     TEKNISIHUB_FLASH_OSC_USB: {
@@ -291,6 +292,20 @@
     return "";
   }
 
+  function normalizeIteI2cPinOrder(value, fallbackText = "") {
+    const source = `${value || ""} ${fallbackText || ""}`.trim().toLowerCase();
+    if (!source) {
+      return "";
+    }
+    if (source.includes("auto-swap") || source.includes("swap") || source.includes("swapped") || source.includes("dibalik")) {
+      return "swap";
+    }
+    if (source.includes("normal")) {
+      return "normal";
+    }
+    return "";
+  }
+
   function isIdleOperationLabel(value) {
     const label = String(value || "").trim().toLowerCase();
     return !label ||
@@ -382,7 +397,7 @@
       return "";
     }
 
-    return lastResult || activeOperation || "Operasi SPI Flash gagal.";
+    return lastResult || activeOperation || `Operasi ${programmerDisplayName} gagal.`;
   }
 
   function getActionProgressIcon(label) {
@@ -418,7 +433,7 @@
     const chipSummary = createChipSummary(entry);
     const parts = [
       entry.deviceLabel,
-      chipSummary || "SPI Flash",
+      chipSummary || programmerDisplayName,
       formatSpeedLabel(entry.speedHz)
     ].filter((part) => part && part !== "-");
     return parts.join(" - ");
@@ -503,7 +518,7 @@
       return "Proses";
     }
 
-    return rawText || "SPI Flash";
+    return rawText || programmerDisplayName;
   }
 
   function createSpiFlashTaskTitle(actionName, stage) {
@@ -608,7 +623,7 @@
         operationId: activeTaskOperationId || "spi-flash-active",
         source: "spi-flash",
         fileName: createSpiFlashTaskTitle(activeOperation, "running"),
-        displayName: "SPI Flash",
+        displayName: programmerDisplayName,
         icon: "progress_activity",
         message: activeMeta,
         stage: "running",
@@ -631,8 +646,8 @@
       reportTask({
         operationId: `spi-flash-history-${entry.sequence}`,
         source: "spi-flash",
-        fileName: createSpiFlashTaskTitle(entry.actionLabel || "SPI Flash action", "completed"),
-        displayName: "SPI Flash",
+        fileName: createSpiFlashTaskTitle(entry.actionLabel || "Programmer action", "completed"),
+        displayName: programmerDisplayName,
         icon: getActionProgressIcon(entry.actionLabel),
         message: `${createActionProgressMeta(entry)} - ${formatDurationLabel(entry.durationMilliseconds)}`,
         stage: "completed",
@@ -655,7 +670,7 @@
         operationId: `spi-flash-result-${resultKey}`,
         source: "spi-flash",
         fileName: createSpiFlashTaskTitle(activeOperation, "completed"),
-        displayName: "SPI Flash",
+        displayName: programmerDisplayName,
         icon: getActionProgressIcon(activeOperation),
         message: activeMeta,
         stage: "completed",
@@ -677,7 +692,7 @@
         operationId: `spi-flash-failed-${failedMessage.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80)}`,
         source: "spi-flash",
         fileName: createSpiFlashTaskTitle(failedTitle, "failed"),
-        displayName: "SPI Flash",
+        displayName: programmerDisplayName,
         icon: getActionProgressIcon(failedTitle),
         message: failedMessage,
         lastError: failedMessage,
@@ -822,6 +837,7 @@
       chipModel: "",
       chipCapacity: "",
       chipVoltage: "",
+      iteI2cPinOrder: "",
       monitorTarget: "",
       pageSize: 0,
       speedHz: 0,
@@ -837,7 +853,7 @@
       hasReadBuffer: false,
       readBufferIsAllFf: false,
       logs: [
-        "[--:--:--] Aplikasi lokal SPI Flash belum bisa dijangkau."
+        `[--:--:--] Aplikasi lokal ${programmerDisplayName} belum bisa dijangkau.`
       ],
       progressHistory: [],
       fullProgressHistory: [],
@@ -987,6 +1003,7 @@
       chipModel: session.chipModel || "",
       chipCapacity: session.chipCapacity || "",
       chipVoltage: session.chipVoltage || "",
+      iteI2cPinOrder: normalizeIteI2cPinOrder(session.iteI2cPinOrder, session.lastResult),
       monitorTarget,
       pageSize: Number(session.pageSize || 0),
       speedHz: Number(session.speedHz || 0),
@@ -1620,9 +1637,23 @@
       useBiosProfile ? state.chipModel : ""
     );
     const renderKbcMonitor = () => {
+      const iteI2cPinOrder = isIteChip && detectedIteChip
+        ? normalizeIteI2cPinOrder(state.iteI2cPinOrder, state.lastResult)
+        : "";
+      const iteI2cPinSwapped = iteI2cPinOrder === "swap";
+      const iteI2cPinOrderLabel = iteI2cPinOrder === "swap"
+        ? "SDA/SCL SWAP"
+        : iteI2cPinOrder === "normal"
+          ? "SDA/SCL NORMAL"
+          : "SDA/SCL DETECT";
+      const iteI2cPinOrderClass = iteI2cPinOrder === "swap"
+        ? "is-swap"
+        : iteI2cPinOrder === "normal"
+          ? "is-normal"
+          : "is-waiting";
       const kbcPins = isIteChip ? [
-        { side: "left", signal: "SDA", detail: "Data", net: "SDA" },
-        { side: "left", signal: "SCL", detail: "Clock", net: "SCL" },
+        { side: "left", signal: iteI2cPinSwapped ? "SCL" : "SDA", detail: "Data", net: "SDA", tone: iteI2cPinOrderClass },
+        { side: "left", signal: iteI2cPinSwapped ? "SDA" : "SCL", detail: "Clock", net: "SCL", tone: iteI2cPinOrderClass },
         { side: "left", signal: "GND", detail: "Common", net: "GND" },
         { side: "right", signal: "3.3V", detail: "Board power", net: "VCC" },
         { side: "right", signal: "ISP", detail: "Unlock", net: "ITE" }
@@ -1636,7 +1667,7 @@
       const leftKbcPins = kbcPins.filter((pin) => pin.side === "left");
       const rightKbcPins = kbcPins.filter((pin) => pin.side === "right");
       const renderKbcPin = (pin) => `
-        <article class="spi-kbc-pin spi-kbc-pin-${escapeHtml(pin.side)}">
+        <article class="spi-kbc-pin spi-kbc-pin-${escapeHtml(pin.side)}${pin.tone ? ` ${escapeHtml(pin.tone)}` : ""}">
           <span>${escapeHtml(pin.net)}</span>
           <strong>${escapeHtml(pin.signal)}</strong>
           <small>${escapeHtml(pin.detail)}</small>
@@ -1653,6 +1684,7 @@
               <h4>${escapeHtml(kbcTitle)}</h4>
             </div>
             <div class="spi-panel-actions">
+              ${isIteChip ? `<span class="spi-mini-badge spi-kbc-pin-order-badge ${escapeHtml(iteI2cPinOrderClass)}">${escapeHtml(iteI2cPinOrderLabel)}</span>` : ""}
               <span class="spi-mini-badge">${escapeHtml(kbcModeLabel)}</span>
             </div>
           </div>
@@ -1806,13 +1838,17 @@
       : usbDefaultChunkSizeBytes;
   }
 
-  function resolveVisibleChunkSizeBytes(currentState) {
+  function resolveVisibleChunkSizeBytes(currentState, userOverride = false) {
     const chunkSizeBytes = Number(currentState?.chunkSizeBytes || 0);
     const defaultChunkSizeBytes = resolveDefaultChunkSizeBytes(currentState);
     const normalTransportDefault = String(currentState?.selectedDevice || "").toUpperCase().includes("WIFI")
       ? wifiDefaultChunkSizeBytes
       : usbDefaultChunkSizeBytes;
     if (!chunkSizeBytes) {
+      return defaultChunkSizeBytes;
+    }
+
+    if ((isEneState(currentState) || isIteState(currentState)) && !userOverride) {
       return defaultChunkSizeBytes;
     }
 
@@ -1915,7 +1951,7 @@
       }
     }
 
-    return normalizedAction ? normalizedAction : "SPI Flash";
+    return normalizedAction ? normalizedAction : programmerDisplayName;
   }
 
   function createFlashOscActionPadMarkup(state, autoProcessEnabled, autoProcessSummary, readActionSummary, writeActionSummary, disableAttr, actionDisableAttr) {
@@ -2008,7 +2044,8 @@
     };
   }
 
-  function createWorkbenchMarkup(state, busy, deviceBusy, hexView, deviceConnectionState = null) {
+  function createWorkbenchMarkup(state, busy, deviceBusy, hexView, deviceConnectionState = null, options = {}) {
+    const chunkSizeOverride = Boolean(options.chunkSizeUserOverride);
     const autoProcessEnabled = state.autoProcess !== false;
     const normalizedConnectionState = String(state.connectionState || "").trim().toLowerCase();
     const isDeviceConnected =
@@ -2033,7 +2070,7 @@
     const fixedSpeedLabel = "0.75 MHz";
     const visibleSpeedHz = state.speedHz || spiDefaultSpeedHz;
     const speedInputValue = formatSpeedInputValue(visibleSpeedHz);
-    const chunkInputValue = formatChunkInputValue(resolveVisibleChunkSizeBytes(state));
+    const chunkInputValue = formatChunkInputValue(resolveVisibleChunkSizeBytes(state, chunkSizeOverride));
     const hexPreviewStatusState = getHexPreviewStatusState(state, busy);
     const ezpReadUsesSinglePass = false;
     const readActionSummary = ezpReadUsesSinglePass
@@ -2435,6 +2472,10 @@
         return defaultChunkSizeBytes;
       }
 
+      if ((isEneAction(action) || isIteAction(action) || (isEneState(state) && isGenericMemoryAction(action)) || (isIteState(state) && isGenericMemoryAction(action))) && !chunkSizeUserOverride) {
+        return defaultChunkSizeBytes;
+      }
+
       if (chunkSizeUserOverride) {
         return chunkSizeBytes;
       }
@@ -2574,7 +2615,7 @@
       } = options;
 
       if (!state.hasReadBuffer) {
-        notifyUser("Belum ada hasil read SPI Flash yang bisa disimpan.", "info");
+        notifyUser("Belum ada hasil read chip yang bisa disimpan.", "info");
         return false;
       }
 
@@ -2745,7 +2786,7 @@
           return;
         }
 
-        state.errorMessage = sanitizePublicMessage(error?.message || "Gagal memilih device SPI Flash.");
+        state.errorMessage = sanitizePublicMessage(error?.message || `Gagal memilih device ${programmerDisplayName}.`);
         deviceConnectionState = {
           deviceType: normalizedDevice,
           status: "failed",
@@ -2775,7 +2816,14 @@
         activeTaskOperationId,
         taskHistoryClearedAtMs
       );
-      mountedContainer.innerHTML = createWorkbenchMarkup(renderState, busy, deviceBusy, hexView, deviceConnectionState);
+      mountedContainer.innerHTML = createWorkbenchMarkup(
+        renderState,
+        busy,
+        deviceBusy,
+        hexView,
+        deviceConnectionState,
+        { chunkSizeUserOverride }
+      );
 
       const busyOverlay = mountedContainer.querySelector("#spiBusyOverlay");
       if (busyOverlay) {
@@ -3028,7 +3076,7 @@
             // Keep the original action error as the main feedback.
           }
         }
-        actionErrorMessage = sanitizePublicMessage(error?.message || "Operasi SPI Flash gagal.");
+        actionErrorMessage = sanitizePublicMessage(error?.message || `Operasi ${programmerDisplayName} gagal.`);
         state.errorMessage = actionErrorMessage;
         notifyUser(state.errorMessage, "warning");
         render();
@@ -3062,16 +3110,16 @@
         const session = await fetchJson("/spi-flash/session");
         applySessionState(session, options);
       } catch (error) {
-        state = createUnavailableState(sanitizePublicMessage(error?.message || "Aplikasi lokal SPI Flash belum tersedia."));
+        state = createUnavailableState(sanitizePublicMessage(error?.message || `Aplikasi lokal ${programmerDisplayName} belum tersedia.`));
         syncHexViewFromState({ resetScroll: true });
       }
     }
 
     return {
       viewKey: "tool_spi_flash",
-      eyebrow: "SPI Flash Studio",
-      title: "SPI Flash Studio",
-      subtitle: "Workbench web untuk operasi SPI flash yang disinkronkan langsung ke aplikasi lokal.",
+      eyebrow: programmerDisplayName,
+      title: programmerDisplayName,
+      subtitle: "Workbench web untuk BIOS 25 Series dan EC/KBC ENE/ITE yang disinkronkan langsung ke aplikasi lokal.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

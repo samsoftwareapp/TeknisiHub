@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TeknisiHub</title>
-  <meta name="description" content="TeknisiHub adalah software teknisi komputer all-in-one untuk akses tools BIOS, boardview, SPI flash, file kerja, dan workflow servis dalam satu web interface terpusat.">
+  <meta name="description" content="TeknisiHub adalah software teknisi komputer all-in-one untuk akses tools BIOS/EC Programmer, boardview, file kerja, dan workflow servis dalam satu web interface terpusat.">
   <link rel="icon" type="image/png" href="assets/HubLogo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202606060006">
+  <link rel="stylesheet" href="styles.css?v=202606080009">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -327,16 +327,28 @@
                   </summary>
                   <div class="sidebar-dropdown-menu">
                     <a id="toolSpiFlash" href="#SpiFlash" class="sidebar-nav-button is-active">
-                      <span>SPI Flash</span>
+                      <span class="sidebar-nav-text">BIOS/EC Programmer</span>
+                      <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                      </span>
                     </a>
                     <a id="toolFlashPhone" href="#AndroidTools" class="sidebar-nav-button">
-                      <span>Android Tools</span>
+                      <span class="sidebar-nav-text">Android Tools</span>
+                      <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                      </span>
                     </a>
                     <a id="toolOscilloscope" href="#Oscilloscope" class="sidebar-nav-button">
-                      <span>Oscilloscope</span>
+                      <span class="sidebar-nav-text">Oscilloscope</span>
+                      <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                      </span>
                     </a>
                     <a id="toolLogicAnalyzer" href="#LogicAnalyzer" class="sidebar-nav-button">
-                      <span>Logic Analyzer</span>
+                      <span class="sidebar-nav-text">Logic Analyzer</span>
+                      <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                      </span>
                     </a>
                     <a id="toolFirmwareUpdate" href="#UpdateFirmwareTeknisiHub" class="sidebar-nav-button">
                       <span>Update Firmware TeknisiHub</span>
@@ -365,19 +377,34 @@
                       </summary>
                       <div class="sidebar-subdropdown-menu">
                         <a id="toolUniversalDmi" href="#UniversalDmi" class="sidebar-nav-button sidebar-nav-button-subitem">
-                          <span>Universal DMI</span>
+                          <span class="sidebar-nav-text">Universal DMI</span>
+                          <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                            <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                          </span>
                         </a>
                         <a id="toolDumpBiosLenovo" href="#DumpBiosLenovo" class="sidebar-nav-button sidebar-nav-button-subitem">
-                          <span>Lenovo UEFI AutoPatcher</span>
+                          <span class="sidebar-nav-text">Lenovo UEFI AutoPatcher</span>
+                          <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                            <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                          </span>
                         </a>
                         <a id="toolDell8Fc8" href="#Dell8Fc8" class="sidebar-nav-button sidebar-nav-button-subitem">
-                          <span>Dell 8FC8</span>
+                          <span class="sidebar-nav-text">Dell 8FC8</span>
+                          <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                            <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                          </span>
                         </a>
                         <a id="toolAmiDecryptor" href="#AmiDecryptor" class="sidebar-nav-button sidebar-nav-button-subitem">
-                          <span>AMI Decrytor &amp; Unlocker</span>
+                          <span class="sidebar-nav-text">AMI Decrytor &amp; Unlocker</span>
+                          <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                            <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                          </span>
                         </a>
                         <a id="toolBiosMemorySpd" href="#BiosMemorySpd" class="sidebar-nav-button sidebar-nav-button-subitem">
-                          <span>BIOS Memory SPD Cleaner</span>
+                          <span class="sidebar-nav-text">BIOS Memory SPD Cleaner</span>
+                          <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                            <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                          </span>
                         </a>
                       </div>
                     </details>
@@ -385,13 +412,19 @@
                       <span>BIOS Unlock Password</span>
                     </a>
                     <a id="toolMicroscope" href="#Microscope" class="sidebar-nav-button">
-                      <span>Microscope</span>
+                      <span class="sidebar-nav-text">Microscope</span>
+                      <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                      </span>
                     </a>
                     <a id="toolAlienServer" href="#AlienServer" class="sidebar-nav-button">
                       <span>Alien Server</span>
                     </a>
                     <a id="toolOther" href="#Boardviewer" class="sidebar-nav-button">
-                      <span>Boardviewer</span>
+                      <span class="sidebar-nav-text">Boardviewer</span>
+                      <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                      </span>
                     </a>
                   </div>
                 </details>
@@ -740,7 +773,7 @@
         <img src="assets/HubLogo.png" alt="TeknisiHub logo">
       </div>
       <div class="about-modal-body">
-        <p>TeknisiHub adalah software teknisi komputer all-in-one untuk akses tools BIOS, boardview, SPI flash, file kerja, dan workflow servis dalam satu web interface terpusat.</p>
+        <p>TeknisiHub adalah software teknisi komputer all-in-one untuk akses tools BIOS/EC Programmer, boardview, file kerja, dan workflow servis dalam satu web interface terpusat.</p>
         <p>Support by partner berikut:</p>
         <div class="about-support-links">
           <a href="https://maps.app.goo.gl/Xddwa8Zy4q1qyqW69" target="_blank" rel="noopener noreferrer">Yoso Komputer - LUMAJANG</a>
@@ -828,10 +861,10 @@
   </div>
 
   <script src="service-config.js?v=202606010001"></script>
-  <script src="pages/spi-flash/page.js?v=202606060004"></script>
-  <script src="pages/flash-phone/page.js?v=202606060002"></script>
+  <script src="pages/spi-flash/page.js?v=202606080003"></script>
+  <script src="pages/flash-phone/page.js?v=202606080008"></script>
     <script src="pages/oscilloscope/page.js?v=202606060004"></script>
-  <script src="pages/logic-analyzer/page.js?v=202606060002"></script>
+  <script src="pages/logic-analyzer/page.js?v=202606080002"></script>
   <script src="pages/firmware-update/page.js?v=202606060005"></script>
   <script src="pages/me-analyzer/page.js?v=202605210016"></script>
   <script src="pages/uefi-tool/page.js?v=202605210016"></script>
@@ -847,10 +880,10 @@
   <script src="pages/microscope/page.js?v=202606010001"></script>
   <script src="pages/alien-server/page.js?v=202605210016"></script>
   <script src="pages/boardviewer/page.js?v=202606010001"></script>
-  <script src="pages/dashboard-home/page.js?v=202606010001"></script>
-  <script src="pages/product/page.js?v=202605310001"></script>
-  <script src="pages/settings/page.js?v=202606010001"></script>
-  <script src="help-content.js?v=202606010035"></script>
-    <script src="app.js?v=202606060004"></script>
+  <script src="pages/dashboard-home/page.js?v=202606080006"></script>
+  <script src="pages/product/page.js?v=202606080006"></script>
+  <script src="pages/settings/page.js?v=202606080006"></script>
+  <script src="help-content.js?v=202606070001"></script>
+    <script src="app.js?v=202606080009"></script>
 </body>
 </html>

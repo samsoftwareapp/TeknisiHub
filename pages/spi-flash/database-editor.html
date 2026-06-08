@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SPI Flash Database Editor</title>
+  <title>BIOS/EC Programmer Database Editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
@@ -14,9 +14,9 @@
   <main class="db-editor-shell">
     <section class="db-editor-hero">
       <div>
-        <p class="label">SPI Flash Database</p>
+        <p class="label">BIOS/EC Programmer Database</p>
         <h1>Editor Database Programmer</h1>
-        <p class="db-editor-subtitle">Edit database SPI Flash JEDEC dan profile KBC/EC ENE/ITE langsung dari aplikasi lokal.</p>
+        <p class="db-editor-subtitle">Edit database BIOS 25 Series JEDEC dan profile KBC/EC ENE/ITE langsung dari aplikasi lokal.</p>
       </div>
       <div class="db-editor-actions">
         <button id="databaseEditorReloadButton" type="button" class="ghost">
@@ -55,7 +55,7 @@
 
     <section class="db-editor-toolbar">
       <div class="db-editor-tabs" role="tablist" aria-label="Database yang diedit">
-        <button id="databaseEditorSpiTab" type="button" class="is-active" data-database-tab="spi">SPI Flash JEDEC</button>
+        <button id="databaseEditorSpiTab" type="button" class="is-active" data-database-tab="spi">BIOS 25 Series JEDEC</button>
         <button id="databaseEditorKbcTab" type="button" data-database-tab="kbc">KBC/EC ENE/ITE</button>
       </div>
       <label class="db-editor-search">
@@ -109,6 +109,6 @@
   </main>
 
   <script src="../../service-config.js?v=202605220002"></script>
-  <script src="database-editor.js?v=202605210002"></script>
+  <script src="database-editor.js?v=202606070001"></script>
 </body>
 </html>

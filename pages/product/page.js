@@ -9,7 +9,7 @@
       id: "teknisihub-flash-osc",
       orderName: "TEKNISIHUB_FLASH_OSC",
       title: "TEKNISIHUB_FLASH_OSC",
-      description: "Programmer dan oscilloscope portable untuk teknisi board-level: satu device untuk SPI Flash BIOS, EC/KBC, dan analisa sinyal ringan.",
+      description: "Programmer dan oscilloscope portable untuk teknisi board-level: satu device untuk BIOS 25 Series, EC/KBC, dan analisa sinyal ringan.",
       price: "Rp2.000.000",
       unit: "/ Unit",
       moq: "1 Unit",
@@ -17,22 +17,41 @@
       reviews: "103",
       sold: "103",
       delivery: "Ready Order",
-      tags: ["SPI Flash", "EC/KBC", "OSC", "USB/WIFI"],
+      tags: ["BIOS/EC", "25 Series", "OSC", "USB/WIFI"],
       features: [
         "Read, write, erase, verify BIOS SPI 25 Series",
         "SmartID BIOS/EC/KBC dan chip monitor",
         "Support Flash EC/KBC ENE dan ITE",
         "Oscilloscope ringan via USB atau WIFI",
-        "Integrasi langsung dengan SPI Flash Tools dan OSC Tools"
+        "Integrasi langsung dengan BIOS/EC Programmer dan OSC Tools"
       ],
       toolViewKey: "tool_spi_flash",
       imageSrc: "assets/HubLogo.png?v=202605230001",
       imageAlt: "TEKNISIHUB_FLASH_OSC"
     },
     {
-      id: "member-biasa-1-bulan",
-      orderName: "LANGGANAN MEMBER BIASA 1 BULAN",
-      title: "LANGGANAN MEMBER BIASA 1 BULAN",
+      id: "member-free",
+      orderName: "MEMBER FREE",
+      title: "MEMBER FREE",
+      description: "Role default untuk user baru. Bisa coba trial download sebelum upgrade ke Basic atau Pro.",
+      price: "Rp0",
+      unit: "/ Akun",
+      moq: "1 Akun",
+      rating: "5.0",
+      reviews: "0",
+      sold: "Default",
+      delivery: "Auto aktif",
+      tags: ["Default", "Free", "Trial"],
+      features: ["Role awal user baru", "Trial total 5 download", "Paket Basic dan Pro tersedia sebagai langganan"],
+      imageSrc: "assets/HubLogo.png?v=202605230001",
+      imageAlt: "Member Free TeknisiHub",
+      imageFit: "contain",
+      orderable: false
+    },
+    {
+      id: "basic-1-bulan",
+      orderName: "LANGGANAN BASIC 1 BULAN",
+      title: "LANGGANAN BASIC 1 BULAN",
       description: "Akses download 5 file per hari selama 1 bulan untuk kebutuhan servis harian.",
       price: "Rp75.000",
       unit: "/ Bulan",
@@ -40,29 +59,29 @@
       rating: "5.0",
       reviews: "0",
       sold: "500",
-      delivery: "Aktivasi manual",
+      delivery: "Aktivasi akun",
       tags: ["5/day", "1 Bulan", "Download"],
       features: ["5 download per hari", "Masa aktif 1 bulan", "Akses katalog sesuai channel"],
       imageSrc: "assets/HubLogo.png?v=202605230001",
-      imageAlt: "Langganan Member Biasa TeknisiHub",
+      imageAlt: "Langganan Basic TeknisiHub",
       imageFit: "contain"
     },
     {
-      id: "vip-1-bulan",
-      orderName: "LANGGANAN VIP 1 BULAN",
-      title: "LANGGANAN VIP 1 BULAN",
-      description: "Akses download 10 file per hari selama 1 bulan plus full support prioritas.",
+      id: "pro-1-bulan",
+      orderName: "LANGGANAN PRO 1 BULAN",
+      title: "LANGGANAN PRO 1 BULAN",
+      description: "Akses download 10 file per hari selama 1 bulan plus support prioritas.",
       price: "Rp150.000",
       unit: "/ Bulan",
       moq: "1 Akun",
       rating: "5.0",
       reviews: "0",
       sold: "233",
-      delivery: "Full Support",
-      tags: ["10/day", "VIP", "Full Support"],
-      features: ["10 download per hari", "Masa aktif 1 bulan", "Full support prioritas"],
+      delivery: "Prioritas",
+      tags: ["10/day", "Pro", "Prioritas"],
+      features: ["10 download per hari", "Masa aktif 1 bulan", "Support prioritas"],
       imageSrc: "assets/HubLogo.png?v=202605230001",
-      imageAlt: "Langganan VIP TeknisiHub",
+      imageAlt: "Langganan Pro TeknisiHub",
       imageFit: "contain"
     }
   ];
@@ -103,6 +122,9 @@
   }
 
   function createProductCard(product) {
+    const orderable = product.orderable !== false;
+    const hasActions = orderable || product.toolViewKey;
+
     return `
       <article class="product-card">
         <div class="product-card-topline">
@@ -112,9 +134,11 @@
 
         <div class="product-media${product.imageFit ? ` product-media-${escapeHtml(product.imageFit)}` : ""}">
           <img src="${escapeHtml(product.imageSrc)}" alt="${escapeHtml(product.imageAlt)}" loading="lazy">
+          ${orderable ? `
           <div class="product-quick-actions">
             ${createWhatsAppLinks(product, "product-quick-link", "WA")}
           </div>
+          ` : ""}
         </div>
 
         <div class="product-card-body">
@@ -134,8 +158,9 @@
           </div>
           <p class="product-moq">${escapeHtml(product.moq)} (MOQ)</p>
 
+          ${hasActions ? `
           <div class="product-actions">
-            ${createWhatsAppLinks(product, "product-inquiry-button", "Order")}
+            ${orderable ? createWhatsAppLinks(product, "product-inquiry-button", "Order") : ""}
             ${product.toolViewKey ? `
             <button class="product-tool-button ghost" type="button" data-product-tool="${escapeHtml(product.toolViewKey)}">
               <span class="material-symbols-outlined">open_in_new</span>
@@ -143,6 +168,7 @@
             </button>
             ` : ""}
           </div>
+          ` : ""}
 
           <div class="product-supplier-row">
             <span class="material-symbols-outlined">verified</span>

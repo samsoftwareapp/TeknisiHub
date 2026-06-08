@@ -71,6 +71,24 @@
     return `Total download: ${totalDownload} | hari ini: ${member.downloadTodayCount || "0"} / ${member.limitDownloadToday || "-"}`;
   }
 
+  function createRoleLabel(value) {
+    const role = String(value || "").trim();
+    const normalizedRole = role.toLowerCase();
+    if (normalizedRole === "member" || normalizedRole === "free" || !normalizedRole) {
+      return "Free";
+    }
+
+    if (normalizedRole === "pro" || normalizedRole === "vip") {
+      return "Pro";
+    }
+
+    if (normalizedRole === "basic" || normalizedRole === "biasa") {
+      return "Basic";
+    }
+
+    return role;
+  }
+
   function createWorkbenchMarkup(state) {
     const disabledAttr = state.loading || state.saving || state.cleaning ? " disabled" : "";
     const actionLabel = state.saving ? "Menyimpan..." : "Simpan Pengaturan";
@@ -80,7 +98,7 @@
       ? state.members.map((member) => `
           <article class="catalog-card">
             <div class="catalog-card-top">
-              <span class="catalog-category">${escapeHtml(member.role || "Member")}</span>
+              <span class="catalog-category">${escapeHtml(createRoleLabel(member.role))}</span>
               <span class="catalog-access">akun</span>
             </div>
             <h4>${escapeHtml(member.displayName || member.email || "User")}</h4>

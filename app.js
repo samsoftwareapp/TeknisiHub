@@ -211,6 +211,7 @@ const previousVersionsList = document.getElementById("previousVersionsList");
 const previousVersionsCloseButton = document.getElementById("previousVersionsCloseButton");
 const defaultDownloadLocalServiceUrl = downloadLocalServiceLink?.getAttribute("href") || "";
 const defaultDownloadLocalServiceLabel = downloadLocalServiceLink?.textContent?.trim() || "Download aplikasi lokal";
+const biosEcProgrammerDisplayName = "BIOS/EC Programmer";
 let previousVersionNotes = [];
 let updateStatusPollTimeoutId = null;
 let updateRestartPollTimeoutId = null;
@@ -220,8 +221,8 @@ let updateProgressHideTimeoutId = null;
 const spiFlashPage = window.teknisiHubPages?.spiFlash || {
   viewKey: "tool_spi_flash",
   eyebrow: "Tools Local",
-  title: "SPI Flash",
-  subtitle: "Utility lokal untuk kebutuhan SPI Flash.",
+  title: biosEcProgrammerDisplayName,
+  subtitle: "Utility lokal untuk kebutuhan BIOS 25 Series dan EC/KBC.",
   items: [],
   mount() {},
   setVisible() {},
@@ -236,6 +237,7 @@ const flashPhonePage = window.teknisiHubPages?.flashPhone || {
   items: [],
   mount() {},
   setVisible() {},
+  setAccessState() {},
   refresh() {}
 };
 
@@ -559,7 +561,7 @@ const localToolCatalog = [
     title: "UEFI Tools Pack",
     deviceModel: "Universal",
     description: "Paket utilitas lokal untuk analisa struktur firmware UEFI, extract volume, dan pemeriksaan region.",
-    accessLevel: "Member",
+    accessLevel: "Free",
     fileName: "uefi-tools-pack.zip",
     serialNumber: "-",
     boardCode: "UEFI",
@@ -573,7 +575,7 @@ const localToolCatalog = [
     title: "Maintenance Helper Suite",
     deviceModel: "Universal",
     description: "Bundle utilitas lokal tambahan untuk kebutuhan maintenance dan servis umum.",
-    accessLevel: "Member",
+    accessLevel: "Free",
     fileName: "maintenance-helper-suite.zip",
     serialNumber: "-",
     boardCode: "TOOLS",
@@ -932,6 +934,34 @@ const localWorkbenchViewKeys = new Set([
   settingsPage.viewKey
 ]);
 
+const premiumRestrictedViewKeys = new Set([
+  spiFlashPage.viewKey,
+  oscilloscopePage.viewKey,
+  logicAnalyzerPage.viewKey,
+  universalDmiPage.viewKey,
+  lenovoBiosPatchPage.viewKey,
+  dell8Fc8Page.viewKey,
+  amiDecryptorPage.viewKey,
+  biosMemorySpdPage.viewKey,
+  microscopePage.viewKey,
+  boardViewerPage.viewKey
+]);
+
+const premiumRestrictedWorkbenchByViewKey = new Map([
+  [spiFlashPage.viewKey, spiFlashWorkbench],
+  [oscilloscopePage.viewKey, oscilloscopeWorkbench],
+  [logicAnalyzerPage.viewKey, logicAnalyzerWorkbench],
+  [universalDmiPage.viewKey, universalDmiWorkbench],
+  [lenovoBiosPatchPage.viewKey, lenovoBiosPatchWorkbench],
+  [dell8Fc8Page.viewKey, dell8Fc8Workbench],
+  [amiDecryptorPage.viewKey, amiDecryptorWorkbench],
+  [biosMemorySpdPage.viewKey, biosMemorySpdWorkbench],
+  [microscopePage.viewKey, microscopeWorkbench],
+  [boardViewerPage.viewKey, boardViewerWorkbench]
+]);
+
+const premiumReadonlyObservers = new Map();
+
 const documentTitleLabels = {
   [dashboardHomePage.viewKey]: "Dashboard",
   [productPage.viewKey]: "Product",
@@ -940,7 +970,7 @@ const documentTitleLabels = {
   Schematics: "Schematics",
   ProblemSolving: "Problem Solving",
   Datasheets: "Datasheets",
-  [spiFlashPage.viewKey]: "SPI Flash",
+  [spiFlashPage.viewKey]: biosEcProgrammerDisplayName,
   [flashPhonePage.viewKey]: "Android Tools",
   [oscilloscopePage.viewKey]: "Oscilloscope",
   [logicAnalyzerPage.viewKey]: "Logic Analyzer",
@@ -1710,28 +1740,278 @@ function notifyCatalogSearchCacheMissValidation(viewKey, query) {
   setNotice(`Tidak ada hasil di cache ${config.displayName}. Sistem sedang menyegarkan katalog.`, "info");
 }
 
+function formatAccessRoleLabel(role) {
+  const value = String(role || "").trim();
+  const normalizedRole = value.toLowerCase();
+  if (normalizedRole === "member" || normalizedRole === "free") {
+    return "Free";
+  }
+
+  if (normalizedRole === "pro" || normalizedRole === "vip") {
+    return "Pro";
+  }
+
+  if (normalizedRole === "basic" || normalizedRole === "biasa") {
+    return "Basic";
+  }
+
+  return value;
+}
+
+function normalizeSubscriptionRole(role) {
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  if (normalizedRole === "vip") {
+    return "pro";
+  }
+
+  if (normalizedRole === "biasa") {
+    return "basic";
+  }
+
+  if (normalizedRole === "member") {
+    return "free";
+  }
+
+  return normalizedRole;
+}
+
+function isPaidSubscriptionRole(role) {
+  return ["owner", "admin", "pro", "basic"].includes(normalizeSubscriptionRole(role));
+}
+
+function formatSubscriptionRoleLabel(role) {
+  const normalizedRole = normalizeSubscriptionRole(role);
+  if (normalizedRole === "owner") {
+    return "Owner";
+  }
+
+  if (normalizedRole === "admin") {
+    return "Admin";
+  }
+
+  if (normalizedRole === "pro") {
+    return "Pro";
+  }
+
+  if (normalizedRole === "basic") {
+    return "Basic";
+  }
+
+  return "Free";
+}
+
+function getPremiumToolAccessState(status = null) {
+  const roleCandidates = status && typeof status === "object"
+    ? [
+        status.channelRole,
+        status.biosChannelRole,
+        status.boardviewChannelRole,
+        status.schematicsChannelRole,
+        status.problemSolvingChannelRole,
+        status.datasheetsChannelRole,
+        status.forumChannelRole
+      ]
+    : [
+        currentChannelRole,
+        currentBiosChannelRole,
+        currentBoardviewChannelRole,
+        currentSchematicsChannelRole,
+        currentProblemSolvingChannelRole,
+        currentDatasheetsChannelRole
+      ];
+  const paidRole = roleCandidates.find((role) => isPaidSubscriptionRole(role));
+
+  return {
+    readOnly: !paidRole,
+    roleLabel: formatSubscriptionRoleLabel(paidRole || "free")
+  };
+}
+
+function getAndroidToolsAccessState(status = null) {
+  return getPremiumToolAccessState(status);
+}
+
+function syncAndroidToolsAccess(status = null) {
+  const access = getAndroidToolsAccessState(status);
+  flashPhonePage.setAccessState?.(access);
+  toolFlashPhone?.classList.toggle("is-premium-readonly", access.readOnly);
+  toolFlashPhone?.setAttribute("title", access.readOnly ? "Premium" : `Premium aktif: ${access.roleLabel}`);
+}
+
+function syncPremiumToolAccess(status = null) {
+  const access = getPremiumToolAccessState(status);
+  premiumRestrictedViewKeys.forEach((viewKey) => {
+    const button = getViewButton(viewKey);
+    button?.classList.toggle("is-premium-readonly", access.readOnly);
+    button?.setAttribute("title", access.readOnly ? "Premium" : `Premium aktif: ${access.roleLabel}`);
+    syncPremiumReadonlyWorkbench(viewKey, access);
+  });
+}
+
+function syncPremiumReadonlyWorkbench(viewKey, access) {
+  const workbench = premiumRestrictedWorkbenchByViewKey.get(viewKey);
+  if (!workbench) {
+    return;
+  }
+
+  const readOnly = Boolean(access.readOnly);
+  workbench.dataset.premiumReadonly = readOnly ? "true" : "false";
+  workbench.classList.toggle("is-premium-readonly", readOnly);
+  ensurePremiumReadonlyEvents(workbench);
+  ensurePremiumReadonlyObserver(viewKey, workbench);
+
+  let banner = workbench.querySelector("[data-premium-readonly-banner]");
+  if (readOnly) {
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "premium-readonly-banner";
+      banner.dataset.premiumReadonlyBanner = "true";
+      banner.setAttribute("role", "status");
+      workbench.prepend(banner);
+    }
+    banner.innerHTML = `
+      <span class="material-symbols-outlined" aria-hidden="true">star</span>
+      <span>${escapeHtml(documentTitleLabels[viewKey] || "Tool Premium")} Premium. Role ${escapeHtml(access.roleLabel || "Free")} hanya mode lihat.</span>
+    `;
+  } else {
+    banner?.remove();
+  }
+
+  applyPremiumReadonlyControls(workbench, readOnly);
+}
+
+function ensurePremiumReadonlyEvents(workbench) {
+  if (!workbench || workbench.dataset.premiumReadonlyEvents === "true") {
+    return;
+  }
+
+  const blockWhenReadonly = (event) => {
+    if (workbench.dataset.premiumReadonly !== "true") {
+      return;
+    }
+
+    const target = event.target instanceof Element
+      ? event.target.closest("button,a,input,label,select,textarea,[role='button']")
+      : null;
+    if (!target || target.closest("[data-premium-readonly-banner]") || target.hasAttribute("data-premium-allow")) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setNotice("Tool Premium. Akun Free hanya mode lihat.", "info");
+  };
+
+  workbench.addEventListener("click", blockWhenReadonly, true);
+  workbench.addEventListener("change", blockWhenReadonly, true);
+  workbench.dataset.premiumReadonlyEvents = "true";
+}
+
+function ensurePremiumReadonlyObserver(viewKey, workbench) {
+  if (!workbench || premiumReadonlyObservers.has(viewKey) || typeof MutationObserver !== "function") {
+    return;
+  }
+
+  let pending = false;
+  const observer = new MutationObserver(() => {
+    if (pending) {
+      return;
+    }
+
+    pending = true;
+    window.requestAnimationFrame(() => {
+      pending = false;
+      if (workbench.dataset.premiumReadonly === "true") {
+        applyPremiumReadonlyControls(workbench, true);
+      }
+    });
+  });
+  observer.observe(workbench, {
+    attributes: true,
+    attributeFilter: ["aria-disabled", "class", "disabled", "tabindex"],
+    childList: true,
+    subtree: true
+  });
+  premiumReadonlyObservers.set(viewKey, observer);
+}
+
+function applyPremiumReadonlyControls(workbench, readOnly) {
+  if (!workbench) {
+    return;
+  }
+
+  workbench.querySelectorAll("button,input,select,textarea").forEach((element) => {
+    if (element.closest("[data-premium-readonly-banner]") || element.hasAttribute("data-premium-allow")) {
+      return;
+    }
+
+    if (readOnly) {
+      if (!element.hasAttribute("data-premium-original-disabled")) {
+        element.setAttribute("data-premium-original-disabled", element.disabled ? "true" : "false");
+      }
+      element.disabled = true;
+      element.setAttribute("aria-disabled", "true");
+      return;
+    }
+
+    if (element.hasAttribute("data-premium-original-disabled")) {
+      element.disabled = element.getAttribute("data-premium-original-disabled") === "true";
+      element.removeAttribute("data-premium-original-disabled");
+    }
+    element.removeAttribute("aria-disabled");
+  });
+
+  workbench.querySelectorAll("a[href], [role='button']").forEach((element) => {
+    if (element.closest("[data-premium-readonly-banner]") || element.hasAttribute("data-premium-allow")) {
+      return;
+    }
+
+    if (readOnly) {
+      if (!element.hasAttribute("data-premium-original-tabindex")) {
+        element.setAttribute("data-premium-original-tabindex", element.getAttribute("tabindex") ?? "");
+      }
+      element.setAttribute("aria-disabled", "true");
+      element.setAttribute("tabindex", "-1");
+      element.classList.add("is-premium-disabled");
+      return;
+    }
+
+    if (element.hasAttribute("data-premium-original-tabindex")) {
+      const originalTabindex = element.getAttribute("data-premium-original-tabindex") || "";
+      if (originalTabindex) {
+        element.setAttribute("tabindex", originalTabindex);
+      } else {
+        element.removeAttribute("tabindex");
+      }
+      element.removeAttribute("data-premium-original-tabindex");
+    }
+    element.removeAttribute("aria-disabled");
+    element.classList.remove("is-premium-disabled");
+  });
+}
+
 function getDisplayRoleForView(viewKey = currentCatalogView) {
   if (viewKey === "ProblemSolving") {
-    return currentProblemSolvingChannelRole || currentChannelRole;
+    return formatAccessRoleLabel(currentProblemSolvingChannelRole || currentChannelRole);
   }
 
   if (viewKey === "Schematics") {
-    return currentSchematicsChannelRole || currentChannelRole;
+    return formatAccessRoleLabel(currentSchematicsChannelRole || currentChannelRole);
   }
 
   if (viewKey === "Datasheets") {
-    return currentDatasheetsChannelRole || currentChannelRole;
+    return formatAccessRoleLabel(currentDatasheetsChannelRole || currentChannelRole);
   }
 
   if (viewKey === "Boardview") {
-    return currentBoardviewChannelRole || currentChannelRole;
+    return formatAccessRoleLabel(currentBoardviewChannelRole || currentChannelRole);
   }
 
   if (viewKey === "BIOS") {
-    return currentBiosChannelRole || currentChannelRole;
+    return formatAccessRoleLabel(currentBiosChannelRole || currentChannelRole);
   }
 
-  return currentChannelRole;
+  return formatAccessRoleLabel(currentChannelRole);
 }
 
 function isProblemSolvingView(viewKey = currentCatalogView) {
@@ -1896,6 +2176,7 @@ function showWorkbenchOnly(viewKey) {
   alienServerPage.setVisible?.(viewKey === alienServerPage.viewKey);
   boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
   settingsPage.setVisible?.(viewKey === settingsPage.viewKey);
+  syncPremiumToolAccess();
 
   if (viewKey === dashboardHomePage.viewKey) {
     dashboardHomePage.refresh?.();
@@ -2237,7 +2518,7 @@ function renderFlashChipDeviceSelector(messageId) {
         class="catalog-flash-chip-device-select"
         data-flash-chip-device
         data-message-id="${messageId}"
-        aria-label="Pilih device programmer untuk SPI Flash">
+        aria-label="Pilih device programmer untuk BIOS/EC Programmer">
         <option value="">---Pilih Koneksi---</option>
         <option value="TEKNISIHUB_FLASH_OSC_USB">TEKNISIHUB_FLASH_OSC USB</option>
         <option value="TEKNISIHUB_FLASH_OSC_WIFI">TEKNISIHUB_FLASH_OSC WIFI</option>
@@ -2465,7 +2746,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
       <article class="catalog-card">
         <div class="catalog-card-top">
           <span class="catalog-category">${escapeHtml(item.category || "ProblemSolving")}</span>
-          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
+          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Free")}</span>
         </div>
         <h4>${escapeHtml(item.fileName || item.title || "Untitled.md")}</h4>
         <div class="catalog-file-row">
@@ -2512,7 +2793,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
       <article class="catalog-card">
         <div class="catalog-card-top">
           <span class="catalog-category">${escapeHtml(item.category || "Datasheets")}</span>
-          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
+          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Free")}</span>
         </div>
         <h4>${escapeHtml(item.fileName || item.title || "Untitled.pdf")}</h4>
         <div class="catalog-file-row">
@@ -2568,7 +2849,7 @@ function renderCatalog(items, viewKey = currentCatalogView) {
       <article class="catalog-card">
         <div class="catalog-card-top">
           <span class="catalog-category">${escapeHtml(item.category || "Schematics")}</span>
-          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Member")}</span>
+          <span class="catalog-access">${escapeHtml(getDisplayRoleForView(viewKey) || item.accessLevel || "Free")}</span>
         </div>
         <h4>${escapeHtml(item.fileName || item.title || "Untitled.pdf")}</h4>
         <dl class="catalog-meta-grid">
@@ -4512,7 +4793,7 @@ function getRepresentativeRoleLabel(status) {
 
   const normalizedRole = roleCandidates
     .map((role) => String(role || "").trim().toLowerCase())
-    .find((role) => role === "owner" || role === "admin" || role === "member");
+    .find((role) => role === "owner" || role === "admin" || role === "pro" || role === "vip" || role === "basic" || role === "biasa" || role === "free" || role === "member");
 
   if (normalizedRole === "owner") {
     return { icon: "workspace_premium", label: "Owner" };
@@ -4522,7 +4803,15 @@ function getRepresentativeRoleLabel(status) {
     return { icon: "admin_panel_settings", label: "Admin" };
   }
 
-  return { icon: "verified_user", label: "Member" };
+  if (normalizedRole === "pro" || normalizedRole === "vip") {
+    return { icon: "workspace_premium", label: "Pro" };
+  }
+
+  if (normalizedRole === "basic" || normalizedRole === "biasa") {
+    return { icon: "verified_user", label: "Basic" };
+  }
+
+  return { icon: "person", label: "Free" };
 }
 
 function getConnectedChannelCount(status) {
@@ -5118,7 +5407,7 @@ async function removeCatalogUploadTask(operationId) {
       });
       await spiFlashPage.refresh?.();
     } catch (error) {
-      setNotice(error?.message || "Gagal menghapus task history SPI Flash.", "warning");
+      setNotice(error?.message || "Gagal menghapus task history BIOS/EC Programmer.", "warning");
       return;
     }
   }
@@ -5144,7 +5433,7 @@ async function clearCatalogUploadTaskHistory() {
         await spiFlashPage.refresh?.();
       }
     } catch (error) {
-      setNotice(error?.message || "Gagal menghapus task history SPI Flash.", "warning");
+      setNotice(error?.message || "Gagal menghapus task history BIOS/EC Programmer.", "warning");
       return;
     }
   }
@@ -6370,6 +6659,8 @@ function applyStatus(status) {
   currentProblemSolvingChannelRole = status.problemSolvingChannelRole || "";
   isDatasheetsMember = Boolean(status.isDatasheetsChannelMember);
   currentDatasheetsChannelRole = status.datasheetsChannelRole || "";
+  syncAndroidToolsAccess(status);
+  syncPremiumToolAccess(status);
 
   toggleElement(phoneForm, showPhoneEntryForm);
   toggleElement(codeForm, showVerificationForm);
@@ -6413,7 +6704,7 @@ function applyStatus(status) {
     setText(accessDisplayName, displayName);
     setText(accessRole, `Role: ${representativeRole.label} | ${accountIdentifier}`);
     setText(accessChannelCount, "Provider login: Telegram");
-    setText(dashboardChannelStatus, "Role akun dikelola dari sistem akses. User baru otomatis masuk sebagai Member sampai peran diperbarui.");
+    setText(dashboardChannelStatus, "Role akun dikelola dari sistem akses. User baru otomatis masuk Free.");
     setText(
       dashboardAgreementStatus,
       hasCompletedAgreement ? "Persetujuan tersimpan" : "Menunggu persetujuan"
@@ -8004,7 +8295,7 @@ function updateFlashChipActionAvailability(target) {
   const hasSelectedDevice = Boolean(normalizeFlashChipDeviceValue(select?.value));
   button.disabled = !hasSelectedDevice;
   button.setAttribute("aria-disabled", hasSelectedDevice ? "false" : "true");
-  button.title = hasSelectedDevice ? "Siapkan BIOS ke SPI Flash." : "Pilih device programmer dulu";
+  button.title = hasSelectedDevice ? "Siapkan BIOS di BIOS/EC Programmer." : "Pilih device programmer dulu";
 }
 
 function buildFlashChipConnectPayload(session = {}) {
@@ -8100,8 +8391,8 @@ async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FL
   beginCatalogUploadTask({
     operationId,
     fileName: archiveFileName,
-    displayName: "SPI Flash",
-    message: `Menyiapkan BIOS untuk SPI Flash (${resolvedDevice})...`
+    displayName: biosEcProgrammerDisplayName,
+    message: `Menyiapkan BIOS di ${biosEcProgrammerDisplayName} (${resolvedDevice})...`
   });
 
   let result;
@@ -8116,7 +8407,7 @@ async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FL
           applyCatalogTelegramUploadProgress(progress, {
             operationId,
             fileName: archiveFileName,
-            displayName: "SPI Flash"
+            displayName: biosEcProgrammerDisplayName
           });
         }
       }
@@ -8125,21 +8416,21 @@ async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FL
     const reconciledProgress = await reconcileCatalogUploadTaskFromService(operationId, {
       operationId,
       fileName: archiveFileName,
-      displayName: "SPI Flash"
+      displayName: biosEcProgrammerDisplayName
     });
     const reconciledStage = String(reconciledProgress?.stage || "").toLowerCase();
 
     if (reconciledProgress?.active || ["preparing", "uploading", "sending", "downloading", "extracting", "loading"].includes(reconciledStage)) {
-      setNotice("BIOS masih diproses untuk SPI Flash. Progress akan lanjut di panel task.", "info");
+      setNotice(`BIOS masih diproses di ${biosEcProgrammerDisplayName}. Progress akan lanjut di panel task.`, "info");
       return;
     }
 
     if (reconciledStage === "completed" || reconciledProgress?.success) {
-      const completedMessage = reconciledProgress?.message || "BIOS sudah siap di SPI Flash.";
+      const completedMessage = reconciledProgress?.message || `BIOS sudah siap di ${biosEcProgrammerDisplayName}.`;
       upsertCatalogUploadTask({
         operationId,
         fileName: reconciledProgress?.fileName || archiveFileName,
-        displayName: "SPI Flash",
+        displayName: biosEcProgrammerDisplayName,
         stage: "completed",
         active: false,
         success: true,
@@ -8154,27 +8445,27 @@ async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FL
       upsertCatalogUploadTask({
         operationId,
         fileName: reconciledProgress?.fileName || archiveFileName,
-        displayName: "SPI Flash",
+        displayName: biosEcProgrammerDisplayName,
         stage: reconciledStage,
         active: false,
         success: false,
         progressPercent: reconciledStage === "cancelled" ? 0 : 100,
-        message: reconciledProgress.message || "Menyiapkan BIOS untuk SPI Flash gagal.",
+        message: reconciledProgress.message || `Menyiapkan BIOS di ${biosEcProgrammerDisplayName} gagal.`,
         lastError: reconciledProgress.lastError || ""
       });
-      throw new Error(reconciledProgress.lastError || reconciledProgress.message || error.message || "Menyiapkan BIOS untuk SPI Flash gagal.");
+      throw new Error(reconciledProgress.lastError || reconciledProgress.message || error.message || `Menyiapkan BIOS di ${biosEcProgrammerDisplayName} gagal.`);
     }
 
     upsertCatalogUploadTask({
       operationId,
       fileName: archiveFileName,
-      displayName: "SPI Flash",
+      displayName: biosEcProgrammerDisplayName,
       stage: "failed",
       active: false,
       success: false,
       progressPercent: 100,
-      message: "Menyiapkan BIOS untuk SPI Flash gagal.",
-      lastError: error.message || "Menyiapkan BIOS untuk SPI Flash gagal."
+      message: `Menyiapkan BIOS di ${biosEcProgrammerDisplayName} gagal.`,
+      lastError: error.message || `Menyiapkan BIOS di ${biosEcProgrammerDisplayName} gagal.`
     });
     throw error;
   }
@@ -8182,14 +8473,14 @@ async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FL
   upsertCatalogUploadTask({
     operationId,
     fileName: archiveFileName,
-    displayName: "SPI Flash",
+    displayName: biosEcProgrammerDisplayName,
     stage: "completed",
     active: false,
     success: true,
     progressPercent: 100,
-    message: result.message || "BIOS sudah siap di SPI Flash."
+    message: result.message || `BIOS sudah siap di ${biosEcProgrammerDisplayName}.`
   });
-  openSpiFlashWorkbench(result.message || "BIOS sudah siap di SPI Flash.");
+  openSpiFlashWorkbench(result.message || `BIOS sudah siap di ${biosEcProgrammerDisplayName}.`);
 }
 
 async function openBoardviewCatalogItem(messageId, options = {}) {

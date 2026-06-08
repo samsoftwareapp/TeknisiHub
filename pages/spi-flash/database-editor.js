@@ -615,7 +615,7 @@
   async function loadDatabase() {
     state.loading = true;
     updateHeader();
-    setMessage("Memuat database SPI Flash...");
+    setMessage("Memuat database BIOS 25 Series...");
 
     try {
       const payload = await fetchJson("/spi-flash/database");
@@ -624,10 +624,10 @@
       state.lastModifiedUtc = payload.lastModifiedUtc || "";
       state.dirty = false;
       render();
-      setMessage(`Database SPI Flash berhasil dimuat. ${state.records.length} record siap diedit.`, "success");
+      setMessage(`Database BIOS 25 Series berhasil dimuat. ${state.records.length} record siap diedit.`, "success");
     } catch (error) {
       render();
-      setMessage(error?.message || "Gagal memuat database SPI Flash.", "danger");
+      setMessage(error?.message || "Gagal memuat database BIOS 25 Series.", "danger");
     } finally {
       state.loading = false;
       updateHeader();
@@ -672,7 +672,7 @@
 
     state.saving = true;
     updateHeader();
-    setMessage("Menyimpan perubahan database SPI Flash...");
+    setMessage("Menyimpan perubahan database BIOS 25 Series...");
 
     try {
       const payload = await fetchJson("/spi-flash/database", {
@@ -687,9 +687,9 @@
       state.dirty = false;
       updateHeader();
       const backupCopy = payload.backupPath ? ` Backup: ${payload.backupPath}` : "";
-      setMessage(`${payload.message || "Database SPI Flash berhasil disimpan."}${backupCopy}`, "success");
+      setMessage(`${payload.message || "Database BIOS 25 Series berhasil disimpan."}${backupCopy}`, "success");
     } catch (error) {
-      setMessage(error?.message || "Gagal menyimpan database SPI Flash.", "danger");
+      setMessage(error?.message || "Gagal menyimpan database BIOS 25 Series.", "danger");
     } finally {
       state.saving = false;
       updateHeader();
@@ -812,7 +812,7 @@
     }
     markDirty();
     render();
-    setMessage("Baris SPI Flash baru ditambahkan di paling atas. Isi kolomnya lalu simpan.", "success");
+    setMessage("Baris BIOS 25 Series baru ditambahkan di paling atas. Isi kolomnya lalu simpan.", "success");
   }
 
   function confirmReload() {
@@ -852,7 +852,7 @@
 
     const message = nextDatabase === "kbc"
       ? `Database KBC/EC siap. ${state.kbcProfiles.length} profile, ${state.kbcItePinouts.length} pinout ITE tersimpan.`
-      : `Database SPI Flash siap. ${state.records.length} record.`;
+      : `Database BIOS 25 Series siap. ${state.records.length} record.`;
     setMessage(message, "success");
   }
 

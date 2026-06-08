@@ -288,7 +288,9 @@
       selectedQualcommPackageId: "",
       ports: [],
       message: "Ready",
-      logs: ["Ready"]
+      logs: ["Ready"],
+      readOnly: true,
+      accessLabel: "Free"
     };
   }
 
@@ -752,12 +754,26 @@
   function createWorkbenchMarkup(state) {
     const platform = getPlatform(state.platform);
     const sessionLocked = Boolean(state.running);
-    const controlsDisabled = state.busy || sessionLocked ? " disabled" : "";
-    const startDisabled = state.busy || sessionLocked ? " disabled" : "";
-    const stopDisabled = state.busy || !sessionLocked ? " disabled" : "";
+    const readOnly = Boolean(state.readOnly);
+    const controlsDisabled = state.busy || sessionLocked || readOnly ? " disabled" : "";
+    const startDisabled = state.busy || sessionLocked || readOnly ? " disabled" : "";
+    const stopDisabled = state.busy || !sessionLocked || readOnly ? " disabled" : "";
     const statusText = createStatusText(state);
     const progressWidth = Math.max(0, Math.min(100, Number(state.progress) || 0));
     const currentTool = state.androidTool === "qfil" ? "qfil" : "universal";
+    const accessLabel = state.accessLabel || "Free";
+    const accessBadgeMarkup = readOnly ? `
+      <span class="flash-phone-access-badge" title="Premium">
+        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+        <span>Premium</span>
+      </span>
+    ` : "";
+    const readonlyBannerMarkup = readOnly ? `
+      <div class="flash-phone-readonly-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+        <span>Mode lihat saja untuk role ${escapeHtml(accessLabel)}</span>
+      </div>
+    ` : "";
     const logCardMarkup = `
       <section class="spi-card flash-phone-log-card">
         <div class="spi-card-head">
@@ -778,12 +794,17 @@
             <p class="label">Tools</p>
             <h4>Android Tools</h4>
           </div>
-          <span class="flash-phone-status is-${escapeHtml(state.status || "idle")}">${escapeHtml(statusText)}</span>
+          <div class="flash-phone-head-badges">
+            ${accessBadgeMarkup}
+            <span class="flash-phone-status is-${escapeHtml(state.status || "idle")}">${escapeHtml(statusText)}</span>
+          </div>
         </div>
 
         <div class="flash-phone-subtool-tabs" aria-label="Android tool mode">
           ${createAndroidToolSubtools(state, controlsDisabled)}
         </div>
+
+        ${readonlyBannerMarkup}
 
         ${currentTool === "universal" ? `
           <div class="flash-phone-control-grid is-wide">
@@ -992,6 +1013,21 @@
       bindEvents();
     }
 
+    function applyAccessState(access = {}) {
+      const nextReadOnly = access.readOnly !== false;
+      const nextAccessLabel = String(access.roleLabel || access.label || (nextReadOnly ? "Free" : "Premium")).trim() || "Free";
+      if (state.readOnly === nextReadOnly && state.accessLabel === nextAccessLabel) {
+        return;
+      }
+
+      state = {
+        ...state,
+        readOnly: nextReadOnly,
+        accessLabel: nextAccessLabel
+      };
+      render();
+    }
+
     function syncPolling() {
       if (pollTimer) {
         clearInterval(pollTimer);
@@ -1010,6 +1046,11 @@
     }
 
     async function runOperation(operation, action) {
+      if (state.readOnly) {
+        notify("Android Tools Premium. Akun Free hanya mode lihat.", "info");
+        return;
+      }
+
       state.busy = true;
       state.message = operation;
       render();
@@ -1068,6 +1109,11 @@
     }
 
     async function runQualcommTask(operation, action) {
+      if (state.readOnly) {
+        notify("Android Tools Premium. Akun Free hanya mode lihat.", "info");
+        return null;
+      }
+
       state.busy = true;
       state.message = operation;
       render();
@@ -1108,7 +1154,7 @@
     }
 
     function canEditSetup() {
-      return !state.busy && !state.running;
+      return !state.readOnly && !state.busy && !state.running;
     }
 
     function bindEvents() {
@@ -1385,6 +1431,9 @@
           hasLoadedOnce = true;
           loadSession();
         }
+      },
+      setAccessState(access) {
+        applyAccessState(access);
       },
       setVisible(visible) {
         isVisible = Boolean(visible);

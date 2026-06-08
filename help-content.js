@@ -141,10 +141,10 @@
     },
     tool_spi_flash: {
       eyebrow: "Tools",
-      title: "SPI Flash",
+      title: "BIOS/EC Programmer",
       image: `${helpAssetBase}/tool-spi-flash.png`,
-      imageAlt: "Tampilan tool SPI Flash dengan panel koneksi, file, dan aksi chip.",
-      summary: "Tool SPI Flash dipakai untuk membaca, menyimpan, memverifikasi, menghapus, menulis, dan menyiapkan file BIOS ke chip.",
+      imageAlt: "Tampilan BIOS/EC Programmer dengan panel koneksi, file, dan aksi chip.",
+      summary: "BIOS/EC Programmer dipakai untuk membaca, menyimpan, memverifikasi, menghapus, menulis, dan menyiapkan file BIOS atau EC/KBC ke chip.",
       steps: [
         "Pilih koneksi device, lalu tunggu status tersambung.",
         "Pilih target chip secara otomatis atau manual sesuai kondisi di meja kerja.",
@@ -501,7 +501,7 @@
           "Kolom pencarian: cari berdasarkan model, kode board, nama file, atau kata kunci pendek.",
           "Refresh Catalog: memuat ulang daftar jika hasil belum terbaru.",
           "Download: menyimpan file katalog ke folder pilihan pengguna.",
-          "Flash chip: mengirim file ke halaman SPI Flash saat alat dan file sudah siap.",
+          "Flash chip: mengirim file ke halaman BIOS/EC Programmer saat alat dan file sudah siap.",
           "Upload: menambah file baru jika akun punya izin manajemen katalog.",
           "Edit dan Hapus: mengubah atau menghapus item katalog jika akun punya izin."
         ]
