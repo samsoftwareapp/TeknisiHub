@@ -13786,6 +13786,16 @@ body.is-dark-mode .flash-phone-qc-partitions strong {
   font-weight: 700;
 }
 
+.logic-analyzer-table tr.is-target-match td {
+  background: rgba(20, 184, 166, 0.14);
+  color: #0f766e;
+  font-weight: 850;
+}
+
+.logic-analyzer-table tr.is-target-match td:first-child {
+  box-shadow: inset 4px 0 0 #14b8a6;
+}
+
 .logic-analyzer-empty {
   display: flex;
   align-items: center;
@@ -13834,6 +13844,259 @@ body.is-dark-mode .logic-analyzer-table th {
 body.is-dark-mode .logic-analyzer-table th,
 body.is-dark-mode .logic-analyzer-table td {
   border-bottom-color: rgba(148, 163, 184, 0.12);
+}
+
+body.is-dark-mode .logic-analyzer-table tr.is-target-match td {
+  background: rgba(20, 184, 166, 0.20);
+  color: #99f6e4;
+}
+
+.battery-unlock-workbench {
+  display: grid;
+  gap: 16px;
+}
+
+.battery-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.battery-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--muted);
+}
+
+.battery-tabs button.is-active {
+  border-color: rgba(20, 184, 166, 0.55);
+  background: rgba(20, 184, 166, 0.12);
+  color: var(--text);
+}
+
+.battery-detect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.battery-detect-item {
+  display: grid;
+  gap: 3px;
+  min-height: 74px;
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: rgba(240, 253, 250, 0.7);
+}
+
+.battery-detect-item small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.battery-detect-item strong {
+  color: var(--text);
+  font-size: 0.96rem;
+  word-break: break-word;
+}
+
+.battery-detect-item span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  word-break: break-word;
+}
+
+.battery-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.battery-metric {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.battery-metric .material-symbols-outlined {
+  grid-row: span 2;
+  color: #0f9f87;
+}
+
+.battery-metric small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.battery-metric strong {
+  color: var(--text);
+  font-size: 0.98rem;
+  word-break: break-word;
+}
+
+.battery-table-wrap {
+  overflow-x: auto;
+}
+
+.battery-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.battery-table th,
+.battery-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(39, 52, 72, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.battery-table th {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.battery-table td span {
+  color: #b7791f;
+}
+
+.battery-confirm-row,
+.battery-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.battery-confirm-row {
+  margin-top: 12px;
+}
+
+.battery-confirm-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.72);
+  color: var(--muted);
+}
+
+.battery-profile-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.battery-profile-strip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.72);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.battery-step-list {
+  display: grid;
+  gap: 8px;
+}
+
+.battery-step {
+  display: grid;
+  grid-template-columns: 36px minmax(110px, 0.8fr) minmax(110px, 0.8fr) minmax(180px, 1.6fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.battery-step strong {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(14, 165, 233, 0.14);
+  color: #0369a1;
+}
+
+.battery-step span {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.battery-step code {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.battery-step small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+body.is-dark-mode .battery-tabs button,
+body.is-dark-mode .battery-detect-item,
+body.is-dark-mode .battery-metric,
+body.is-dark-mode .battery-confirm-row label,
+body.is-dark-mode .battery-profile-strip span,
+body.is-dark-mode .battery-step {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.28);
+}
+
+body.is-dark-mode .battery-tabs button.is-active {
+  border-color: rgba(45, 212, 191, 0.3);
+  background: rgba(20, 184, 166, 0.14);
+  color: #99f6e4;
+}
+
+body.is-dark-mode .battery-table th,
+body.is-dark-mode .battery-table td {
+  border-bottom-color: rgba(148, 163, 184, 0.12);
+}
+
+body.is-dark-mode .battery-step strong {
+  background: rgba(37, 99, 235, 0.18);
+  color: #93c5fd;
+}
+
+@media (max-width: 760px) {
+  .battery-step {
+    grid-template-columns: 32px 1fr;
+  }
+
+  .battery-step code,
+  .battery-step small {
+    grid-column: 2;
+  }
 }
 
 body.is-dark-mode .logic-analyzer-socket-monitor {
@@ -13969,5 +14232,511 @@ body.is-dark-mode .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-p
   .logic-analyzer-canvas-shell {
     min-height: 320px;
     aspect-ratio: 1 / 1;
+  }
+}
+
+.logic-analyzer-workbench.spi-scope-theme,
+.battery-unlock-workbench.spi-scope-theme {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #07111a;
+}
+
+.logic-analyzer-workbench.spi-scope-theme {
+  grid-template-columns: minmax(240px, 0.78fr) minmax(0, 1.45fr);
+  align-items: start;
+}
+
+.battery-unlock-workbench.spi-scope-theme {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+.logic-analyzer-workbench .logic-analyzer-control-card,
+.logic-analyzer-workbench .logic-analyzer-decode-card,
+.battery-unlock-workbench .battery-tabs,
+.battery-unlock-workbench .battery-panel-main,
+.battery-unlock-workbench .battery-result-panel,
+.battery-unlock-workbench .battery-sequence-panel {
+  grid-column: 1 / -1;
+}
+
+.logic-analyzer-workbench .logic-analyzer-pin-card {
+  grid-column: 1;
+}
+
+.logic-analyzer-workbench .logic-analyzer-display-card {
+  grid-column: 2;
+}
+
+.logic-analyzer-workbench.spi-scope-theme .spi-card,
+.battery-unlock-workbench.spi-scope-theme .spi-card {
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.logic-analyzer-workbench.spi-scope-theme .spi-card-head,
+.battery-unlock-workbench.spi-scope-theme .spi-card-head {
+  gap: 8px;
+  margin: 0 0 8px;
+  padding-bottom: 8px;
+}
+
+.logic-analyzer-workbench .spi-card-head h4,
+.battery-unlock-workbench .spi-card-head h4 {
+  font-size: 0.92rem;
+  line-height: 1.14;
+}
+
+.logic-analyzer-workbench .label,
+.battery-unlock-workbench .label {
+  font-size: 0.68rem;
+}
+
+.logic-analyzer-actions,
+.logic-analyzer-readouts,
+.logic-analyzer-status-row,
+.battery-action-row,
+.battery-confirm-row,
+.battery-profile-strip {
+  gap: 6px;
+}
+
+.logic-analyzer-actions button,
+.battery-tabs button,
+.battery-unlock-workbench .spi-card-head > button,
+.battery-action-row button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  gap: 6px;
+  font-size: 0.78rem;
+  line-height: 1.1;
+  box-shadow: none;
+}
+
+.logic-analyzer-actions button .material-symbols-outlined,
+.battery-tabs button .material-symbols-outlined,
+.battery-unlock-workbench button .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.logic-analyzer-actions button span:last-child,
+.battery-tabs button span:last-child,
+.battery-unlock-workbench button span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logic-analyzer-workbench button:not(.ghost),
+.battery-unlock-workbench button:not(.ghost) {
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1aa6c4, #14b8a6);
+  box-shadow: none;
+}
+
+.logic-analyzer-workbench button:not(.ghost):hover,
+.battery-unlock-workbench button:not(.ghost):hover {
+  background: linear-gradient(135deg, #25bfd5, #16c6b2);
+}
+
+.logic-analyzer-form-grid {
+  grid-template-columns: minmax(180px, 1.2fr) repeat(auto-fit, minmax(96px, 0.8fr));
+  gap: 8px;
+}
+
+.battery-unlock-workbench .spi-form-grid {
+  grid-template-columns: minmax(180px, 1.15fr) repeat(auto-fit, minmax(118px, 0.9fr));
+  gap: 8px;
+}
+
+.logic-analyzer-workbench .spi-form-grid label,
+.battery-unlock-workbench .spi-form-grid label,
+.battery-confirm-row label {
+  gap: 4px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  font-size: 0.7rem;
+  line-height: 1.15;
+}
+
+.logic-analyzer-workbench .spi-form-grid label input,
+.logic-analyzer-workbench .spi-form-grid label select,
+.battery-unlock-workbench .spi-form-grid label input,
+.battery-unlock-workbench .spi-form-grid label select,
+.battery-unlock-workbench .spi-form-grid label textarea {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+}
+
+.battery-unlock-workbench .spi-form-grid label textarea {
+  height: auto;
+  min-height: 70px;
+  padding: 8px 9px;
+}
+
+.logic-analyzer-mode-switch,
+.logic-analyzer-voltage-switch,
+.logic-analyzer-probe-switch {
+  gap: 5px;
+  min-height: 34px;
+}
+
+.logic-analyzer-mode-button,
+.logic-analyzer-voltage-button,
+.logic-analyzer-probe-button,
+.logic-analyzer-checkline > span {
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 0.78rem;
+}
+
+.logic-analyzer-pin-status {
+  min-height: 30px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 0.68rem;
+}
+
+.logic-analyzer-pin-status strong {
+  min-width: 52px;
+  font-size: 0.68rem;
+}
+
+.logic-analyzer-socket-monitor {
+  grid-template-columns: minmax(170px, 1fr) minmax(130px, 170px);
+  gap: 8px;
+  padding: 8px;
+}
+
+.logic-analyzer-socket-pins {
+  gap: 6px;
+}
+
+.logic-analyzer-socket-pin {
+  min-height: 42px;
+  padding: 7px 9px;
+}
+
+.logic-analyzer-socket-pin span {
+  font-size: 0.62rem;
+}
+
+.logic-analyzer-socket-pin strong {
+  font-size: 0.9rem;
+}
+
+.logic-analyzer-socket-pin small {
+  font-size: 0.66rem;
+}
+
+.logic-analyzer-socket-body {
+  gap: 6px;
+  min-height: 142px;
+  padding: 22px 10px 10px;
+}
+
+.logic-analyzer-socket-body strong {
+  font-size: 1.55rem;
+}
+
+.logic-analyzer-socket-body em {
+  min-height: 28px;
+  padding: 6px 7px;
+  font-size: 0.68rem;
+}
+
+.logic-analyzer-socket-dot {
+  top: 13px;
+  left: 13px;
+}
+
+.logic-analyzer-socket-monitor.is-spi {
+  grid-template-columns: minmax(220px, 1fr) minmax(140px, 180px);
+  gap: 10px;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pins {
+  width: 100%;
+  gap: 5px;
+  padding: 8px 16px 8px 8px;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin {
+  grid-template-columns: 42px minmax(54px, 1fr) 44px;
+  min-height: 36px;
+  padding: 6px 9px;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin strong {
+  font-size: 0.92rem;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body {
+  min-height: 150px;
+  width: min(100%, 180px);
+}
+
+.logic-analyzer-canvas-shell {
+  min-height: 220px;
+  aspect-ratio: 18 / 6;
+}
+
+.logic-analyzer-readouts span,
+.logic-analyzer-status-row .spi-mini-badge,
+.battery-unlock-workbench .spi-mini-badge {
+  min-height: 26px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+
+.logic-analyzer-table-wrap,
+.battery-table-wrap {
+  max-height: 270px;
+  overflow: auto;
+  border: 1px solid rgba(118, 151, 169, 0.14);
+  border-radius: 8px;
+}
+
+.logic-analyzer-table,
+.battery-table {
+  font-size: 0.78rem;
+}
+
+.logic-analyzer-table th,
+.logic-analyzer-table td,
+.battery-table th,
+.battery-table td {
+  padding: 7px 8px;
+  line-height: 1.22;
+}
+
+.battery-table {
+  min-width: 480px;
+}
+
+.battery-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(15, 23, 42, 0.96);
+}
+
+.battery-tabs {
+  gap: 6px;
+}
+
+.battery-tabs button {
+  min-width: 0;
+}
+
+.battery-detect-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.battery-detect-item {
+  min-height: 54px;
+  padding: 7px 8px;
+  border-radius: 7px;
+}
+
+.battery-detect-item small,
+.battery-metric small {
+  font-size: 0.66rem;
+  line-height: 1.1;
+}
+
+.battery-detect-item strong {
+  font-size: 0.84rem;
+  line-height: 1.1;
+}
+
+.battery-detect-item span {
+  font-size: 0.68rem;
+  line-height: 1.12;
+}
+
+.battery-metric-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.battery-metric {
+  grid-template-columns: 20px minmax(0, 1fr);
+  min-height: 50px;
+  padding: 7px 8px;
+  border-radius: 7px;
+}
+
+.battery-metric .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.battery-metric strong {
+  font-size: 0.84rem;
+  line-height: 1.12;
+}
+
+.battery-confirm-row {
+  margin-top: 8px;
+}
+
+.battery-confirm-row label {
+  min-height: 30px;
+  padding: 5px 8px;
+}
+
+.battery-confirm-row input {
+  margin: 0;
+}
+
+.battery-profile-strip {
+  margin-top: 8px;
+}
+
+.battery-profile-strip span {
+  min-height: 25px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+}
+
+.battery-step-list {
+  gap: 6px;
+}
+
+.battery-step {
+  grid-template-columns: 30px minmax(90px, 0.7fr) minmax(110px, 1fr) minmax(160px, 1.4fr);
+  gap: 8px;
+  padding: 8px;
+  border-radius: 7px;
+}
+
+.battery-step strong {
+  width: 24px;
+  height: 24px;
+  font-size: 0.76rem;
+}
+
+.battery-step span {
+  font-size: 0.8rem;
+}
+
+.battery-step small {
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.battery-unlock-workbench .spi-note,
+.logic-analyzer-workbench .spi-note {
+  margin: 8px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.34;
+}
+
+body:not(.is-dark-mode) .logic-analyzer-workbench.spi-scope-theme,
+body:not(.is-dark-mode) .battery-unlock-workbench.spi-scope-theme {
+  background: #f5fbfd;
+}
+
+body:not(.is-dark-mode) .battery-table th {
+  background: rgba(245, 251, 253, 0.96);
+}
+
+body.is-dark-mode .battery-table th {
+  background: rgba(15, 23, 42, 0.96);
+}
+
+body.is-dark-mode .battery-table td span {
+  color: #ffd56f;
+}
+
+@media (max-width: 1120px) {
+  .logic-analyzer-workbench.spi-scope-theme,
+  .battery-unlock-workbench.spi-scope-theme {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .logic-analyzer-workbench .logic-analyzer-control-card,
+  .logic-analyzer-workbench .logic-analyzer-pin-card,
+  .logic-analyzer-workbench .logic-analyzer-display-card,
+  .logic-analyzer-workbench .logic-analyzer-decode-card,
+  .battery-unlock-workbench .battery-tabs,
+  .battery-unlock-workbench .battery-panel-main,
+  .battery-unlock-workbench .battery-result-panel,
+  .battery-unlock-workbench .battery-sequence-panel {
+    grid-column: 1 / -1;
+  }
+
+  .battery-detect-grid,
+  .battery-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .logic-analyzer-workbench.spi-scope-theme,
+  .battery-unlock-workbench.spi-scope-theme {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+
+  .logic-analyzer-actions {
+    justify-content: stretch;
+  }
+
+  .logic-analyzer-actions button {
+    flex: 1 1 118px;
+  }
+
+  .logic-analyzer-socket-monitor,
+  .logic-analyzer-socket-monitor.is-spi {
+    grid-template-columns: 1fr;
+  }
+
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pins {
+    padding-right: 8px;
+  }
+
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pins::after,
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin::before,
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin::after {
+    display: none;
+  }
+
+  .logic-analyzer-canvas-shell {
+    min-height: 260px;
+    aspect-ratio: 1 / 0.78;
+  }
+
+  .logic-analyzer-form-grid,
+  .battery-unlock-workbench .spi-form-grid,
+  .battery-detect-grid,
+  .battery-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .battery-step {
+    grid-template-columns: 28px 1fr;
+  }
+
+  .battery-step code,
+  .battery-step small {
+    grid-column: 2;
   }
 }

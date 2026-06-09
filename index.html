@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202606080009">
+  <link rel="stylesheet" href="styles.css?v=202606090001">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -350,6 +350,12 @@
                         <span class="material-symbols-outlined" aria-hidden="true">star</span>
                       </span>
                     </a>
+                    <a id="toolBatteryUnlock" href="#BatteryUnlock" class="sidebar-nav-button">
+                      <span class="sidebar-nav-text">Battery Unlock</span>
+                      <span class="sidebar-premium-badge" title="Premium" aria-label="Premium">
+                        <span class="material-symbols-outlined" aria-hidden="true">star</span>
+                      </span>
+                    </a>
                     <a id="toolFirmwareUpdate" href="#UpdateFirmwareTeknisiHub" class="sidebar-nav-button">
                       <span>Update Firmware TeknisiHub</span>
                     </a>
@@ -465,6 +471,7 @@
             <section id="flashPhoneWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="oscilloscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="logicAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="batteryUnlockWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="firmwareUpdateWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="meAnalyzerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="uefiToolWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
@@ -864,7 +871,8 @@
   <script src="pages/spi-flash/page.js?v=202606080003"></script>
   <script src="pages/flash-phone/page.js?v=202606080008"></script>
     <script src="pages/oscilloscope/page.js?v=202606060004"></script>
-  <script src="pages/logic-analyzer/page.js?v=202606080002"></script>
+  <script src="pages/logic-analyzer/page.js?v=202606090001"></script>
+  <script src="pages/battery-unlock/page.js?v=202606090001"></script>
   <script src="pages/firmware-update/page.js?v=202606060005"></script>
   <script src="pages/me-analyzer/page.js?v=202605210016"></script>
   <script src="pages/uefi-tool/page.js?v=202605210016"></script>
@@ -884,6 +892,6 @@
   <script src="pages/product/page.js?v=202606080006"></script>
   <script src="pages/settings/page.js?v=202606080006"></script>
   <script src="help-content.js?v=202606070001"></script>
-    <script src="app.js?v=202606080009"></script>
+    <script src="app.js?v=202606080010"></script>
 </body>
 </html>

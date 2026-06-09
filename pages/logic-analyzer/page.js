@@ -23,6 +23,7 @@
   const maxDecodeRows = 120;
   const maxRecordedDecodeRows = 1000;
   const autoCaptureDelayMs = 120;
+  const defaultAutoTargetValue = "0x0B";
   const minPatternTransitions = 4;
   const usbDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
   const wifiDeviceType = "TEKNISIHUB_FLASH_OSC_WIFI";
@@ -180,6 +181,8 @@
       idleCaptures: 0,
       lastLabel: "",
       matched: false,
+      mode: "pattern",
+      target: "",
       ...overrides
     };
   }
@@ -201,6 +204,7 @@
       isPinOrderChecking: false,
       message: "Pilih koneksi untuk mulai capture.",
       errorMessage: "",
+      autoTargetValue: defaultAutoTargetValue,
       autoPattern: createAutoState()
     };
   }
@@ -269,6 +273,7 @@
           event: "START",
           value: "-",
           ack: "-",
+          bits: "-",
           note: "Bus aktif"
         });
         continue;
@@ -284,6 +289,7 @@
           event: "STOP",
           value: "-",
           ack: "-",
+          bits: "-",
           note: "Bus idle"
         });
         started = false;
@@ -307,6 +313,7 @@
               ? `0x${address.toString(16).toUpperCase().padStart(2, "0")} ${direction}`
               : `0x${value.toString(16).toUpperCase().padStart(2, "0")}`,
             ack,
+            bits: dataBits.join(""),
             note: isAddress ? "Address" : `Byte ${byteIndex}`
           });
           byteIndex += 1;
@@ -349,6 +356,7 @@
           event: "CS LOW",
           value: "-",
           ack: "-",
+          bits: "-",
           note: "Frame mulai"
         });
       }
@@ -360,6 +368,7 @@
             event: "CS HIGH",
             value: "-",
             ack: "-",
+            bits: "-",
             note: "Frame selesai"
           });
         }
@@ -378,6 +387,7 @@
             event: `BYTE ${byteIndex}`,
             value: `MOSI 0x${mosiValue.toString(16).toUpperCase().padStart(2, "0")}`,
             ack: `MISO 0x${misoValue.toString(16).toUpperCase().padStart(2, "0")}`,
+            bits: `MOSI ${bitsMosi.join("")} / MISO ${bitsMiso.join("")}`,
             note: "CLK rising"
           });
           byteIndex += 1;
@@ -414,6 +424,88 @@
     return (Array.isArray(rows) ? rows : []).filter((row) => {
       const event = String(row?.event || "").toUpperCase();
       return event && !["START", "STOP", "CS LOW", "CS HIGH"].includes(event);
+    });
+  }
+
+  function parseAutoTargetNumber(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return null;
+    }
+    if (/^0x[0-9a-f]+$/i.test(text)) {
+      return Number.parseInt(text.slice(2), 16);
+    }
+    if (/^[0-9a-f]+$/i.test(text) && /[a-f]/i.test(text)) {
+      return Number.parseInt(text, 16);
+    }
+    if (/^[0-9]+$/i.test(text)) {
+      return Number.parseInt(text, 10);
+    }
+    return null;
+  }
+
+  function normalizeAutoTargetText(value) {
+    const text = String(value || "").trim();
+    const targetNumber = parseAutoTargetNumber(text);
+    if (Number.isInteger(targetNumber) && targetNumber >= 0) {
+      const width = targetNumber <= 0xFF ? 2 : 1;
+      return `0x${targetNumber.toString(16).toUpperCase().padStart(width, "0")}`;
+    }
+    return text.toUpperCase();
+  }
+
+  function extractHexNumbers(value) {
+    const numbers = [];
+    String(value || "").replace(/\b0x([0-9a-f]+)\b/gi, (match, hex) => {
+      const parsed = Number.parseInt(hex, 16);
+      if (Number.isInteger(parsed)) {
+        numbers.push(parsed);
+      }
+      return match;
+    });
+    return numbers;
+  }
+
+  function rowMatchesAutoTarget(row, targetText) {
+    const normalizedTarget = normalizeAutoTargetText(targetText);
+    if (!normalizedTarget) {
+      return false;
+    }
+    const fields = [row?.event, row?.value, row?.ack].map((value) => String(value || "")).join(" ");
+    const targetNumber = parseAutoTargetNumber(normalizedTarget);
+    if (Number.isInteger(targetNumber)) {
+      return extractHexNumbers(fields).some((value) => value === targetNumber);
+    }
+    return fields.toUpperCase().includes(normalizedTarget.toUpperCase());
+  }
+
+  function findAutoTargetMatch(rows, targetText) {
+    const normalizedTarget = normalizeAutoTargetText(targetText);
+    if (!normalizedTarget) {
+      return null;
+    }
+    const row = meaningfulDecodeRows(rows).find((item) => rowMatchesAutoTarget(item, normalizedTarget));
+    if (!row) {
+      return null;
+    }
+    return {
+      row,
+      target: normalizedTarget,
+      label: `${normalizedTarget} ${row.event} ${row.value}`
+    };
+  }
+
+  function markAutoTargetRows(rows, targetText) {
+    const normalizedTarget = normalizeAutoTargetText(targetText);
+    return rows.map((row) => {
+      if (!rowMatchesAutoTarget(row, normalizedTarget)) {
+        return row;
+      }
+      return {
+        ...row,
+        isTargetMatch: true,
+        note: `TARGET ${normalizedTarget} ${row.note || ""}`.trim()
+      };
     });
   }
 
@@ -483,6 +575,7 @@
           event: "RAW",
           value: pattern.label || "aktif",
           ack: "-",
+          bits: "-",
           note: "Transisi tanpa decode"
         }];
 
@@ -510,16 +603,18 @@
               <th>Time</th>
               <th>Event</th>
               <th>Value</th>
+              <th>Bits</th>
               <th>Status</th>
               <th>Note</th>
             </tr>
           </thead>
           <tbody>
             ${rows.map((row) => `
-              <tr>
+              <tr${row?.isTargetMatch ? " class=\"is-target-match\"" : ""}>
                 <td>${escapeHtml(formatNumber(row.timeUs, 1))} us</td>
                 <td>${escapeHtml(row.event)}</td>
                 <td>${escapeHtml(row.value)}</td>
+                <td>${escapeHtml(row.bits || "-")}</td>
                 <td>${escapeHtml(row.ack)}</td>
                 <td>${escapeHtml(row.note)}</td>
               </tr>
@@ -704,10 +799,16 @@
         <span>${item}</span>
       </button>
     `).join("");
+    const autoMode = state.autoPattern?.mode || "pattern";
+    const targetLabel = normalizeAutoTargetText(state.autoPattern?.target || state.autoTargetValue || defaultAutoTargetValue);
     const autoBadge = autoRunning
-      ? `Auto ${formatNumber(state.autoPattern.attempts || 0)}`
+      ? autoMode === "target"
+        ? `Target ${escapeHtml(targetLabel || "-")}`
+        : `Auto ${formatNumber(state.autoPattern.attempts || 0)}`
       : autoFinishing
         ? "Stopping"
+      : state.autoPattern?.matched && autoMode === "target"
+        ? `Found ${escapeHtml(state.autoPattern.target || targetLabel || "-")}`
       : state.autoPattern?.validCaptures
         ? `Record ${formatNumber(state.autoPattern.validCaptures)}`
         : "Single";
@@ -727,6 +828,7 @@
     `).join("");
 
     return `
+      <div class="logic-analyzer-workbench spi-scope-theme">
       <section class="spi-card logic-analyzer-control-card">
         <div class="spi-card-head">
           <div>
@@ -741,6 +843,10 @@
             <button type="button" id="logicAnalyzerAutoButton" class="ghost${autoRunning ? " is-active" : ""}"${actionDisableAttr}>
               <span class="material-symbols-outlined${autoRunning ? " is-spinning" : ""}">${autoRunning ? "progress_activity" : "repeat"}</span>
               <span>${autoRunning ? "Stop" : (autoFinishing ? "Stopping..." : "Auto Capture")}</span>
+            </button>
+            <button type="button" id="logicAnalyzerAutoTargetButton" class="ghost${autoRunning && autoMode === "target" ? " is-active" : ""}"${actionDisableAttr}>
+              <span class="material-symbols-outlined${autoRunning && autoMode === "target" ? " is-spinning" : ""}">${autoRunning && autoMode === "target" ? "progress_activity" : "center_focus_strong"}</span>
+              <span>${autoRunning ? "Stop" : (autoFinishing ? "Stopping..." : "Auto Target")}</span>
             </button>
             <button type="button" id="logicAnalyzerCaptureButton" class="is-hero-action"${captureDisableAttr}>
               <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "play_arrow"}</span>
@@ -785,6 +891,10 @@
             Sample Count
             <input id="logicAnalyzerSampleCountInput" type="number" min="128" max="16384" step="128" value="${escapeHtml(state.sampleCount)}"${disableAttr}>
           </label>
+          <label>
+            Target
+            <input id="logicAnalyzerTargetInput" type="text" maxlength="24" value="${escapeHtml(state.autoTargetValue || defaultAutoTargetValue)}" placeholder="0x0B"${disableAttr}>
+          </label>
           <label class="logic-analyzer-checkline">
             Trigger
             <span>
@@ -823,7 +933,7 @@
         </div>
       </section>
 
-      <section class="spi-card">
+      <section class="spi-card logic-analyzer-decode-card">
         <div class="spi-card-head">
           <div>
             <p class="label">Decode</p>
@@ -833,6 +943,7 @@
         </div>
         ${createDecodeTable(state.decodedRows)}
       </section>
+      </div>
     `;
   }
 
@@ -958,10 +1069,12 @@
       const deviceSelect = mountedContainer.querySelector("#logicAnalyzerDeviceSelect");
       const sampleRateInput = mountedContainer.querySelector("#logicAnalyzerSampleRateInput");
       const sampleCountInput = mountedContainer.querySelector("#logicAnalyzerSampleCountInput");
+      const targetInput = mountedContainer.querySelector("#logicAnalyzerTargetInput");
       const triggerInput = mountedContainer.querySelector("#logicAnalyzerTriggerInput");
       const checkButton = mountedContainer.querySelector("#logicAnalyzerCheckButton");
       const captureButton = mountedContainer.querySelector("#logicAnalyzerCaptureButton");
       const autoButton = mountedContainer.querySelector("#logicAnalyzerAutoButton");
+      const autoTargetButton = mountedContainer.querySelector("#logicAnalyzerAutoTargetButton");
 
       deviceSelect?.addEventListener("change", () => {
         state.deviceType = deviceSelect.value || "";
@@ -1012,6 +1125,15 @@
         render();
       });
 
+      targetInput?.addEventListener("input", () => {
+        state.autoTargetValue = targetInput.value;
+      });
+
+      targetInput?.addEventListener("change", () => {
+        state.autoTargetValue = normalizeAutoTargetText(targetInput.value || defaultAutoTargetValue);
+        targetInput.value = state.autoTargetValue;
+      });
+
       triggerInput?.addEventListener("change", () => {
         state.triggerEnabled = Boolean(triggerInput.checked);
       });
@@ -1022,7 +1144,15 @@
         if (state.autoPattern.running) {
           stopAutoPattern();
         } else {
-          startAutoPattern();
+          startAutoPattern({ targetMode: false });
+        }
+      });
+      autoTargetButton?.addEventListener("click", () => {
+        if (state.autoPattern.running) {
+          stopAutoPattern();
+        } else {
+          state.autoTargetValue = targetInput?.value || state.autoTargetValue || defaultAutoTargetValue;
+          startAutoPattern({ targetMode: true });
         }
       });
     }
@@ -1039,7 +1169,7 @@
 
     function handleStopPointerDown(event) {
       const target = event.target;
-      const stopButton = target?.closest?.("#logicAnalyzerAutoButton");
+      const stopButton = target?.closest?.("#logicAnalyzerAutoButton, #logicAnalyzerAutoTargetButton");
       if (!stopButton || !mountedContainer?.contains(stopButton) || !state.autoPattern.running) {
         return;
       }
@@ -1206,8 +1336,17 @@
       }
     }
 
-    async function startAutoPattern() {
+    async function startAutoPattern(options = {}) {
       if (busy || state.autoPattern.running) {
+        return;
+      }
+
+      const targetMode = Boolean(options.targetMode);
+      const targetText = normalizeAutoTargetText(state.autoTargetValue || defaultAutoTargetValue);
+      if (targetMode && !targetText) {
+        state.errorMessage = "Isi target decode dulu.";
+        notify(state.errorMessage, "warning");
+        render();
         return;
       }
 
@@ -1224,13 +1363,20 @@
       const runId = autoRunId + 1;
       autoRunId = runId;
       const previousCapture = state.capture;
-      state.autoPattern = createAutoState({ running: true });
+      state.autoTargetValue = targetMode ? targetText : state.autoTargetValue;
+      state.autoPattern = createAutoState({
+        running: true,
+        mode: targetMode ? "target" : "pattern",
+        target: targetMode ? targetText : ""
+      });
       state.capture = hasLockedI2cPinOrder(previousCapture)
         ? markI2cPinOrderChecking(previousCapture)
         : null;
       state.decodedRows = [];
       state.errorMessage = "";
-      state.message = "Auto Capture aktif. Menunggu data...";
+      state.message = targetMode
+        ? `Auto Target aktif. Mencari ${targetText}...`
+        : "Auto Capture aktif. Menunggu data...";
       render();
 
       while (state.autoPattern.running && runId === autoRunId) {
@@ -1243,6 +1389,8 @@
           const rows = decodeCapture(result);
           const pattern = buildCapturePattern(result, rows);
           const attempts = (state.autoPattern.attempts || 0) + 1;
+          const activeTarget = state.autoPattern.mode === "target" ? state.autoPattern.target : "";
+          const targetMatch = activeTarget ? findAutoTargetMatch(rows, activeTarget) : null;
 
           if (!pattern.active) {
             state.autoPattern = {
@@ -1251,14 +1399,18 @@
               idleCaptures: (state.autoPattern.idleCaptures || 0) + 1,
               lastLabel: pattern.label || "idle"
             };
-            state.message = `Auto Capture aktif. Capture ${formatNumber(attempts)} idle. Data valid tetap ditahan.`;
+            state.message = activeTarget
+              ? `Auto Target mencari ${activeTarget}. Capture ${formatNumber(attempts)} idle.`
+              : `Auto Capture aktif. Capture ${formatNumber(attempts)} idle. Data valid tetap ditahan.`;
             render();
             await delayAutoPattern(runId);
             continue;
           }
 
           const validCaptures = (state.autoPattern.validCaptures || 0) + 1;
-          const recordedRows = tagRecordedRows(rows, pattern, validCaptures);
+          const recordedRows = activeTarget
+            ? markAutoTargetRows(tagRecordedRows(rows, pattern, validCaptures), activeTarget)
+            : tagRecordedRows(rows, pattern, validCaptures);
           state.capture = carryLockedI2cPinOrder(result, state.capture);
           state.mode = result.mode;
           state.sampleRateHz = normalizeSampleRateHz(result.requestedSampleRateHz || state.sampleRateHz);
@@ -1269,9 +1421,27 @@
             attempts,
             validCaptures,
             lastLabel: pattern.label,
-            matched: true
+            matched: Boolean(targetMatch) || !activeTarget
           };
-          state.message = `Auto Capture merekam ${formatNumber(validCaptures)} capture valid. Stop untuk selesai.`;
+
+          if (targetMatch) {
+            state.autoPattern = {
+              ...state.autoPattern,
+              running: false,
+              stopping: false,
+              finishing: false,
+              matched: true,
+              lastLabel: targetMatch.label
+            };
+            state.message = `Auto Target berhenti. ${targetMatch.label} ketemu pada capture ${formatNumber(validCaptures)}.`;
+            notify(state.message, "success");
+            render();
+            break;
+          }
+
+          state.message = activeTarget
+            ? `Auto Target mencari ${activeTarget}. ${formatNumber(validCaptures)} capture valid belum cocok.`
+            : `Auto Capture merekam ${formatNumber(validCaptures)} capture valid. Stop untuk selesai.`;
           render();
           await delayAutoPattern(runId);
         } catch (error) {

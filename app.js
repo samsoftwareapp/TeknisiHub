@@ -68,6 +68,7 @@ const spiFlashWorkbench = document.getElementById("spiFlashWorkbench");
 const flashPhoneWorkbench = document.getElementById("flashPhoneWorkbench");
 const oscilloscopeWorkbench = document.getElementById("oscilloscopeWorkbench");
 const logicAnalyzerWorkbench = document.getElementById("logicAnalyzerWorkbench");
+const batteryUnlockWorkbench = document.getElementById("batteryUnlockWorkbench");
 const firmwareUpdateWorkbench = document.getElementById("firmwareUpdateWorkbench");
 const meAnalyzerWorkbench = document.getElementById("meAnalyzerWorkbench");
 const uefiToolWorkbench = document.getElementById("uefiToolWorkbench");
@@ -186,6 +187,7 @@ const toolSpiFlash = document.getElementById("toolSpiFlash");
 const toolFlashPhone = document.getElementById("toolFlashPhone");
 const toolOscilloscope = document.getElementById("toolOscilloscope");
 const toolLogicAnalyzer = document.getElementById("toolLogicAnalyzer");
+const toolBatteryUnlock = document.getElementById("toolBatteryUnlock");
 const toolFirmwareUpdate = document.getElementById("toolFirmwareUpdate");
 const toolMeAnalyzer = document.getElementById("toolMeAnalyzer");
 const toolUefi = document.getElementById("toolUefi");
@@ -257,6 +259,17 @@ const logicAnalyzerPage = window.teknisiHubPages?.logicAnalyzer || {
   eyebrow: "Logic Analyzer",
   title: "Logic Analyzer",
   subtitle: "Capture digital I2C/SPI dari TEKNISIHUB_FLASH_OSC.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const batteryUnlockPage = window.teknisiHubPages?.batteryUnlock || {
+  viewKey: "tool_battery_unlock",
+  eyebrow: "Battery Tools",
+  title: "Battery Unlock",
+  subtitle: "Monitor dan recovery baterai laptop via SMBus/I2C.",
   items: [],
   mount() {},
   setVisible() {},
@@ -633,6 +646,11 @@ logicAnalyzerPage.mount?.({
   notify: (message, tone) => setNotice(message, tone)
 });
 
+batteryUnlockPage.mount?.({
+  container: batteryUnlockWorkbench,
+  notify: (message, tone) => setNotice(message, tone)
+});
+
 firmwareUpdatePage.mount?.({
   container: firmwareUpdateWorkbench,
   notify: (message, tone) => setNotice(message, tone)
@@ -811,6 +829,12 @@ const toolViewMap = {
     subtitle: logicAnalyzerPage.subtitle,
     channelLink: null
   },
+  [batteryUnlockPage.viewKey]: {
+    eyebrow: batteryUnlockPage.eyebrow,
+    title: batteryUnlockPage.title,
+    subtitle: batteryUnlockPage.subtitle,
+    channelLink: null
+  },
   [firmwareUpdatePage.viewKey]: {
     eyebrow: firmwareUpdatePage.eyebrow,
     title: firmwareUpdatePage.title,
@@ -916,6 +940,7 @@ const localWorkbenchViewKeys = new Set([
   flashPhonePage.viewKey,
   oscilloscopePage.viewKey,
   logicAnalyzerPage.viewKey,
+  batteryUnlockPage.viewKey,
   firmwareUpdatePage.viewKey,
   meAnalyzerPage.viewKey,
   uefiToolPage.viewKey,
@@ -938,6 +963,7 @@ const premiumRestrictedViewKeys = new Set([
   spiFlashPage.viewKey,
   oscilloscopePage.viewKey,
   logicAnalyzerPage.viewKey,
+  batteryUnlockPage.viewKey,
   universalDmiPage.viewKey,
   lenovoBiosPatchPage.viewKey,
   dell8Fc8Page.viewKey,
@@ -951,6 +977,7 @@ const premiumRestrictedWorkbenchByViewKey = new Map([
   [spiFlashPage.viewKey, spiFlashWorkbench],
   [oscilloscopePage.viewKey, oscilloscopeWorkbench],
   [logicAnalyzerPage.viewKey, logicAnalyzerWorkbench],
+  [batteryUnlockPage.viewKey, batteryUnlockWorkbench],
   [universalDmiPage.viewKey, universalDmiWorkbench],
   [lenovoBiosPatchPage.viewKey, lenovoBiosPatchWorkbench],
   [dell8Fc8Page.viewKey, dell8Fc8Workbench],
@@ -974,6 +1001,7 @@ const documentTitleLabels = {
   [flashPhonePage.viewKey]: "Android Tools",
   [oscilloscopePage.viewKey]: "Oscilloscope",
   [logicAnalyzerPage.viewKey]: "Logic Analyzer",
+  [batteryUnlockPage.viewKey]: "Battery Unlock",
   [firmwareUpdatePage.viewKey]: "Update Firmware TeknisiHub",
   [meAnalyzerPage.viewKey]: "ME Analyzer",
   [uefiToolPage.viewKey]: "UEFI Tools",
@@ -1004,6 +1032,7 @@ const viewHashMap = {
   [flashPhonePage.viewKey]: "AndroidTools",
   [oscilloscopePage.viewKey]: "Oscilloscope",
   [logicAnalyzerPage.viewKey]: "LogicAnalyzer",
+  [batteryUnlockPage.viewKey]: "BatteryUnlock",
   [firmwareUpdatePage.viewKey]: "UpdateFirmwareTeknisiHub",
   [meAnalyzerPage.viewKey]: "MeAnalyzer",
   [uefiToolPage.viewKey]: "UefiTools",
@@ -1042,6 +1071,8 @@ const hashRouteMap = {
   tooloscilloscope: oscilloscopePage.viewKey,
   logicanalyzer: logicAnalyzerPage.viewKey,
   toollogicanalyzer: logicAnalyzerPage.viewKey,
+  batteryunlock: batteryUnlockPage.viewKey,
+  toolbatteryunlock: batteryUnlockPage.viewKey,
   updatefirmwareteknisihub: firmwareUpdatePage.viewKey,
   firmwareupdate: firmwareUpdatePage.viewKey,
   toolfirmwareupdate: firmwareUpdatePage.viewKey,
@@ -1154,6 +1185,7 @@ function getViewButton(viewKey) {
     [flashPhonePage.viewKey]: toolFlashPhone,
     [oscilloscopePage.viewKey]: toolOscilloscope,
     [logicAnalyzerPage.viewKey]: toolLogicAnalyzer,
+    [batteryUnlockPage.viewKey]: toolBatteryUnlock,
     [firmwareUpdatePage.viewKey]: toolFirmwareUpdate,
     [meAnalyzerPage.viewKey]: toolMeAnalyzer,
     [uefiToolPage.viewKey]: toolUefi,
@@ -2160,6 +2192,7 @@ function showWorkbenchOnly(viewKey) {
   flashPhonePage.setVisible?.(viewKey === flashPhonePage.viewKey);
   oscilloscopePage.setVisible?.(viewKey === oscilloscopePage.viewKey);
   logicAnalyzerPage.setVisible?.(viewKey === logicAnalyzerPage.viewKey);
+  batteryUnlockPage.setVisible?.(viewKey === batteryUnlockPage.viewKey);
   firmwareUpdatePage.setVisible?.(viewKey === firmwareUpdatePage.viewKey);
   meAnalyzerPage.setVisible?.(viewKey === meAnalyzerPage.viewKey);
   uefiToolPage.setVisible?.(viewKey === uefiToolPage.viewKey);
@@ -2200,6 +2233,10 @@ function showWorkbenchOnly(viewKey) {
 
   if (viewKey === logicAnalyzerPage.viewKey) {
     logicAnalyzerPage.refresh?.();
+  }
+
+  if (viewKey === batteryUnlockPage.viewKey) {
+    batteryUnlockPage.refresh?.();
   }
 
   if (viewKey === firmwareUpdatePage.viewKey) {
@@ -2274,6 +2311,7 @@ function hideWorkbench() {
   flashPhonePage.setVisible?.(false);
   oscilloscopePage.setVisible?.(false);
   logicAnalyzerPage.setVisible?.(false);
+  batteryUnlockPage.setVisible?.(false);
   firmwareUpdatePage.setVisible?.(false);
   meAnalyzerPage.setVisible?.(false);
   uefiToolPage.setVisible?.(false);
@@ -2375,6 +2413,7 @@ function setActiveNav(targetKey) {
     [flashPhonePage.viewKey]: toolFlashPhone,
     [oscilloscopePage.viewKey]: toolOscilloscope,
     [logicAnalyzerPage.viewKey]: toolLogicAnalyzer,
+    [batteryUnlockPage.viewKey]: toolBatteryUnlock,
     [firmwareUpdatePage.viewKey]: toolFirmwareUpdate,
     tool_me_analyzer: toolMeAnalyzer,
     tool_uefi: toolUefi,
@@ -2673,6 +2712,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "SPI UI"
         : viewKey === logicAnalyzerPage.viewKey
         ? "LA UI"
+        : viewKey === batteryUnlockPage.viewKey
+        ? "BAT UI"
         : viewKey === firmwareUpdatePage.viewKey
         ? "FW UI"
         : viewKey === meAnalyzerPage.viewKey
@@ -9756,6 +9797,17 @@ toolLogicAnalyzer?.addEventListener("click", (event) => {
 
   updateViewHash(logicAnalyzerPage.viewKey);
   currentCatalogView = logicAnalyzerPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
+});
+
+toolBatteryUnlock?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(batteryUnlockPage.viewKey);
+  currentCatalogView = batteryUnlockPage.viewKey;
   catalogItems = catalogCache;
   filterCatalogItems();
 });
