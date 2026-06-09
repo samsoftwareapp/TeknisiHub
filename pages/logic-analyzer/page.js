@@ -25,16 +25,16 @@
   const autoCaptureDelayMs = 120;
   const defaultAutoTargetValue = "0x0B";
   const minPatternTransitions = 4;
-  const usbDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
-  const wifiDeviceType = "TEKNISIHUB_FLASH_OSC_WIFI";
+  const usbDeviceType = "TEKNISIHUB_DEVICE_USB";
+  const wifiDeviceType = "TEKNISIHUB_DEVICE_WIFI";
   const deviceProfiles = {
     [usbDeviceType]: {
-      label: "TEKNISIHUB_FLASH_OSC",
+      label: "TEKNISIHUB_DEVICE",
       transport: "USB",
       icon: "usb"
     },
     [wifiDeviceType]: {
-      label: "TEKNISIHUB_FLASH_OSC",
+      label: "TEKNISIHUB_DEVICE",
       transport: "WIFI",
       icon: "wifi"
     }
@@ -859,8 +859,8 @@
             Koneksi
             <select id="logicAnalyzerDeviceSelect"${disableAttr}>
               <option value="">${connectionPlaceholderLabel}</option>
-              <option value="TEKNISIHUB_FLASH_OSC_USB"${state.deviceType === "TEKNISIHUB_FLASH_OSC_USB" ? " selected" : ""}>TEKNISIHUB_FLASH_OSC USB</option>
-              <option value="TEKNISIHUB_FLASH_OSC_WIFI"${state.deviceType === "TEKNISIHUB_FLASH_OSC_WIFI" ? " selected" : ""}>TEKNISIHUB_FLASH_OSC WIFI</option>
+              <option value="TEKNISIHUB_DEVICE_USB"${state.deviceType === "TEKNISIHUB_DEVICE_USB" ? " selected" : ""}>TEKNISIHUB_DEVICE USB</option>
+              <option value="TEKNISIHUB_DEVICE_WIFI"${state.deviceType === "TEKNISIHUB_DEVICE_WIFI" ? " selected" : ""}>TEKNISIHUB_DEVICE WIFI</option>
             </select>
           </label>
           <label>
@@ -1502,7 +1502,7 @@
       viewKey: "tool_logic_analyzer",
       eyebrow: "Logic Analyzer",
       title: "Logic Analyzer",
-      subtitle: "Capture digital I2C/SPI dari TEKNISIHUB_FLASH_OSC.",
+      subtitle: "Capture digital I2C/SPI dari TEKNISIHUB_DEVICE.",
       items: [],
       async mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

@@ -1,11 +1,11 @@
 (function initializeFirmwareUpdatePage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
-  const usbDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
+  const usbDeviceType = "TEKNISIHUB_DEVICE_USB";
   const defaultDeviceType = usbDeviceType;
   const deviceDetectionOrder = [usbDeviceType];
   const deviceProfiles = {
-    TEKNISIHUB_FLASH_OSC_USB: {
-      label: "TEKNISIHUB_FLASH_OSC",
+    TEKNISIHUB_DEVICE_USB: {
+      label: "TEKNISIHUB_DEVICE",
       transport: "USB",
       icon: "usb"
     }
@@ -219,7 +219,7 @@
           </button>
         </div>
         <div class="firmware-update-meta">
-          <span>${escapeHtml(state.fileName || "teknisihub_flash_osc_firmware.uf2")}</span>
+          <span>${escapeHtml(state.fileName || "teknisihub_device_firmware.uf2")}</span>
           <span>${escapeHtml(firmwareMeta)}</span>
         </div>
       </div>
@@ -613,7 +613,7 @@
       viewKey: "tool_firmware_update",
       eyebrow: "Firmware",
       title: "Update Firmware TeknisiHub",
-      subtitle: "Update firmware TEKNISIHUB_FLASH_OSC via USB/BOOTSEL.",
+      subtitle: "Update firmware TEKNISIHUB_DEVICE via USB/BOOTSEL.",
       items: [],
       mount(options = {}) {
         mountedContainer = options.container || mountedContainer;

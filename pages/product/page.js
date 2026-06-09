@@ -6,9 +6,9 @@
 
   const products = [
     {
-      id: "teknisihub-flash-osc",
-      orderName: "TEKNISIHUB_FLASH_OSC",
-      title: "TEKNISIHUB_FLASH_OSC",
+      id: "teknisihub-device",
+      orderName: "TEKNISIHUB_DEVICE",
+      title: "TEKNISIHUB_DEVICE",
       description: "Programmer dan oscilloscope portable untuk teknisi board-level: satu device untuk BIOS 25 Series, EC/KBC, dan analisa sinyal ringan.",
       price: "Rp2.000.000",
       unit: "/ Unit",
@@ -27,7 +27,7 @@
       ],
       toolViewKey: "tool_spi_flash",
       imageSrc: "assets/HubLogo.png?v=202605230001",
-      imageAlt: "TEKNISIHUB_FLASH_OSC"
+      imageAlt: "TEKNISIHUB_DEVICE"
     },
     {
       id: "member-free",

@@ -40,18 +40,18 @@
     }
   ];
   const deviceProfiles = {
-    TEKNISIHUB_FLASH_OSC_USB: {
-      label: "TEKNISIHUB_FLASH_OSC",
+    TEKNISIHUB_DEVICE_USB: {
+      label: "TEKNISIHUB_DEVICE",
       transport: "USB",
       icon: "usb"
     },
-    TEKNISIHUB_FLASH_OSC_WIFI: {
-      label: "TEKNISIHUB_FLASH_OSC",
+    TEKNISIHUB_DEVICE_WIFI: {
+      label: "TEKNISIHUB_DEVICE",
       transport: "WIFI",
       icon: "wifi"
     }
   };
-  const defaultDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
+  const defaultDeviceType = "TEKNISIHUB_DEVICE_USB";
   const calPadModes = [
     { key: "dc_low", label: "DC Low", frequencyHz: 0, dutyPercent: 0 },
     { key: "dc_high", label: "DC High", frequencyHz: 0, dutyPercent: 100 },
@@ -449,7 +449,7 @@
         success: false,
         isPresent: false,
         message: "Pilih koneksi USB atau WIFI.",
-        deviceLabel: "TEKNISIHUB_FLASH_OSC",
+        deviceLabel: "TEKNISIHUB_DEVICE",
         deviceType: "",
         transport: "",
         maxSampleRateHz: defaultSampleRateHz,
@@ -2481,11 +2481,11 @@
     if (!normalized) {
       return "";
     }
-    if (normalized === "WIFI" || normalized === "WI-FI" || normalized === "TEKNISIHUB_FLASH_OSC_WIFI") {
-      return "TEKNISIHUB_FLASH_OSC_WIFI";
+    if (normalized === "WIFI" || normalized === "WI-FI" || normalized === "TEKNISIHUB_DEVICE_WIFI") {
+      return "TEKNISIHUB_DEVICE_WIFI";
     }
-    if (normalized === "USB" || normalized === "TEKNISIHUB_FLASH_OSC" || normalized === "TEKNISIHUB_FLASH_OSC_USB") {
-      return "TEKNISIHUB_FLASH_OSC_USB";
+    if (normalized === "USB" || normalized === "TEKNISIHUB_DEVICE" || normalized === "TEKNISIHUB_DEVICE_USB") {
+      return "TEKNISIHUB_DEVICE_USB";
     }
     return "";
   }
@@ -2553,7 +2553,7 @@
         <section class="oscilloscope-scope-panel">
           <div class="oscilloscope-topbar">
             <div class="oscilloscope-title-block">
-              <p data-osc-device-label>TEKNISIHUB_FLASH_OSC</p>
+              <p data-osc-device-label>TEKNISIHUB_DEVICE</p>
             </div>
             <label
               class="spi-scope-device-picker oscilloscope-device-picker is-${escapeHtml(devicePickerState.status)}"
@@ -3230,7 +3230,7 @@
         ? Number(state.channelLowestDropVoltages[1])
         : ch2Window.length ? ch2Stats.min : NaN;
 
-      setText(labels.device, device.deviceLabel || "TEKNISIHUB_FLASH_OSC");
+      setText(labels.device, device.deviceLabel || "TEKNISIHUB_DEVICE");
       setText(labels.title, `${state.isRunning ? "RUN" : "STOP"} ${modeLabel}`);
       setText(labels.freq, hasCapture && summary.frequencyHz > 0 ? formatFrequency(summary.frequencyHz) : "-");
       setText(labels.period, hasCapture && summary.periodSeconds > 0 ? formatDurationSeconds(summary.periodSeconds) : "-");
@@ -3599,7 +3599,7 @@
       state.selectedDevice = normalizedDevice;
       state.deviceConnectionStatus = "checking";
       state.errorMessage = "";
-      state.message = `Cek ${profile.transport} TEKNISIHUB_FLASH_OSC...`;
+      state.message = `Cek ${profile.transport} TEKNISIHUB_DEVICE...`;
       state.device = {
         ...state.device,
         success: false,
@@ -4089,7 +4089,7 @@
     return {
       viewKey: "tool_oscilloscope",
       eyebrow: "Oscilloscope",
-      title: "TEKNISIHUB_FLASH_OSC",
+      title: "TEKNISIHUB_DEVICE",
       subtitle: "Tampilan sinyal realtime dengan trigger, zoom, dan rekam data.",
       items: [],
       async mount(options = {}) {

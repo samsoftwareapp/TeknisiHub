@@ -246,7 +246,7 @@ const flashPhonePage = window.teknisiHubPages?.flashPhone || {
 const oscilloscopePage = window.teknisiHubPages?.oscilloscope || {
   viewKey: "tool_oscilloscope",
   eyebrow: "Oscilloscope",
-  title: "TEKNISIHUB_FLASH_OSC",
+  title: "TEKNISIHUB_DEVICE",
   subtitle: "Capture analog single-channel dari aplikasi lokal.",
   items: [],
   mount() {},
@@ -258,7 +258,7 @@ const logicAnalyzerPage = window.teknisiHubPages?.logicAnalyzer || {
   viewKey: "tool_logic_analyzer",
   eyebrow: "Logic Analyzer",
   title: "Logic Analyzer",
-  subtitle: "Capture digital I2C/SPI dari TEKNISIHUB_FLASH_OSC.",
+  subtitle: "Capture digital I2C/SPI dari TEKNISIHUB_DEVICE.",
   items: [],
   mount() {},
   setVisible() {},
@@ -280,7 +280,7 @@ const firmwareUpdatePage = window.teknisiHubPages?.firmwareUpdate || {
   viewKey: "tool_firmware_update",
   eyebrow: "Firmware",
   title: "Update Firmware TeknisiHub",
-  subtitle: "Update firmware TEKNISIHUB_FLASH_OSC dari satu halaman khusus.",
+  subtitle: "Update firmware TEKNISIHUB_DEVICE dari satu halaman khusus.",
   items: [],
   mount() {},
   setVisible() {},
@@ -2559,8 +2559,8 @@ function renderFlashChipDeviceSelector(messageId) {
         data-message-id="${messageId}"
         aria-label="Pilih device programmer untuk BIOS/EC Programmer">
         <option value="">---Pilih Koneksi---</option>
-        <option value="TEKNISIHUB_FLASH_OSC_USB">TEKNISIHUB_FLASH_OSC USB</option>
-        <option value="TEKNISIHUB_FLASH_OSC_WIFI">TEKNISIHUB_FLASH_OSC WIFI</option>
+        <option value="TEKNISIHUB_DEVICE_USB">TEKNISIHUB_DEVICE USB</option>
+        <option value="TEKNISIHUB_DEVICE_WIFI">TEKNISIHUB_DEVICE WIFI</option>
       </select>
       <span class="catalog-flash-chip-device-indicator" data-flash-chip-device-indicator aria-hidden="true"></span>
     </label>
@@ -8262,7 +8262,7 @@ function disposePendingBoardviewTeknisiHubWindow(targetWindow, fileName, errorMe
   }
 }
 
-const supportedFlashChipDevices = new Set(["TEKNISIHUB_FLASH_OSC_USB", "TEKNISIHUB_FLASH_OSC_WIFI"]);
+const supportedFlashChipDevices = new Set(["TEKNISIHUB_DEVICE_USB", "TEKNISIHUB_DEVICE_WIFI"]);
 
 function normalizeFlashChipDeviceValue(value) {
   const normalizedValue = String(value || "").trim().toUpperCase();
@@ -8423,8 +8423,8 @@ function getSelectedFlashChipDevice(triggerButton) {
   return normalizeFlashChipDeviceValue(select?.value);
 }
 
-async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_FLASH_OSC_USB") {
-  const resolvedDevice = normalizeFlashChipDeviceValue(selectedDevice) || "TEKNISIHUB_FLASH_OSC_USB";
+async function prepareBiosForSpiFlash(messageId, selectedDevice = "TEKNISIHUB_DEVICE_USB") {
+  const resolvedDevice = normalizeFlashChipDeviceValue(selectedDevice) || "TEKNISIHUB_DEVICE_USB";
   const item = findCatalogItemByMessageId(messageId);
   const archiveFileName = item?.fileName || item?.title || `bios-${messageId}.7z`;
   const operationId = createCatalogUploadOperationId();

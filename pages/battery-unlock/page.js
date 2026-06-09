@@ -1,7 +1,7 @@
 (function initializeBatteryUnlockPage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
-  const usbDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
-  const wifiDeviceType = "TEKNISIHUB_FLASH_OSC_WIFI";
+  const usbDeviceType = "TEKNISIHUB_DEVICE_USB";
+  const wifiDeviceType = "TEKNISIHUB_DEVICE_WIFI";
   const defaultSampleRateHz = 2000000;
   const maxSampleRateHz = 10000000;
   const minimumMonitorDecodeRateHz = 1000000;
@@ -183,7 +183,7 @@
   }
 
   function formatDeviceName(deviceType) {
-    return deviceType === wifiDeviceType ? "TEKNISIHUB_FLASH_OSC WIFI" : "TEKNISIHUB_FLASH_OSC USB";
+    return deviceType === wifiDeviceType ? "TEKNISIHUB_DEVICE WIFI" : "TEKNISIHUB_DEVICE USB";
   }
 
   function createInitialMetrics() {
@@ -470,8 +470,8 @@
       <label>
         Koneksi
         <select id="batteryDeviceType"${disabled ? " disabled" : ""}>
-          <option value="${usbDeviceType}"${state.deviceType === usbDeviceType ? " selected" : ""}>TEKNISIHUB_FLASH_OSC USB</option>
-          <option value="${wifiDeviceType}"${state.deviceType === wifiDeviceType ? " selected" : ""}>TEKNISIHUB_FLASH_OSC WIFI</option>
+          <option value="${usbDeviceType}"${state.deviceType === usbDeviceType ? " selected" : ""}>TEKNISIHUB_DEVICE USB</option>
+          <option value="${wifiDeviceType}"${state.deviceType === wifiDeviceType ? " selected" : ""}>TEKNISIHUB_DEVICE WIFI</option>
         </select>
       </label>
     `;

@@ -15,23 +15,23 @@
   const programmerDisplayName = "BIOS/EC Programmer";
 
   const deviceProfiles = {
-    TEKNISIHUB_FLASH_OSC_USB: {
-      label: "TEKNISIHUB_FLASH_OSC",
+    TEKNISIHUB_DEVICE_USB: {
+      label: "TEKNISIHUB_DEVICE",
       transport: "USB",
       status: "SPI + ENE/ITE KBC/EC + OSC",
       speed: "20 MHz request",
-      note: "Koneksi USB TEKNISIHUB_FLASH_OSC."
+      note: "Koneksi USB TEKNISIHUB_DEVICE."
     },
-    TEKNISIHUB_FLASH_OSC_WIFI: {
-      label: "TEKNISIHUB_FLASH_OSC",
+    TEKNISIHUB_DEVICE_WIFI: {
+      label: "TEKNISIHUB_DEVICE",
       transport: "WIFI",
       status: "SPI + ENE/ITE KBC/EC + OSC",
       speed: "20 MHz request",
-      note: "Koneksi WIFI TEKNISIHUB_FLASH_OSC."
+      note: "Koneksi WIFI TEKNISIHUB_DEVICE."
     }
   };
 
-  const defaultDeviceType = "TEKNISIHUB_FLASH_OSC_USB";
+  const defaultDeviceType = "TEKNISIHUB_DEVICE_USB";
   const disabledDeviceSelections = new Set();
   let latestSpiFlashFailureSignature = "";
   let latestSpiFlashFailureTimestamp = 0;
@@ -43,8 +43,8 @@
 
   function isFlashOscDevice(deviceType) {
     const normalizedDevice = String(deviceType || "").trim().toUpperCase();
-    return normalizedDevice === "TEKNISIHUB_FLASH_OSC_USB" ||
-      normalizedDevice === "TEKNISIHUB_FLASH_OSC_WIFI";
+    return normalizedDevice === "TEKNISIHUB_DEVICE_USB" ||
+      normalizedDevice === "TEKNISIHUB_DEVICE_WIFI";
   }
 
   let pageNotifier = (message, tone = "success") => {
@@ -2103,7 +2103,7 @@
       <section class="spi-scope-panel">
         <div class="spi-scope-topbar">
           <div class="spi-scope-title-block">
-            <p>${escapeHtml(state.selectedDevice ? selectedDeviceLabel : "TEKNISIHUB_FLASH_OSC")}</p>
+            <p>${escapeHtml(state.selectedDevice ? selectedDeviceLabel : "TEKNISIHUB_DEVICE")}</p>
             <small>${escapeHtml(firmwareTitle)}</small>
           </div>
           <label
