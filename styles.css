@@ -14740,3 +14740,181 @@ body.is-dark-mode .battery-table td span {
     grid-column: 2;
   }
 }
+
+.logic-analyzer-workbench.spi-scope-theme {
+  grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.55fr);
+}
+
+.logic-analyzer-workbench .logic-analyzer-control-card .spi-card-head {
+  align-items: center;
+}
+
+.logic-analyzer-workbench .logic-analyzer-control-card .spi-card-head > div,
+.logic-analyzer-workbench .logic-analyzer-pin-card .spi-card-head > div {
+  min-width: 0;
+}
+
+.logic-analyzer-actions {
+  max-width: 560px;
+}
+
+.logic-analyzer-actions button {
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+
+.logic-analyzer-form-grid {
+  grid-template-columns:
+    minmax(150px, 1.12fr)
+    minmax(82px, 0.56fr)
+    minmax(88px, 0.62fr)
+    minmax(86px, 0.58fr)
+    minmax(108px, 0.72fr)
+    minmax(98px, 0.62fr)
+    minmax(86px, 0.58fr)
+    minmax(82px, 0.52fr);
+}
+
+.logic-analyzer-workbench .logic-analyzer-form-grid > label {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.logic-analyzer-workbench .logic-analyzer-form-grid label input,
+.logic-analyzer-workbench .logic-analyzer-form-grid label select {
+  width: 100%;
+  min-width: 0;
+  font-weight: 850;
+}
+
+.logic-analyzer-workbench .logic-analyzer-form-grid label select {
+  padding-right: 22px;
+  text-overflow: ellipsis;
+}
+
+.logic-analyzer-checkline > span {
+  justify-content: center;
+}
+
+.logic-analyzer-pin-card,
+.logic-analyzer-display-card {
+  min-width: 0;
+}
+
+.logic-analyzer-workbench .logic-analyzer-pin-card .spi-card-head {
+  align-items: flex-start;
+}
+
+.logic-analyzer-workbench .logic-analyzer-pin-card .spi-card-head h4 {
+  overflow-wrap: anywhere;
+}
+
+.logic-analyzer-socket-monitor.is-spi {
+  grid-template-columns: 1fr;
+  justify-content: stretch;
+  gap: 8px;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pins {
+  justify-self: stretch;
+  width: 100%;
+  padding: 8px;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pins::after,
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin::before,
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin::after {
+  display: none;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin {
+  grid-template-columns: 42px minmax(0, 1fr) 54px;
+  gap: 6px;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-pin small {
+  text-align: right;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-items: start;
+  justify-self: stretch;
+  column-gap: 10px;
+  row-gap: 2px;
+  width: 100%;
+  min-height: 88px;
+  padding: 20px 10px 10px;
+  text-align: left;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body small {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body strong {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body em {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  min-height: 42px;
+}
+
+.logic-analyzer-display-card {
+  height: 100%;
+}
+
+.logic-analyzer-canvas-shell {
+  min-height: 230px;
+}
+
+@media (max-width: 1180px) {
+  .logic-analyzer-workbench.spi-scope-theme {
+    grid-template-columns: 1fr;
+  }
+
+  .logic-analyzer-workbench .logic-analyzer-control-card,
+  .logic-analyzer-workbench .logic-analyzer-pin-card,
+  .logic-analyzer-workbench .logic-analyzer-display-card,
+  .logic-analyzer-workbench .logic-analyzer-decode-card {
+    grid-column: 1 / -1;
+  }
+
+  .logic-analyzer-form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .logic-analyzer-actions {
+    max-width: none;
+  }
+
+  .logic-analyzer-actions button {
+    flex: 1 1 118px;
+  }
+
+  .logic-analyzer-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body small,
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body strong,
+  .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body em {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}

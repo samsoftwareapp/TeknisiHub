@@ -1,6 +1,6 @@
 (function initializeLogicAnalyzerPage(globalScope) {
   const serviceBaseUrl = globalScope.resolveTeknisiHubServiceBaseUrl();
-  const connectionPlaceholderLabel = "---- PILIH KONEKSI ----";
+  const connectionPlaceholderLabel = "Pilih koneksi";
   const defaultDeviceType = "";
   const defaultMode = "I2C";
   const defaultSampleRateHz = 2000000;
@@ -692,7 +692,7 @@
           <div class="spi-card-head">
             <div>
               <p class="label">Socket Monitor</p>
-              <h4>SPI GND/CS/CLK/MOSI/MISO</h4>
+              <h4>SPI Socket</h4>
             </div>
             <span class="logic-analyzer-pin-status is-spi${passive ? " is-passive" : ""}">
               <span>${escapeHtml(probeMode)}</span>
@@ -748,7 +748,7 @@
         <div class="spi-card-head">
           <div>
             <p class="label">Socket Monitor</p>
-            <h4>I2C GND/SDA/SCL</h4>
+            <h4>I2C Socket</h4>
           </div>
           <span class="logic-analyzer-pin-status ${statusClass}">
             <span>${escapeHtml(statusLabel)}</span>
@@ -888,7 +888,7 @@
             </select>
           </label>
           <label>
-            Sample Count
+            Samples
             <input id="logicAnalyzerSampleCountInput" type="number" min="128" max="16384" step="128" value="${escapeHtml(state.sampleCount)}"${disableAttr}>
           </label>
           <label>

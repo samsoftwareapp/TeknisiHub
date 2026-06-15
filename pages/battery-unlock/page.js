@@ -29,8 +29,16 @@
     smbusCommand: "0x08",
     smbusDataHex: "",
     smbusReadLength: 2,
+    smbusPinMode: "auto",
+    smbusSpeedMode: "auto",
+    smbusRequireIdle: false,
+    smbusScanAddresses: true,
     monitorSampleRateHz: defaultSampleRateHz,
     monitorMessage: "Monitor pasif siap.",
+    pinoutBrand: "HP",
+    pinoutPartNumber: "",
+    pinoutResult: null,
+    pinoutMessage: "Pinout finder siap.",
     apiMessage: "",
     recoveryMessage: "",
     metrics: {},
@@ -40,6 +48,7 @@
     busFrames: [],
     rawRows: [],
     smbusResult: null,
+    smbusDiagnostic: null,
     recoveryPreview: null
   };
   const monitorPollDelayMs = 160;
@@ -61,6 +70,57 @@
     0x2F: "Manufacturer Input",
     0x3E: "Manufacturer Block"
   };
+
+  const batteryPinoutBrands = [
+    "Acer",
+    "Apple",
+    "Asus",
+    "Clevo",
+    "Dell",
+    "eMachines",
+    "Fujitsu",
+    "Gateway",
+    "Gigabyte",
+    "Hansung",
+    "HP",
+    "Lenovo",
+    "LG",
+    "Medion",
+    "Microsoft",
+    "MSI",
+    "NEC",
+    "Packard Bell",
+    "Samsung",
+    "Sony",
+    "Toshiba"
+  ];
+
+  const batteryPinoutLegend = [
+    ["-", "GND"],
+    ["+", "Vbat"],
+    ["C", "Clock"],
+    ["D", "Data"],
+    ["T", "System Present/GND"],
+    ["X", "GAP/Missing"]
+  ];
+
+  const batteryPinoutRecords = [
+    {
+      brand: "Dell",
+      partNumbers: ["DELL-9PIN-EXAMPLE"],
+      displayPartNumber: "Dell 9-pin example",
+      pinCount: 9,
+      code: "-1,T4,D6,C7,+9",
+      source: "Reference example",
+      pins: [
+        { pin: "Pin1", signal: "GND", symbol: "-" },
+        { pin: "Pin4", signal: "System Present/GND", symbol: "T" },
+        { pin: "Pin6", signal: "Data", symbol: "D" },
+        { pin: "Pin7", signal: "Clock", symbol: "C" },
+        { pin: "Pin9", signal: "Vbat", symbol: "+" }
+      ]
+    }
+  ];
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -184,6 +244,43 @@
 
   function formatDeviceName(deviceType) {
     return deviceType === wifiDeviceType ? "TEKNISIHUB_DEVICE WIFI" : "TEKNISIHUB_DEVICE USB";
+  }
+
+  function normalizePinoutText(value) {
+    return String(value || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+  }
+
+  function findBatteryPinoutRecord(brand, partNumber) {
+    const selectedBrand = String(brand || "").trim().toLowerCase();
+    const normalizedPart = normalizePinoutText(partNumber);
+    return batteryPinoutRecords.find((record) => {
+      if (String(record.brand || "").trim().toLowerCase() !== selectedBrand) {
+        return false;
+      }
+      if (!normalizedPart) {
+        return false;
+      }
+      return (record.partNumbers || []).some((part) => normalizePinoutText(part) === normalizedPart);
+    }) || null;
+  }
+
+  function runLocalPinoutLookup(state) {
+    const record = findBatteryPinoutRecord(state.pinoutBrand, state.pinoutPartNumber);
+    if (record) {
+      return {
+        pinoutResult: record,
+        pinoutMessage: `${record.brand} ${record.displayPartNumber || state.pinoutPartNumber}: ${record.code}`
+      };
+    }
+    return {
+      pinoutResult: null,
+      pinoutMessage: state.pinoutPartNumber.trim()
+        ? "Pinout belum ada di database lokal."
+        : "Isi part number baterai dulu."
+    };
   }
 
   function createInitialMetrics() {
@@ -567,6 +664,8 @@
         <p class="spi-note">${escapeHtml(state.monitorMessage)}</p>
       </section>
 
+      ${renderBatteryPinoutFinder(state)}
+
       <section class="spi-card battery-table-card">
         <div class="spi-card-head">
           <div>
@@ -652,6 +751,68 @@
     `;
   }
 
+  function renderBatteryPinoutFinder(state) {
+    const result = state.pinoutResult;
+    const pinRows = Array.isArray(result?.pins) ? result.pins : [];
+    return `
+      <section class="spi-card battery-panel-main">
+        <div class="spi-card-head">
+          <div>
+            <p class="label">Pinout</p>
+            <h4>Find Battery Pinout</h4>
+          </div>
+          <button id="batteryPinoutFindButton" type="button" class="ghost"${state.busy ? " disabled" : ""}>
+            <span class="material-symbols-outlined">manage_search</span>
+            <span>Find Pinout</span>
+          </button>
+        </div>
+        <div class="spi-form-grid">
+          <label>
+            Brand
+            <select id="batteryPinoutBrand"${state.busy ? " disabled" : ""}>
+              ${batteryPinoutBrands.map((brand) => `
+                <option value="${escapeHtml(brand)}"${state.pinoutBrand === brand ? " selected" : ""}>${escapeHtml(brand)}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label>
+            Part Number
+            <input id="batteryPinoutPartNumber" type="text" value="${escapeHtml(state.pinoutPartNumber)}" placeholder="HSTNN / 607762-001"${state.busy ? " disabled" : ""}>
+          </label>
+          <label>
+            Pin Count
+            <input type="text" value="${escapeHtml(result?.pinCount || "-")}" readonly>
+          </label>
+          <label>
+            Pinout
+            <input type="text" value="${escapeHtml(result?.code || "-")}" readonly>
+          </label>
+        </div>
+        <div class="battery-profile-strip">
+          ${batteryPinoutLegend.map(([symbol, label]) => `<span><strong>${escapeHtml(symbol)}</strong> ${escapeHtml(label)}</span>`).join("")}
+        </div>
+        <div class="battery-table-wrap">
+          <table class="battery-table">
+            <thead>
+              <tr><th>Pin</th><th>Signal</th><th>Code</th><th>Source</th></tr>
+            </thead>
+            <tbody>
+              ${pinRows.map((pin) => `
+                <tr>
+                  <td>${escapeHtml(pin.pin)}</td>
+                  <td>${escapeHtml(pin.signal)}</td>
+                  <td>${escapeHtml(pin.symbol)}</td>
+                  <td>${escapeHtml(result.source || "-")}</td>
+                </tr>
+              `).join("") || `<tr><td colspan="4">Belum ada hasil pinout.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+        <p class="spi-note">${escapeHtml(state.pinoutMessage)}</p>
+      </section>
+    `;
+  }
+
   function renderSmbus(state) {
     const busy = state.busy;
     const directDisabled = busy || !state.isolatedConfirmed;
@@ -664,10 +825,16 @@
             <p class="label">Direct SMBus</p>
             <h4>Manual Command Lab</h4>
           </div>
-          <button id="batterySmbusSendButton" type="button" class="ghost"${(isWrite ? writeDisabled : directDisabled) ? " disabled" : ""}>
-            <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "send"}</span>
-            <span>Send</span>
-          </button>
+          <div class="battery-action-row">
+            <button id="batterySmbusDiagnosticButton" type="button" class="ghost"${directDisabled ? " disabled" : ""}>
+              <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "health_and_safety"}</span>
+              <span>Diagnostic</span>
+            </button>
+            <button id="batterySmbusSendButton" type="button" class="ghost"${(isWrite ? writeDisabled : directDisabled) ? " disabled" : ""}>
+              <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : "send"}</span>
+              <span>Send</span>
+            </button>
+          </div>
         </div>
         <div class="spi-form-grid">
           ${renderDeviceSelect(state, busy)}
@@ -693,10 +860,33 @@
             Read Len
             <input id="batterySmbusReadLength" type="number" min="0" max="64" value="${Number(state.smbusReadLength || 0)}"${busy ? " disabled" : ""}>
           </label>
+          <label>
+            SDA/SCL
+            <select id="batterySmbusPinMode"${busy ? " disabled" : ""}>
+              ${[
+                ["auto", "Auto"],
+                ["normal", "Normal"],
+                ["swap", "Swap"]
+              ].map(([value, label]) => `<option value="${value}"${state.smbusPinMode === value ? " selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            Speed
+            <select id="batterySmbusSpeedMode"${busy ? " disabled" : ""}>
+              ${[
+                ["auto", "Auto"],
+                ["fast", "Fast"],
+                ["slow", "Slow"],
+                ["ultra", "Ultra"]
+              ].map(([value, label]) => `<option value="${value}"${state.smbusSpeedMode === value ? " selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </label>
         </div>
         <div class="battery-confirm-row">
           <label><input id="batteryIsolatedConfirmed" type="checkbox"${state.isolatedConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Battery isolated</span></label>
           <label><input id="batteryWriteConfirmed" type="checkbox"${state.writeConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Write enable</span></label>
+          <label><input id="batterySmbusRequireIdle" type="checkbox"${state.smbusRequireIdle ? " checked" : ""}${busy ? " disabled" : ""}> <span>Require idle</span></label>
+          <label><input id="batterySmbusScanAddresses" type="checkbox"${state.smbusScanAddresses ? " checked" : ""}${busy ? " disabled" : ""}> <span>Scan address</span></label>
         </div>
         <p class="spi-note">${escapeHtml(state.apiMessage || "Direct command terkunci sampai isolasi baterai dikonfirmasi.")}</p>
       </section>
@@ -722,7 +912,80 @@
             <input type="text" value="${escapeHtml(state.smbusResult?.decodedValue || "-")}" readonly>
           </label>
         </div>
+        ${renderSmbusDiagnostic(state.smbusDiagnostic)}
       </section>
+    `;
+  }
+
+  function renderSmbusDiagnostic(result) {
+    if (!result) {
+      return "";
+    }
+
+    const line = result.lineDiagnostic || {};
+    const probes = Array.isArray(result.probes) ? result.probes : [];
+    const scanHits = Array.isArray(result.scanHits) ? result.scanHits : [];
+    return `
+      <div class="battery-profile-strip">
+        <span>${escapeHtml(result.message || "Diagnostic selesai.")}</span>
+        <span>${escapeHtml(result.identity || "-")}</span>
+        <span>${escapeHtml(`Scan ${Number(result.scanCount || 0)} / hit ${scanHits.length}`)}</span>
+        <span>${escapeHtml(`${result.pinMode || "auto"} / ${result.speedMode || "auto"}`)}</span>
+      </div>
+      <div class="spi-form-grid">
+        <label>
+          Line
+          <textarea rows="3" readonly>${escapeHtml([
+            `Idle: ${line.idle || "-"}`,
+            `Data low: ${line.driveDataLow || "-"}`,
+            `Clock low: ${line.driveClockLow || "-"}`,
+            `Release: ${line.release || "-"}`,
+            `Raw: ${line.rawHex || "-"}`
+          ].join("\n"))}</textarea>
+        </label>
+        <label>
+          Active
+          <input type="text" value="${escapeHtml(result.batteryDetected ? "ACK detected" : "No ACK")}" readonly>
+        </label>
+      </div>
+      ${renderSmbusProbeTable("Probe", probes)}
+      ${renderSmbusProbeTable("Scan hits", scanHits)}
+    `;
+  }
+
+  function renderSmbusProbeTable(title, probes) {
+    const rows = Array.isArray(probes) ? probes : [];
+    return `
+      <div class="battery-table-wrap">
+        <table class="battery-table">
+          <thead>
+            <tr>
+              <th>${escapeHtml(title)}</th>
+              <th>Cmd</th>
+              <th>HW</th>
+              <th>Fast N</th>
+              <th>Fast S</th>
+              <th>Slow N</th>
+              <th>Slow S</th>
+              <th>Mode</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((probe) => `
+              <tr>
+                <td>${escapeHtml(probe.address || "-")}</td>
+                <td>${escapeHtml(probe.command || "-")}</td>
+                <td>${escapeHtml(probe.hardwareNormal || "-")}</td>
+                <td>${escapeHtml(probe.fastNormal || "-")}</td>
+                <td>${escapeHtml(probe.fastSwapped || "-")}</td>
+                <td>${escapeHtml(probe.slowNormal || "-")}</td>
+                <td>${escapeHtml(probe.slowSwapped || "-")}</td>
+                <td>${escapeHtml(probe.activeMode || "-")}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="8">Tidak ada ACK.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
     `;
   }
 
@@ -1041,7 +1304,9 @@
           command: state.smbusCommand,
           dataHex: state.smbusDataHex,
           readLength: Number(state.smbusReadLength || 0),
-          requireBusIdle: true,
+          requireBusIdle: Boolean(state.smbusRequireIdle),
+          pinMode: state.smbusPinMode,
+          speedMode: state.smbusSpeedMode,
           isolatedBatteryConfirmed: state.isolatedConfirmed,
           writeEnableConfirmed: state.writeConfirmed
         })
@@ -1049,6 +1314,25 @@
       setState({
         smbusResult: result,
         apiMessage: result.message || "SMBus command selesai."
+      });
+    }
+
+    async function runSmbusDiagnostic() {
+      const result = await fetchJson("/tools/battery-unlock/smbus/diagnostic", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceType: state.deviceType,
+          address: state.smbusAddress,
+          command: state.smbusCommand,
+          scanAddresses: Boolean(state.smbusScanAddresses),
+          pinMode: state.smbusPinMode,
+          speedMode: state.smbusSpeedMode,
+          isolatedBatteryConfirmed: state.isolatedConfirmed
+        })
+      });
+      setState({
+        smbusDiagnostic: result,
+        apiMessage: result.message || "Diagnostic SMBus selesai."
       });
     }
 
@@ -1102,9 +1386,21 @@
 
     function bindMonitor(container) {
       const sampleRate = container.querySelector("#batteryMonitorSampleRate");
+      const pinoutBrand = container.querySelector("#batteryPinoutBrand");
+      const pinoutPartNumber = container.querySelector("#batteryPinoutPartNumber");
       sampleRate?.addEventListener("change", () => {
         setState({ monitorSampleRateHz: normalizeMonitorSampleRateHz(sampleRate.value) });
       });
+      pinoutBrand?.addEventListener("change", () => setState({
+        pinoutBrand: pinoutBrand.value,
+        pinoutResult: null,
+        pinoutMessage: "Pinout finder siap."
+      }));
+      pinoutPartNumber?.addEventListener("input", () => {
+        state.pinoutPartNumber = pinoutPartNumber.value;
+        state.pinoutResult = null;
+      });
+      container.querySelector("#batteryPinoutFindButton")?.addEventListener("click", () => setState(runLocalPinoutLookup(state)));
       container.querySelector("#batteryMonitorCaptureButton")?.addEventListener("click", toggleMonitor);
     }
 
@@ -1114,15 +1410,24 @@
       const command = container.querySelector("#batterySmbusCommand");
       const dataHex = container.querySelector("#batterySmbusDataHex");
       const readLength = container.querySelector("#batterySmbusReadLength");
+      const pinMode = container.querySelector("#batterySmbusPinMode");
+      const speedMode = container.querySelector("#batterySmbusSpeedMode");
+      const requireIdle = container.querySelector("#batterySmbusRequireIdle");
+      const scanAddresses = container.querySelector("#batterySmbusScanAddresses");
       const isolated = container.querySelector("#batteryIsolatedConfirmed");
       const write = container.querySelector("#batteryWriteConfirmed");
-      operation?.addEventListener("change", () => setState({ smbusOperation: operation.value }));
-      address?.addEventListener("input", () => { state.smbusAddress = address.value; });
-      command?.addEventListener("input", () => { state.smbusCommand = command.value; });
+      operation?.addEventListener("change", () => setState({ smbusOperation: operation.value, smbusDiagnostic: null }));
+      address?.addEventListener("input", () => { state.smbusAddress = address.value; state.smbusDiagnostic = null; });
+      command?.addEventListener("input", () => { state.smbusCommand = command.value; state.smbusDiagnostic = null; });
       dataHex?.addEventListener("input", () => { state.smbusDataHex = dataHex.value; });
       readLength?.addEventListener("input", () => { state.smbusReadLength = Number(readLength.value || 0); });
+      pinMode?.addEventListener("change", () => setState({ smbusPinMode: pinMode.value || "auto", smbusDiagnostic: null }));
+      speedMode?.addEventListener("change", () => setState({ smbusSpeedMode: speedMode.value || "auto", smbusDiagnostic: null }));
+      requireIdle?.addEventListener("change", () => setState({ smbusRequireIdle: requireIdle.checked }));
+      scanAddresses?.addEventListener("change", () => setState({ smbusScanAddresses: scanAddresses.checked, smbusDiagnostic: null }));
       isolated?.addEventListener("change", () => setState({ isolatedConfirmed: isolated.checked }));
       write?.addEventListener("change", () => setState({ writeConfirmed: write.checked }));
+      container.querySelector("#batterySmbusDiagnosticButton")?.addEventListener("click", () => withBusy(runSmbusDiagnostic));
       container.querySelector("#batterySmbusSendButton")?.addEventListener("click", () => withBusy(sendSmbus));
     }
 
