@@ -15066,8 +15066,8 @@ body.is-dark-mode .battery-table td span {
 }
 
 .battery-monitor-table-area .battery-table {
-  width: max-content;
-  min-width: 720px;
+  width: 100%;
+  min-width: 420px;
 }
 
 .battery-monitor-table-area .battery-table th,
@@ -15077,7 +15077,7 @@ body.is-dark-mode .battery-table td span {
 
 .battery-monitor-table-area .battery-table th:nth-child(1),
 .battery-monitor-table-area .battery-table td:nth-child(1) {
-  width: 29%;
+  width: 52%;
 }
 
 .battery-monitor-table-area .battery-table td:nth-child(1) {
@@ -15087,23 +15087,37 @@ body.is-dark-mode .battery-table td span {
 
 .battery-monitor-table-area .battery-table th:nth-child(2),
 .battery-monitor-table-area .battery-table td:nth-child(2) {
-  width: 15%;
+  width: 32%;
 }
 
 .battery-monitor-table-area .battery-table th:nth-child(3),
-.battery-monitor-table-area .battery-table td:nth-child(3),
-.battery-monitor-table-area .battery-table th:nth-child(4),
-.battery-monitor-table-area .battery-table td:nth-child(4),
-.battery-monitor-table-area .battery-table th:nth-child(5),
-.battery-monitor-table-area .battery-table td:nth-child(5) {
-  width: 10%;
+.battery-monitor-table-area .battery-table td:nth-child(3) {
+  width: 16%;
   white-space: nowrap;
 }
 
-.battery-monitor-table-area .battery-table th:nth-child(6),
-.battery-monitor-table-area .battery-table td:nth-child(6) {
-  width: 26%;
-  white-space: nowrap;
+.battery-monitor-table-area .battery-table tr.battery-monitor-row-standard td {
+  background: rgba(229, 249, 243, 0.72);
+}
+
+.battery-monitor-table-area .battery-table tr.battery-monitor-row-extended td {
+  background: rgba(255, 247, 225, 0.74);
+}
+
+.battery-monitor-table-area .battery-table tr.battery-monitor-row-derived td {
+  background: rgba(237, 243, 248, 0.78);
+}
+
+body.is-dark-mode .battery-monitor-table-area .battery-table tr.battery-monitor-row-standard td {
+  background: rgba(25, 82, 72, 0.28);
+}
+
+body.is-dark-mode .battery-monitor-table-area .battery-table tr.battery-monitor-row-extended td {
+  background: rgba(102, 73, 28, 0.3);
+}
+
+body.is-dark-mode .battery-monitor-table-area .battery-table tr.battery-monitor-row-derived td {
+  background: rgba(49, 64, 82, 0.34);
 }
 
 .battery-gauge {

@@ -92,6 +92,7 @@
     { key: "manufacturerName", label: "Manufacturer Name", command: "0x20", operation: "read-block", readLength: 33, unit: "" },
     { key: "deviceName", label: "Device Name", command: "0x21", operation: "read-block", readLength: 33, unit: "" },
     { key: "deviceChemistry", label: "Device Chemistry", command: "0x22", operation: "read-block", readLength: 33, unit: "" },
+    { key: "manufacturerData", label: "Manufacturer Data", command: "0x23", operation: "read-block", readLength: 33, unit: "" },
     { key: "remainingCapacityAlarm", label: "Remaining Cap Alarm", command: "0x01", operation: "read-word", readLength: 2, unit: "mAh" },
     { key: "remainingTimeAlarm", label: "Remaining Time Alarm", command: "0x02", operation: "read-word", readLength: 2, unit: "min" },
     { key: "batteryMode", label: "Battery Mode", command: "0x03", operation: "read-word", readLength: 2, unit: "hex" },
@@ -123,6 +124,11 @@
     { key: "cellVoltage2", label: "Cell Voltage 2", command: "0x3E", operation: "read-word", readLength: 2, unit: "mV" },
     { key: "cellVoltage3", label: "Cell Voltage 3", command: "0x3D", operation: "read-word", readLength: 2, unit: "mV" },
     { key: "cellVoltage4", label: "Cell Voltage 4", command: "0x3C", operation: "read-word", readLength: 2, unit: "mV" },
+    { key: "renesas045SafetyAlert", label: "045A20 Safety Alert", command: "0x50", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045SafetyStatus", label: "045A20 Safety Status", command: "0x51", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045PfAlert", label: "045A20 PF Alert", command: "0x52", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045PfStatus", label: "045A20 PF Status", command: "0x53", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045OperationStatus", label: "045A20 Operation Status", command: "0x54", operation: "read-word", readLength: 2, unit: "hex" },
     { key: "bq30Security", label: "BQ30 Security / SEC", unit: "", sourceEndpoint: "bq30/status", chipFamily: "BQ30" },
     { key: "bq30FetStatus", label: "BQ30 FET", unit: "", sourceEndpoint: "bq30/status", chipFamily: "BQ30" },
     { key: "bq30PfStatus", label: "BQ30 PF Status", unit: "hex", sourceEndpoint: "bq30/status", chipFamily: "BQ30" },
@@ -131,7 +137,12 @@
     { key: "maxImbalance", label: "Max Imbalance", unit: "mV", sourceDerived: "cell-voltage-delta" }
   ];
 
-  const directMonitorCommands = monitorParameters.filter((item) => item.command);
+  const isSbsMonitorCommand = (parameter) => {
+    const command = Number.parseInt(String(parameter?.command || "").replace(/^0x/i, ""), 16);
+    return Number.isFinite(command) && command <= 0x23;
+  };
+
+  const directMonitorCommands = monitorParameters.filter((item) => item.command && isSbsMonitorCommand(item));
 
   const dataBackupReadPlan = [
     { label: "Manufacturer Name", command: "0x20", operation: "read-block", readLength: 33, identity: true },
@@ -173,7 +184,12 @@
     { key: "cellVoltage1", label: "Cell Voltage 1", command: "0x3F", operation: "read-word", readLength: 2 },
     { key: "cellVoltage2", label: "Cell Voltage 2", command: "0x3E", operation: "read-word", readLength: 2 },
     { key: "cellVoltage3", label: "Cell Voltage 3", command: "0x3D", operation: "read-word", readLength: 2 },
-    { key: "cellVoltage4", label: "Cell Voltage 4", command: "0x3C", operation: "read-word", readLength: 2 }
+    { key: "cellVoltage4", label: "Cell Voltage 4", command: "0x3C", operation: "read-word", readLength: 2 },
+    { key: "renesas045SafetyAlert", label: "045A20 Safety Alert", command: "0x50", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045SafetyStatus", label: "045A20 Safety Status", command: "0x51", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045PfAlert", label: "045A20 PF Alert", command: "0x52", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045PfStatus", label: "045A20 PF Status", command: "0x53", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045OperationStatus", label: "045A20 Operation Status", command: "0x54", operation: "read-word", readLength: 2, unit: "hex" }
   ];
 
   const bq30FetRecoveryCommands = [
@@ -207,6 +223,25 @@
     { key: "cellVoltage2", label: "Cell Voltage 2", command: "0x3E", operation: "read-word", readLength: 2 },
     { key: "cellVoltage3", label: "Cell Voltage 3", command: "0x3D", operation: "read-word", readLength: 2 },
     { key: "cellVoltage4", label: "Cell Voltage 4", command: "0x3C", operation: "read-word", readLength: 2 }
+  ];
+
+  const renesas045A20ExtendedStatusReadPlan = [
+    { key: "renesas045SafetyAlert", label: "Safety Alert", command: "0x50", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045SafetyStatus", label: "Safety Status", command: "0x51", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045PfAlert", label: "PF Alert", command: "0x52", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045PfStatus", label: "PF Status", command: "0x53", operation: "read-word", readLength: 2, unit: "hex" },
+    { key: "renesas045OperationStatus", label: "Operation Status", command: "0x54", operation: "read-word", readLength: 2, unit: "hex" }
+  ];
+
+  const renesas045A20UnlockCandidateCommands = [
+    { label: "PF Clear key A", subCommand: "0x2673", mode: "ma-word" },
+    { label: "PF Clear key B", subCommand: "0x1712", mode: "ma-word" },
+    { label: "FET Control", subCommand: "0x0046", mode: "ma-word" },
+    { label: "PF Data Reset", subCommand: "0x0029", mode: "ma-word" },
+    { label: "Charge FET", subCommand: "0x001F", mode: "ma-word" },
+    { label: "Discharge FET", subCommand: "0x0020", mode: "ma-word" },
+    { label: "PF Clear key A + PEC", subCommand: "0x2673", mode: "ma-word-pec" },
+    { label: "PF Clear key B + PEC", subCommand: "0x1712", mode: "ma-word-pec" }
   ];
 
   const renesas045A20IdentityProbePlan = [
@@ -245,7 +280,12 @@
     0x3C: "Cell Voltage 4",
     0x3D: "Cell Voltage 3",
     0x3E: "Cell Voltage 2",
-    0x3F: "Cell Voltage 1"
+    0x3F: "Cell Voltage 1",
+    0x50: "Safety Alert",
+    0x51: "Safety Status",
+    0x52: "PF Alert",
+    0x53: "PF Status",
+    0x54: "Operation Status"
   };
 
   const batteryPinoutBrands = [
@@ -612,6 +652,11 @@
       case "0x1A":
       case "0x1C":
       case "0x00":
+      case "0x50":
+      case "0x51":
+      case "0x52":
+      case "0x53":
+      case "0x54":
         return hex(word, 4);
       case "0x07":
         return word === 0 ? "No" : "Yes";
@@ -927,6 +972,16 @@
     `;
   }
 
+  function monitorParameterGroup(parameter) {
+    if (parameter?.sourceDerived) {
+      return "derived";
+    }
+    if (parameter?.chipFamily || String(parameter?.key || "").startsWith("renesas045")) {
+      return "extended";
+    }
+    return isSbsMonitorCommand(parameter) ? "standard" : "extended";
+  }
+
   function renderUnifiedMonitorTable(rows) {
     const byKey = new Map((Array.isArray(rows) ? rows : []).map((row) => [row.key, row]));
     const parameters = visibleMonitorParameters(rows);
@@ -934,19 +989,17 @@
       <div class="battery-table-wrap">
         <table class="battery-table">
           <thead>
-            <tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Command</th><th>Source</th><th>Raw</th></tr>
+            <tr><th>Parameter</th><th>Value</th><th>Unit</th></tr>
           </thead>
           <tbody>
             ${parameters.map((parameter) => {
               const row = byKey.get(parameter.key);
+              const group = monitorParameterGroup(parameter);
               return `
-              <tr>
+              <tr class="battery-monitor-row battery-monitor-row-${escapeHtml(group)}">
                 <td>${escapeHtml(parameter.label)}</td>
                 <td>${escapeHtml(rowValueForDisplay(row))}</td>
                 <td>${escapeHtml(parameter.unit || row?.unit || "")}</td>
-                <td>${escapeHtml(parameter.command || "-")}</td>
-                <td>${escapeHtml(row?.source || "-")}</td>
-                <td>${escapeHtml(row?.raw || "-")}</td>
               </tr>
             `;
             }).join("")}
@@ -1535,15 +1588,7 @@
           <label><input id="batteryDataIsolatedConfirmed" type="checkbox"${state.isolatedConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Battery isolated</span></label>
           <label><input id="batteryDataWriteConfirmed" type="checkbox"${state.writeConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Write enable</span></label>
         </div>
-        <div class="battery-profile-strip">
-          <span>${escapeHtml(profile?.family || family?.family || "-")}</span>
-          <span>${backup ? `${getBackupItems(backup).length} backup rows` : "no backup"}</span>
-          <span>${imported ? `${getRestoreItems(imported).length} restore items` : "no import"}</span>
-          <span>${state.dataImportVerified ? "verified" : "not verified"}</span>
-          <span>${escapeHtml(busLocked ? batteryBusLockLabel(state) : "detek required")}</span>
-        </div>
         <input id="batteryDataImportFile" type="file" accept="application/json,.json" hidden>
-        <p class="spi-note">${escapeHtml(busLocked ? state.dataMessage : "Klik Detek dulu sebelum Identify, Backup, Verify, atau Restore.")}</p>
       </section>
       <section class="spi-card battery-result-panel">
         <div class="spi-card-head">
@@ -1616,7 +1661,6 @@
           <label><input id="batterySmbusRequireIdle" type="checkbox"${state.smbusRequireIdle ? " checked" : ""}${busy ? " disabled" : ""}> <span>Require idle</span></label>
           <label><input id="batterySmbusScanAddresses" type="checkbox"${state.smbusScanAddresses ? " checked" : ""}${busy ? " disabled" : ""}> <span>Scan address</span></label>
         </div>
-        <p class="spi-note">${escapeHtml(busLocked ? (state.apiMessage || "Direct command siap memakai SCL/SDA hasil Detek.") : "Klik Detek dulu. Manual SMBus tidak boleh menentukan SCL/SDA sendiri.")}</p>
       </section>
       <section class="spi-card battery-result-panel">
         <div class="spi-card-head">
@@ -1835,7 +1879,7 @@
         { id: "renesas045-identity", name: "Probe Identity", kind: "renesas045-identity" },
         { id: "renesas045-manufacturer", name: "Probe Manufacturer Area", kind: "renesas045-manufacturer" },
         { id: "renesas045-after-cell", name: "After Cell Recovery Check", kind: "renesas045-after-cell" },
-        { id: "renesas045-unlock-fet", name: "Unlock / FET Reference Check", kind: "renesas045-unlock-fet" }
+        { id: "renesas045-unlock-fet", name: "Unlock / Clear PF / FET", kind: "renesas045-unlock-fet" }
       ];
     }
     return (profile?.recoveryActions || []).map((action) => ({
@@ -1958,8 +2002,7 @@
       kind === "renesas045-status" ||
       kind === "renesas045-identity" ||
       kind === "renesas045-manufacturer" ||
-      kind === "renesas045-after-cell" ||
-      kind === "renesas045-unlock-fet";
+      kind === "renesas045-after-cell";
   }
 
   function renesas045A20OperationNote(operation) {
@@ -1973,15 +2016,14 @@
       case "renesas045-after-cell":
         return "Cek ulang kondisi setelah cell dipulihkan: voltage, SOC, FCC, design, cycle, dan balance.";
       case "renesas045-unlock-fet":
-        return "Guard unlock 045A20: kumpulkan bukti status/probe. Write FET diblokir sampai command Renesas valid ditemukan.";
+        return "Eksperimental 045A20: baca status 0x50-0x54, kirim kandidat PF/FET dengan izin write, lalu bandingkan status sebelum/sesudah. Sambungkan SP/yellow ke GND untuk test FET valid.";
       default:
         return "Operasi 045A20 read-only. Tidak memakai command BQ30.";
     }
   }
 
   function visibleMonitorParameters(rows = []) {
-    const rowKeys = new Set((Array.isArray(rows) ? rows : []).map((row) => row?.key).filter(Boolean));
-    return monitorParameters.filter((parameter) => parameter.chipFamily !== "BQ30" || rowKeys.has(parameter.key));
+    return monitorParameters.filter((parameter) => isSbsMonitorCommand(parameter));
   }
 
   function renderRecoveryResultPanel(state) {
@@ -2069,15 +2111,6 @@
           <label><input id="batteryRecoveryIsolatedConfirmed" type="checkbox"${state.isolatedConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Battery isolated</span></label>
           <label><input id="batteryRecoveryWriteConfirmed" type="checkbox"${state.writeConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Write enable</span></label>
         </div>
-        <div class="battery-profile-strip">
-          <span>${escapeHtml(selectedFamilyIsReferenceOnly ? selectedFamily?.status || "reference-only" : profile?.family || "-")}</span>
-          <span>${escapeHtml(selectedFamilyIsReferenceOnly ? (selectedFamily?.aliases || []).join(", ") || "-" : (profile?.aliases || []).join(", ") || "-")}</span>
-          <span>${selectedFamilyIsReferenceOnly ? "probe only" : `${profile?.standardCommands?.length || 0} cmd`}</span>
-          <span>${selectedFamilyIsReferenceOnly ? "no write" : `${profile?.manufacturerAccessCommands?.length || 0} MAC`}</span>
-          <span>${isReadOnlyRecoveryOperation(operation) ? "read-only" : "write guarded"}</span>
-          <span>${escapeHtml(busLocked ? batteryBusLockLabel(state) : "detek required")}</span>
-        </div>
-        <p class="spi-note">${escapeHtml(busLocked ? (state.recoveryMessage || "Recovery database siap dibaca.") : "Klik Detek dulu sebelum Preview atau Run recovery.")}</p>
       </section>
       <section class="spi-card battery-sequence-panel">
         <div class="spi-card-head">
@@ -2236,6 +2269,7 @@
         }
         const message = error?.message || "Operasi Battery Unlock gagal.";
         setTabMessage(tabAtStart, message);
+        notifyUser(message, "warning");
       } finally {
         if (batteryOperationId === operationId) {
           batteryOperationAbortController = null;
@@ -2954,6 +2988,7 @@
         smbusResult: result,
         apiMessage: result.message || "SMBus command selesai."
       });
+      notifyUser(result.message || "SMBus command selesai.", result.success === false ? "warning" : "success");
     }
 
     async function runSmbusDiagnostic() {
@@ -2978,6 +3013,7 @@
         smbusDiagnostic: result,
         apiMessage: result.message || "Diagnostic SMBus selesai."
       });
+      notifyUser(result.message || "Diagnostic SMBus selesai.", result.success === false ? "warning" : "success");
     }
 
     function blockInfo(readHex) {
@@ -3125,6 +3161,7 @@
         smbusGaugeProbe: probe,
         apiMessage: `Probe IC selesai: ${classification.gauge}.`
       });
+      notifyUser(`Probe IC selesai: ${classification.gauge}.`, classification.confidence === "LOW" ? "warning" : "success");
     }
 
     async function executeDataCommand(plan, writeOptions = {}) {
@@ -3217,6 +3254,12 @@
           ? "Identify selesai. Cocokkan Manufacturer/Device/Chemistry sebelum backup/restore."
           : "Identify belum berhasil. Periksa koneksi SMBus dan isolasi baterai."
       });
+      notifyUser(
+        rows.some((row) => row.success)
+          ? "Identify selesai."
+          : "Identify belum berhasil. Periksa koneksi SMBus dan isolasi baterai.",
+        rows.some((row) => row.success) ? "success" : "warning"
+      );
     }
 
     async function runDataBackup() {
@@ -3239,11 +3282,13 @@
         dataRows: rows,
         dataMessage: `Backup selesai: ${rows.filter((row) => row.success).length}/${rows.length} item terbaca. Export JSON untuk arsip.`
       });
+      notifyUser(`Backup selesai: ${rows.filter((row) => row.success).length}/${rows.length} item terbaca.`, "success");
     }
 
     function exportDataBackup() {
       if (!state.dataBackup) {
         setState({ dataMessage: "Belum ada backup untuk export." });
+        notifyUser("Belum ada backup untuk export.", "warning");
         return;
       }
       const fileName = formatBackupFileName(state.dataBackup);
@@ -3257,6 +3302,7 @@
       link.remove();
       URL.revokeObjectURL(url);
       setState({ dataFileName: fileName, dataMessage: `Backup diexport: ${fileName}` });
+      notifyUser(`Backup diexport: ${fileName}`, "success");
     }
 
     async function importDataBackupFile(file) {
@@ -3275,6 +3321,7 @@
         dataRows: getBackupItems(backup),
         dataMessage: `Backup diimport. Jalankan Verify sebelum restore. Restore items: ${getRestoreItems(backup).length}.`
       });
+      notifyUser(`Backup diimport. Restore items: ${getRestoreItems(backup).length}.`, "success");
     }
 
     async function verifyDataBackup() {
@@ -3284,6 +3331,7 @@
       const backup = state.dataImportedBackup;
       if (!backup) {
         setState({ dataMessage: "Import backup dulu sebelum verify." });
+        notifyUser("Import backup dulu sebelum verify.", "warning");
         return;
       }
       setState(freshBatteryBusSessionPatch({ dataRows: [], dataMessage: "Verify mulai dari sesi SMBus baru." }));
@@ -3317,6 +3365,12 @@
           ? `Verify cocok. Restore guarded aktif untuk ${getRestoreItems(backup).length} item writable.`
           : "Verify gagal/cocok sebagian. Restore tetap terkunci agar tidak salah chip."
       });
+      notifyUser(
+        verified
+          ? `Verify cocok. Restore guarded aktif untuk ${getRestoreItems(backup).length} item writable.`
+          : "Verify gagal/cocok sebagian. Restore tetap terkunci.",
+        verified ? "success" : "warning"
+      );
     }
 
     async function restoreDataBackup() {
@@ -3327,6 +3381,7 @@
       const restoreItems = getRestoreItems(backup);
       if (!backup || !state.dataImportVerified || !restoreItems.length) {
         setState({ dataMessage: "Restore terkunci. Import backup, Verify cocok, dan pastikan ada item writable." });
+        notifyUser("Restore terkunci. Import backup, Verify cocok, dan pastikan ada item writable.", "warning");
         return;
       }
       setState(freshBatteryBusSessionPatch({ dataRows: [], dataMessage: "Restore mulai dari sesi SMBus baru." }));
@@ -3364,6 +3419,7 @@
         dataRows: rows,
         dataMessage: `Restore selesai untuk ${rows.length} item writable. Jalankan Identify/Backup ulang untuk verifikasi.`
       });
+      notifyUser(`Restore selesai untuk ${rows.length} item writable.`, "success");
     }
 
     async function previewRecovery() {
@@ -3382,6 +3438,7 @@
         recoveryPreview: result,
         recoveryMessage: result.message || "Preview recovery siap."
       });
+      notifyUser(result.message || "Preview recovery siap.", result.success === false ? "warning" : "success");
     }
 
     async function executeRecovery() {
@@ -3405,6 +3462,7 @@
         recoveryPreview: result,
         recoveryMessage: result.message || "Recovery command selesai."
       });
+      notifyUser(result.message || "Recovery command selesai.", result.success === false ? "warning" : "success");
     }
 
     async function runSelectedRecoveryOperation() {
@@ -3413,12 +3471,15 @@
       const operation = selectedRecoveryOperation(state, profile, family);
       if (!operation) {
         setState({ recoveryMessage: "Operasi belum dipilih." });
+        notifyUser("Operasi belum dipilih.", "warning");
         return;
       }
       if (String(operation.kind || "").startsWith("bq30") && bq30OperationBlockedByCurrentIdentity()) {
+        const message = "Operasi BQ30 diblokir: identity terakhir terbaca Panasonic/Sanyo, belum ada konfirmasi BQ30-like dari Probe IC. Pilih seri/IC yang sesuai atau jalankan SMBus Probe IC dulu.";
         setState({
-          recoveryMessage: "Operasi BQ30 diblokir: identity terakhir terbaca Panasonic/Sanyo, belum ada konfirmasi BQ30-like dari Probe IC. Pilih seri/IC yang sesuai atau jalankan SMBus Probe IC dulu."
+          recoveryMessage: message
         });
+        notifyUser(message, "warning");
         return;
       }
       if (operation.kind === "probe") {
@@ -3435,6 +3496,7 @@
           smbusDiagnostic: null,
           apiMessage: probe.message
         });
+        notifyUser(probe.message, "info");
         return;
       }
       setState(freshBatteryBusSessionPatch({
@@ -3640,11 +3702,15 @@
         patch.metrics = mergeMetrics(createInitialMetrics(), directMetrics);
       }
       setState(patch);
+      notifyUser(`${label} selesai. ${okCount}/${plan.length} OK.`, okCount ? "success" : "warning");
       return { resultRows, monitorRows: derivedRows, okCount, summary };
     }
 
     async function runRenesas045A20ReadStatus() {
-      return runRenesas045A20ReadPlan(renesas045A20StatusReadPlan, "045A20 Read Status", true);
+      return runRenesas045A20ReadPlan([
+        ...renesas045A20StatusReadPlan,
+        ...renesas045A20ExtendedStatusReadPlan
+      ], "045A20 Read Status", true);
     }
 
     async function runRenesas045A20ProbeIdentity() {
@@ -3680,40 +3746,185 @@
         ],
         recoveryMessage: `045A20 after-cell check selesai. Health/SOH ${healthText}. ${result.summary}`
       });
+      notifyUser(`045A20 after-cell check selesai. Health/SOH ${healthText}.`, "success");
+    }
+
+    function renesas045A20SnapshotPlan() {
+      const seen = new Set();
+      return [
+        ...renesas045A20StatusReadPlan,
+        ...renesas045A20ExtendedStatusReadPlan,
+        ...renesas045A20ManufacturerProbePlan
+      ].filter((item) => {
+        const key = `${item.command}|${item.operation}`;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function smbusPecCrc8(bytes) {
+      let crc = 0;
+      for (const byte of bytes) {
+        crc ^= byte & 0xFF;
+        for (let bit = 0; bit < 8; bit += 1) {
+          crc = (crc & 0x80) ? ((crc << 1) ^ 0x07) & 0xFF : (crc << 1) & 0xFF;
+        }
+      }
+      return crc & 0xFF;
+    }
+
+    function renesas045A20PecRawTransferHex(subCommand) {
+      const payload = parseHexBytes(manufacturerAccessDataHex(subCommand));
+      const packet = [0x00, ...payload];
+      const addressByte = ((Number.parseInt(String(state.smbusAddress || "0x0B").replace(/^0x/i, ""), 16) || 0x0B) << 1) & 0xFE;
+      const pec = smbusPecCrc8([addressByte, ...packet]);
+      return [...packet, pec].map((byte) => byte.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+    }
+
+    function renesas045A20SnapshotRows(rows, phase) {
+      return rows
+        .filter((row) => ["0x00", "0x16", "0x50", "0x51", "0x52", "0x53", "0x54"].includes(row.command))
+        .map((row) => ({
+          label: `${phase} ${row.label}`,
+          command: row.command,
+          writeHex: "-",
+          readHex: row.raw || "-",
+          status: row.status === "OK" ? `${row.value}${row.unit ? ` ${row.unit}` : ""}` : row.status || "-"
+        }));
+    }
+
+    function renesas045A20StatusMap(rows) {
+      return rows.reduce((acc, row) => {
+        if (["0x00", "0x16", "0x50", "0x51", "0x52", "0x53", "0x54"].includes(row.command)) {
+          acc[row.command] = row.raw || row.value || "-";
+        }
+        return acc;
+      }, {});
+    }
+
+    function renesas045A20StatusDiff(beforeRows, afterRows) {
+      const before = renesas045A20StatusMap(beforeRows);
+      const after = renesas045A20StatusMap(afterRows);
+      const changed = Object.keys({ ...before, ...after })
+        .filter((command) => String(before[command] || "-") !== String(after[command] || "-"))
+        .map((command) => `${command}: ${before[command] || "-"} -> ${after[command] || "-"}`);
+      return changed.length ? changed.join("; ") : "status unchanged";
+    }
+
+    async function readRenesas045A20Snapshot(label, rows) {
+      const plan = renesas045A20SnapshotPlan();
+      const monitorRows = [];
+      for (const item of plan) {
+        const row = await readRenesas045A20PlanRow(item);
+        monitorRows.push(row.monitorRow);
+        if (Array.isArray(rows)) {
+          rows.push(row.resultRow);
+          setState({
+            bq30RecoveryRows: rows,
+            recoveryMessage: `${label}: ${monitorRows.length}/${plan.length} command dibaca.`
+          });
+        }
+        await delay(35);
+      }
+      return appendDerivedCellBalanceRows(monitorRows);
+    }
+
+    async function writeRenesas045A20CandidateCommand(item) {
+      const dataHex = manufacturerAccessDataHex(item.subCommand);
+      const payload = item.mode === "ma-word-pec"
+        ? {
+          operation: "raw-transfer",
+          command: "",
+          dataHex: renesas045A20PecRawTransferHex(item.subCommand),
+          readLength: 0
+        }
+        : {
+          operation: "write-word",
+          command: "0x00",
+          dataHex
+        };
+      const result = await sendBatteryRecoverySmbusCommand(payload, recoverySmbusCommandTimeoutMs);
+      return {
+        label: item.label,
+        command: item.mode === "ma-word-pec" ? `RAW MA ${item.subCommand}` : `MA ${item.subCommand}`,
+        writeHex: result.writeHex || payload.dataHex || dataHex,
+        readHex: result.readHex || "-",
+        status: result.message || "OK"
+      };
     }
 
     async function runRenesas045A20UnlockFetReferenceCheck() {
-      const combinedPlan = [
-        ...renesas045A20StatusReadPlan,
-        ...renesas045A20ManufacturerProbePlan.filter((item) =>
-          !renesas045A20StatusReadPlan.some((statusItem) => statusItem.command === item.command))
-      ];
-      const result = await runRenesas045A20ReadPlan(combinedPlan, "045A20 Unlock / FET Reference Check", true);
+      if (!state.writeConfirmed) {
+        setState({ recoveryMessage: "045A20 unlock belum dikirim. Centang Write enable dulu." });
+        notifyUser("045A20 unlock belum dikirim. Centang Write enable dulu.", "warning");
+        return;
+      }
+      const rows = [{
+        label: "System Present",
+        command: "SP",
+        writeHex: "-",
+        readHex: "-",
+        status: "Untuk test FET valid, sambungkan yellow/SP ke GND."
+      }];
       setState({
-        bq30RecoveryRows: [
-          ...result.resultRows,
-          {
-            label: "BQ30 Flow",
-            command: "MA 0x0040/0x0032/0x2F",
-            writeHex: "-",
-            readHex: "-",
-            status: "Blocked for 045A20. Renesas RAJ240045 is not TI BQ30."
-          },
-          {
-            label: "FET Unlock Write",
-            command: "-",
-            writeHex: "-",
-            readHex: "-",
-            status: "No validated public 045A20 write sequence yet. No write sent."
-          }
-        ],
-        recoveryMessage: `045A20 FET reference check selesai. Write unlock belum dikirim karena command Renesas yang valid belum ditemukan. ${result.summary}`
+        bq30RecoveryRows: rows,
+        recoveryMessage: "045A20 unlock mulai: baca status awal 0x50-0x54."
       });
+      const beforeRows = await readRenesas045A20Snapshot("045A20 status awal", rows);
+      rows.push(...renesas045A20SnapshotRows(beforeRows, "Before"));
+      setState({
+        bq30RecoveryRows: rows,
+        recoveryMessage: "045A20 status awal selesai. Kandidat PF/FET dikirim."
+      });
+
+      for (const item of renesas045A20UnlockCandidateCommands) {
+        rows.push({
+          label: item.label,
+          command: item.mode === "ma-word-pec" ? `RAW MA ${item.subCommand}` : `MA ${item.subCommand}`,
+          writeHex: item.mode === "ma-word-pec" ? renesas045A20PecRawTransferHex(item.subCommand) : manufacturerAccessDataHex(item.subCommand),
+          readHex: "-",
+          status: "sending"
+        });
+        setState({
+          bq30RecoveryRows: rows,
+          recoveryMessage: `${item.label} ${item.subCommand} sedang dikirim...`
+        });
+        try {
+          rows[rows.length - 1] = await writeRenesas045A20CandidateCommand(item);
+        } catch (error) {
+          rows[rows.length - 1] = {
+            label: item.label,
+            command: item.mode === "ma-word-pec" ? `RAW MA ${item.subCommand}` : `MA ${item.subCommand}`,
+            writeHex: item.mode === "ma-word-pec" ? renesas045A20PecRawTransferHex(item.subCommand) : manufacturerAccessDataHex(item.subCommand),
+            readHex: "-",
+            status: error?.message || "ERR"
+          };
+        }
+        setState({ bq30RecoveryRows: rows });
+        await delay(120);
+      }
+
+      const afterRows = await readRenesas045A20Snapshot("045A20 status akhir", rows);
+      rows.push(...renesas045A20SnapshotRows(afterRows, "After"));
+      const diff = renesas045A20StatusDiff(beforeRows, afterRows);
+      const summary = summarizeRenesas045A20Rows(afterRows);
+      const directMetrics = afterRows.reduce((acc, row) => ({ ...acc, ...directRowToMetrics(row) }), {});
+      setState({
+        bq30RecoveryRows: rows,
+        monitorRows: afterRows,
+        metrics: mergeMetrics(createInitialMetrics(), directMetrics),
+        recoveryMessage: `045A20 unlock selesai. ${diff}. ${summary}`
+      });
+      notifyUser(`045A20 unlock selesai: ${diff}.`, diff === "status unchanged" ? "warning" : "success");
     }
 
     async function runBq30UnlockFetFlow() {
       if (!state.writeConfirmed) {
         setState({ recoveryMessage: "BQ30 FAS + PF/FET belum dikirim. Centang Write enable dulu." });
+        notifyUser("BQ30 FAS + PF/FET belum dikirim. Centang Write enable dulu.", "warning");
         return;
       }
       const result = await executeBq30FullAccessClearFaultEnableFet();
@@ -3722,6 +3933,7 @@
         bq30RecoveryRows: rows,
         recoveryMessage: result.message || "BQ30 FAS + PF/FET selesai dikirim. Ukur P+ / P- pack untuk konfirmasi output."
       });
+      notifyUser(result.message || "BQ30 FAS + PF/FET selesai dikirim.", result.success === false ? "warning" : "success");
       return { result, rows };
     }
 
@@ -3816,6 +4028,7 @@
     async function runBq30AfterCellReplaceRelearn() {
       if (!state.writeConfirmed) {
         setState({ recoveryMessage: "After Cell Replace / Relearn belum dikirim. Centang Write enable dulu." });
+        notifyUser("After Cell Replace / Relearn belum dikirim. Centang Write enable dulu.", "warning");
         return;
       }
 
@@ -3872,6 +4085,7 @@
         metrics: mergeMetrics(createInitialMetrics(), directMetrics),
         recoveryMessage: `After Cell Replace / Relearn selesai. Health/SOH sekarang ${healthText} berdasarkan FCC / Design Capacity terbaru.`
       });
+      notifyUser(`After Cell Replace / Relearn selesai. Health/SOH ${healthText}.`, "success");
     }
 
     async function readBq30RecoveryStatus() {
@@ -3929,6 +4143,7 @@
         bq30RecoveryRows: rows,
         recoveryMessage: result.message || "BQ30 status terbaca."
       });
+      notifyUser(result.message || "BQ30 status terbaca.", result.success === false ? "warning" : "success");
       return result;
     }
 
@@ -3979,6 +4194,7 @@
     async function writeBq30ManufacturerAccessSequence(commands, label) {
       if (!state.writeConfirmed) {
         setState({ recoveryMessage: `${label} belum dikirim. Centang Write enable dulu.` });
+        notifyUser(`${label} belum dikirim. Centang Write enable dulu.`, "warning");
         return;
       }
       setState({
@@ -4018,6 +4234,7 @@
         bq30RecoveryRows: rows,
         recoveryMessage: `${label} selesai dikirim. Cek P+ / P- dan status pack untuk konfirmasi hasil nyata.`
       });
+      notifyUser(`${label} selesai dikirim.`, "success");
     }
 
     function bindCommon(container) {
