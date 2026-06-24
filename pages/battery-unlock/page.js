@@ -12,6 +12,13 @@
   const recoverySmbusCommandTimeoutMs = 22000;
   const recoveryStatusTimeoutMs = 35000;
   const recoveryLongOperationTimeoutMs = 95000;
+  const batteryChipDecodeRules = {
+    "0550": {
+      chip: "BQ30Z55",
+      family: "BQ30",
+      catalogFamilyId: "bq30z554-family"
+    }
+  };
   let activeBatteryOperationSignal = null;
   const sampleRateOptionsHz = [
     100000,
@@ -29,8 +36,8 @@
     busy: false,
     database: null,
     selectedCatalogFamilyId: "bq30z554-family",
-    selectedProfileId: "bq40z50",
-    selectedActionId: "bq40-unseal",
+    selectedProfileId: "bq30z554-family",
+    selectedActionId: "universal-read-info",
     isolatedConfirmed: false,
     writeConfirmed: false,
     smbusOperation: "read-word",
@@ -54,7 +61,7 @@
     busChipUpdatedBy: "",
     busChipCanEdit: false,
     busChipDatabaseHash: "",
-    busChipMessage: "Database chip belum dicek.",
+    busChipMessage: "Chip/IC belum diprobe.",
     smbusRequireIdle: false,
     smbusScanAddresses: true,
     monitorSampleRateHz: defaultSampleRateHz,
@@ -70,6 +77,8 @@
     monitorMode: "idle",
     captureInfo: {},
     monitorRunning: false,
+    bq30CellCheckRunning: false,
+    bq30CellCheckCycle: 0,
     transactions: [],
     busFrames: [],
     rawRows: [],
@@ -78,6 +87,9 @@
     smbusGaugeProbe: null,
     recoveryPreview: null,
     bq30RecoveryRows: [],
+    bq30TargetBalanceDeltaMv: 30,
+    bq30TargetLevelPercent: 100,
+    bq30TargetHealthPercent: 100,
     dataMessage: "Data tools siap.",
     dataBackup: null,
     dataImportedBackup: null,
@@ -133,6 +145,10 @@
     { key: "bq30FetStatus", label: "BQ30 FET", unit: "", sourceEndpoint: "bq30/status", chipFamily: "BQ30" },
     { key: "bq30PfStatus", label: "BQ30 PF Status", unit: "hex", sourceEndpoint: "bq30/status", chipFamily: "BQ30" },
     { key: "bq30SafetyStatus", label: "BQ30 Safety Status", unit: "hex", sourceEndpoint: "bq30/status", chipFamily: "BQ30" },
+    { key: "bq40Security", label: "BQ40 Security / SEC", unit: "", sourceEndpoint: "bq40/status", chipFamily: "BQ40" },
+    { key: "bq40FetStatus", label: "BQ40 FET", unit: "", sourceEndpoint: "bq40/status", chipFamily: "BQ40" },
+    { key: "bq40PfStatus", label: "BQ40 PF Status", unit: "hex", sourceEndpoint: "bq40/status", chipFamily: "BQ40" },
+    { key: "bq40SafetyStatus", label: "BQ40 Safety Status", unit: "hex", sourceEndpoint: "bq40/status", chipFamily: "BQ40" },
     { key: "cellsBalance", label: "Cells Balance", unit: "", sourceDerived: "cell-voltage-delta" },
     { key: "maxImbalance", label: "Max Imbalance", unit: "mV", sourceDerived: "cell-voltage-delta" }
   ];
@@ -175,9 +191,12 @@
   const bq30AfterCellReplaceReadPlan = [
     { key: "temperature", label: "Temperature", command: "0x08", operation: "read-word", readLength: 2 },
     { key: "voltage", label: "Voltage", command: "0x09", operation: "read-word", readLength: 2 },
+    { key: "current", label: "Current", command: "0x0A", operation: "read-word", readLength: 2 },
+    { key: "averageCurrent", label: "Average Current", command: "0x0B", operation: "read-word", readLength: 2 },
     { key: "relativeSoc", label: "RSoC", command: "0x0D", operation: "read-word", readLength: 2 },
     { key: "remainingCapacity", label: "Remaining Capacity", command: "0x0F", operation: "read-word", readLength: 2 },
     { key: "fullChargeCapacity", label: "Full Charge Capacity", command: "0x10", operation: "read-word", readLength: 2 },
+    { key: "batteryStatus", label: "Battery Status", command: "0x16", operation: "read-word", readLength: 2 },
     { key: "cycleCount", label: "Cycle Count", command: "0x17", operation: "read-word", readLength: 2 },
     { key: "designCapacity", label: "Design Capacity", command: "0x18", operation: "read-word", readLength: 2 },
     { key: "designVoltage", label: "Design Voltage", command: "0x19", operation: "read-word", readLength: 2 },
@@ -201,6 +220,57 @@
   const bq30PfRecoveryCommands = [
     { label: "Permanent Failure", subCommand: "0x24" },
     { label: "PF Data Reset", subCommand: "0x29" }
+  ];
+
+  const bq30CalibrationTrigger = {
+    label: "Refresh Gauge / Relearn Trigger",
+    command: "0x00",
+    subCommand: "0x0041",
+    dataHex: "41 00",
+    settleMs: 1500
+  };
+
+  const universalRecoveryOperations = [
+    { id: "universal-read-info", name: "Read Info", kind: "universal-read-info", order: 1, target: "Read Info" },
+    { id: "universal-read-status", name: "Read Status", kind: "universal-read-status", order: 2, target: "Read Status" },
+    { id: "universal-scan-commands", name: "Scan Commands", kind: "universal-scan-commands", order: 3, target: "Scan Commands" },
+    { id: "universal-check-cells", name: "Check Cells", kind: "universal-check-cells", order: 4, target: "Check Cells" },
+    { id: "universal-protection-status", name: "Protection Status", kind: "universal-protection-status", order: 5, target: "Protection Status" },
+    { id: "universal-clear-protection", name: "Clear Protection", kind: "universal-clear-protection", order: 6, target: "Clear Protection" },
+    { id: "universal-full-access", name: "Full Access", kind: "universal-full-access", order: 7, target: "Full Access" },
+    { id: "universal-unlock-fet", name: "Unlock FET", kind: "universal-unlock-fet", order: 8, target: "Unlock FET" },
+    { id: "universal-refresh-gauge", name: "Refresh Gauge / Relearn", kind: "universal-refresh-gauge", order: 9, target: "Refresh Gauge / Relearn" }
+  ];
+
+  const universalReadInfoPlan = [
+    { key: "manufacturerName", label: "Manufacturer", command: "0x20", operation: "read-block", readLength: 33 },
+    { key: "deviceName", label: "Device Name", command: "0x21", operation: "read-block", readLength: 33 },
+    { key: "serialNumber", label: "Serial Number", command: "0x1C", operation: "read-word", readLength: 2 },
+    { key: "deviceChemistry", label: "Chemistry", command: "0x22", operation: "read-block", readLength: 33 },
+    { key: "designCapacity", label: "Design Capacity", command: "0x18", operation: "read-word", readLength: 2 },
+    { key: "designVoltage", label: "Design Voltage", command: "0x19", operation: "read-word", readLength: 2 }
+  ];
+
+  const universalReadStatusPlan = [
+    { key: "voltage", label: "Voltage", command: "0x09", operation: "read-word", readLength: 2 },
+    { key: "current", label: "Current", command: "0x0A", operation: "read-word", readLength: 2 },
+    { key: "remainingCapacity", label: "Remaining Capacity", command: "0x0F", operation: "read-word", readLength: 2 },
+    { key: "fullChargeCapacity", label: "Full Charge Capacity", command: "0x10", operation: "read-word", readLength: 2 },
+    { key: "temperature", label: "Temperature", command: "0x08", operation: "read-word", readLength: 2 },
+    { key: "batteryStatus", label: "Battery Status", command: "0x16", operation: "read-word", readLength: 2 },
+    { key: "relativeSoc", label: "RSoC", command: "0x0D", operation: "read-word", readLength: 2 }
+  ];
+
+  const universalCellReadPlan = [
+    { key: "cellVoltage1", label: "Cell 1 Voltage", command: "0x3F", operation: "read-word", readLength: 2 },
+    { key: "cellVoltage2", label: "Cell 2 Voltage", command: "0x3E", operation: "read-word", readLength: 2 },
+    { key: "cellVoltage3", label: "Cell 3 Voltage", command: "0x3D", operation: "read-word", readLength: 2 },
+    { key: "cellVoltage4", label: "Cell 4 Voltage", command: "0x3C", operation: "read-word", readLength: 2 }
+  ];
+
+  const universalProtectionReadPlan = [
+    { key: "batteryStatus", label: "Battery Status", command: "0x16", operation: "read-word", readLength: 2 },
+    { key: "manufacturerAccess", label: "Manufacturer Access", command: "0x00", operation: "read-word", readLength: 2 }
   ];
 
   const renesas045A20StatusReadPlan = [
@@ -285,7 +355,10 @@
     0x51: "Safety Status",
     0x52: "PF Alert",
     0x53: "PF Status",
-    0x54: "Operation Status"
+    0x54: "Operation Status",
+    0x55: "Charging Status",
+    0x56: "Gauging Status",
+    0x57: "Manufacturing Status"
   };
 
   const batteryPinoutBrands = [
@@ -438,6 +511,20 @@
   function delay(ms) {
     return new Promise((resolve) => {
       window.setTimeout(resolve, ms);
+    });
+  }
+
+  function abortableDelay(ms, signal = null) {
+    return new Promise((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      const timeoutId = window.setTimeout(resolve, ms);
+      signal?.addEventListener("abort", () => {
+        window.clearTimeout(timeoutId);
+        resolve();
+      }, { once: true });
     });
   }
 
@@ -754,6 +841,76 @@
     ];
   }
 
+  function bq40BackendRowToMonitorRow(row) {
+    const numeric = Number(row?.value);
+    return {
+      key: row?.key || `bq40-${row?.command || "status"}`,
+      source: "Recovery",
+      label: row?.label || "BQ40 Status",
+      command: row?.command || "-",
+      value: row?.value || "-",
+      unit: row?.unit || "",
+      numeric: Number.isFinite(numeric) ? numeric : null,
+      raw: row?.readHex || "-",
+      status: row?.success ? row?.status || "OK" : row?.status || "ERR",
+      meta: "BQ40 direct read"
+    };
+  }
+
+  function bq40StatusToMonitorRows(status) {
+    const securityMode = Number.isFinite(Number(status?.securityMode)) ? Number(status.securityMode) : null;
+    const decoded = securityMode !== null && securityMode >= 0;
+    const securityName = status?.securityModeName || "Unknown";
+    const pfNames = Array.isArray(status?.activePermanentFailures) ? status.activePermanentFailures : [];
+    const safetyNames = Array.isArray(status?.activeSafetyFlags) ? status.activeSafetyFlags : [];
+    return [
+      {
+        key: "bq40Security",
+        source: "Direct",
+        label: "BQ40 Security / SEC",
+        command: "0x54",
+        value: decoded ? `SEC=${securityMode} ${securityName}` : "raw status only",
+        unit: "",
+        raw: status?.operationStatusHex || "-",
+        status: decoded ? "OK" : status?.operationStatusHex ? "RAW" : "ERR",
+        meta: "OperationStatus"
+      },
+      {
+        key: "bq40FetStatus",
+        source: "Direct",
+        label: "BQ40 FET",
+        command: "0x54",
+        value: decoded ? `CHG=${status?.chargeFetOn ? "ON" : "OFF"} DSG=${status?.dischargeFetOn ? "ON" : "OFF"}` : "not decoded",
+        unit: "",
+        raw: status?.operationStatusHex || "-",
+        status: decoded ? "OK" : status?.operationStatusHex ? "RAW" : "ERR",
+        meta: decoded ? status?.permanentFailure ? "PF active" : "PF clear" : "raw fallback"
+      },
+      {
+        key: "bq40PfStatus",
+        source: "Direct",
+        label: "BQ40 PF Status",
+        command: "0x53",
+        value: status?.pfStatusHex || "-",
+        unit: "hex",
+        raw: status?.pfStatusHex || "-",
+        status: decoded ? pfNames.length ? pfNames.join(", ") : "OK" : status?.pfStatusHex ? "RAW" : "ERR",
+        meta: decoded ? pfNames.length ? "active PF" : "clear" : "raw fallback"
+      },
+      {
+        key: "bq40SafetyStatus",
+        source: "Direct",
+        label: "BQ40 Safety Status",
+        command: "0x51",
+        value: status?.safetyStatusHex || "-",
+        unit: "hex",
+        raw: status?.safetyStatusHex || "-",
+        status: decoded ? safetyNames.length ? safetyNames.join(", ") : "OK" : status?.safetyStatusHex ? "RAW" : "ERR",
+        meta: decoded ? safetyNames.length ? "active safety" : "clear" : "raw fallback"
+      }
+    ];
+  }
+
   function decodeRenesas045A20ManufacturerAccess(readHex) {
     const bytes = parseHexBytes(readHex);
     if (bytes.length < 2) {
@@ -845,6 +1002,261 @@
     ];
   }
 
+  function bq30CellRows(rows) {
+    return [1, 2, 3, 4]
+      .map((index) => {
+        const row = monitorRowByKey(rows, `cellVoltage${index}`);
+        const numeric = Number(row?.numeric);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+          return null;
+        }
+        return {
+          index,
+          key: `cellVoltage${index}`,
+          label: row?.label || `Cell Voltage ${index}`,
+          command: row?.command || `0x3${5 - index}`,
+          value: row?.value || formatNumber(numeric),
+          raw: row?.raw || "-",
+          status: row?.status || "OK",
+          meta: row?.meta || "",
+          voltage: numeric
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function bq30CellBalanceAnalysis(rows, targetDeltaMv = 30) {
+    const cellsByIndex = bq30CellRows(rows);
+    const cellsByVoltage = [...cellsByIndex].sort((a, b) => a.voltage - b.voltage);
+    const voltages = cellsByIndex.map((cell) => cell.voltage);
+    const activeCount = cellsByIndex.length;
+    const packType = activeCount ? `${activeCount}S` : "-";
+    const minVoltage = voltages.length ? Math.min(...voltages) : null;
+    const maxVoltage = voltages.length ? Math.max(...voltages) : null;
+    const delta = minVoltage !== null && maxVoltage !== null ? maxVoltage - minVoltage : null;
+    const averageVoltage = voltages.length
+      ? voltages.reduce((sum, value) => sum + value, 0) / voltages.length
+      : null;
+    const needsBalance = delta !== null && delta > targetDeltaMv;
+    const targetVoltage = maxVoltage !== null ? maxVoltage - targetDeltaMv : null;
+    const targetCells = needsBalance && targetVoltage !== null
+      ? cellsByIndex.filter((cell) => cell.voltage <= targetVoltage)
+      : [];
+    const primaryCell = cellsByVoltage[0] || null;
+    const secondaryCells = targetCells.filter((cell) => cell.index !== primaryCell?.index);
+    const cellListText = cellsByIndex.length
+      ? cellsByIndex.map((cell) => `C${cell.index} ${formatNumber(cell.voltage, 0)} mV`).join(" | ")
+      : "-";
+    const targetCellText = targetCells.length
+      ? targetCells.map((cell) => `Cell ${cell.index}`).join(", ")
+      : "-";
+    const status = !cellsByIndex.length
+      ? "No cell data"
+      : needsBalance
+        ? delta <= 80 ? "Watch" : "Imbalance"
+        : "Good";
+    return {
+      cellsByIndex,
+      cellsByVoltage,
+      activeCount,
+      packType,
+      minVoltage,
+      maxVoltage,
+      averageVoltage,
+      delta,
+      targetDeltaMv,
+      targetVoltage,
+      needsBalance,
+      primaryCell,
+      targetCells,
+      secondaryCells,
+      cellListText,
+      targetCellText,
+      status,
+      targetVoltageText: targetVoltage === null ? "-" : `${formatNumber(targetVoltage, 0)} mV`,
+      deltaText: delta === null ? "-" : `${formatNumber(delta, 0)} mV`
+    };
+  }
+
+  function bq30CellVisualRole(cell, analysis) {
+    if (!cell) {
+      return "is-empty";
+    }
+    if (analysis.primaryCell && cell.index === analysis.primaryCell.index && analysis.needsBalance) {
+      return "is-target";
+    }
+    if (analysis.targetCells.some((item) => item.index === cell.index)) {
+      return "is-target";
+    }
+    if (analysis.maxVoltage !== null && cell.voltage === analysis.maxVoltage) {
+      return "is-high";
+    }
+    if (analysis.minVoltage !== null && cell.voltage === analysis.minVoltage) {
+      return "is-low";
+    }
+    return "is-mid";
+  }
+
+  function bq30CellFillPercent(cell, analysis) {
+    if (!cell || analysis.minVoltage === null || analysis.maxVoltage === null) {
+      return 60;
+    }
+    const range = Math.max(1, analysis.maxVoltage - analysis.minVoltage);
+    const percent = 18 + (((cell.voltage - analysis.minVoltage) / range) * 72);
+    return Math.max(12, Math.min(96, percent));
+  }
+
+  function renderBq30CellPackVisual(analysis, mode = "balance") {
+    const cells = Array.isArray(analysis?.cellsByIndex) ? analysis.cellsByIndex : [];
+    if (!cells.length) {
+      return `
+        <div class="battery-bq30-visual is-empty">
+          <div class="battery-bq30-visual-head">
+            <span>${escapeHtml(mode === "calibration" ? "Relearn" : "Balance")}</span>
+            <strong>Cell data belum cukup</strong>
+          </div>
+          <p>Jalankan Check Cells dulu untuk membaca cell voltage yang aktif.</p>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="battery-bq30-visual">
+        <div class="battery-bq30-visual-head">
+          <span>${escapeHtml(analysis.packType || `${cells.length}S`)}</span>
+          <strong>${escapeHtml(analysis.status || "-")} / Delta ${escapeHtml(analysis.deltaText || "-")}</strong>
+        </div>
+        <div class="battery-bq30-cell-grid battery-bq30-cell-grid-${cells.length}">
+          ${cells.map((cell) => {
+            const role = bq30CellVisualRole(cell, analysis);
+            const fillPercent = bq30CellFillPercent(cell, analysis);
+            return `
+              <div class="battery-bq30-cell ${escapeHtml(role)}">
+                <div class="battery-bq30-cell-fill" style="height: ${formatNumber(fillPercent, 0)}%;"></div>
+                <div class="battery-bq30-cell-cap"></div>
+                <strong>Cell ${cell.index}</strong>
+                <span>${escapeHtml(formatNumber(cell.voltage, 0))} mV</span>
+                <small>${escapeHtml(role === "is-target"
+                  ? "Suntik / cek ulang"
+                  : role === "is-high"
+                    ? "Referensi tinggi"
+                    : role === "is-low"
+                      ? "Paling rendah"
+                      : "Normal")}</small>
+              </div>
+            `;
+          }).join("")}
+        </div>
+        <div class="battery-bq30-visual-legend">
+          <span class="is-target">Target inject</span>
+          <span class="is-high">Highest cell</span>
+          <span class="is-low">Lowest cell</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function bq30CellInstructionText(analysis, mode, targetLabel) {
+    if (!analysis?.cellsByIndex?.length) {
+      return "Cell data belum cukup. Jalankan Check Cells dulu.";
+    }
+    if (!analysis.needsBalance) {
+      if (mode === "repair") {
+        return `Repair selesai. Delta ${analysis.deltaText} sudah masuk target ${targetLabel}.`;
+      }
+      if (mode === "calibration") {
+        return `Balance sudah aman untuk relearn step. Delta ${analysis.deltaText}.`;
+      }
+      return `Balance good. Delta ${analysis.deltaText} sudah di bawah target ${targetLabel}.`;
+    }
+
+    const primary = analysis.primaryCell ? `Cell ${analysis.primaryCell.index}` : "cell utama";
+    const secondary = analysis.secondaryCells.length
+      ? analysis.secondaryCells.map((cell) => `Cell ${cell.index}`).join(", ")
+      : "";
+    const targetCellText = analysis.targetCellText && analysis.targetCellText !== "-" ? analysis.targetCellText : primary;
+    if (mode === "repair") {
+      return secondary
+        ? `Repair target ${targetLabel}. Inject ${primary} dulu, lalu cek ${secondary}. Cell target: ${targetCellText}.`
+        : `Repair target ${targetLabel}. Inject ${primary} sampai mendekati ${analysis.targetVoltageText}.`
+    }
+    return secondary
+      ? `Balance target ${targetLabel}. Inject ${primary} dulu, lalu cek ${secondary}. Cell target: ${targetCellText}.`
+      : `Balance target ${targetLabel}. Inject ${primary} sampai mendekati ${analysis.targetVoltageText}.`;
+  }
+
+  function bq30CellGuidanceRows(rows, mode, targetDeltaMv) {
+    const analysis = bq30CellBalanceAnalysis(rows, targetDeltaMv);
+    const title = mode === "repair" ? "Repair Plan" : "Balance Plan";
+    return [
+      {
+        label: title,
+        command: "0x3C-0x3F",
+        writeHex: "-",
+        readHex: analysis.cellListText,
+        status: bq30CellInstructionText(analysis, mode, `${formatNumber(targetDeltaMv, 0)} mV`)
+      },
+      {
+        label: "Cell Target",
+        command: "Target",
+        writeHex: "-",
+        readHex: analysis.targetVoltageText,
+        status: analysis.targetCellText === "-"
+          ? "Tidak ada cell yang perlu disuntik."
+          : `Prioritas: ${analysis.primaryCell ? `Cell ${analysis.primaryCell.index}` : "-"}${analysis.secondaryCells.length ? `; tambahan ${analysis.secondaryCells.map((cell) => `Cell ${cell.index}`).join(", ")}` : ""}`
+      },
+      {
+        label: "Pack Type",
+        command: "Cells",
+        writeHex: "-",
+        readHex: analysis.cellListText,
+        status: analysis.packType === "-" ? "No cell data" : `${analysis.packType} detected`
+      }
+    ];
+  }
+
+  function bq30CalibrationGoalRows(rows, status, options = {}) {
+    const targetBalanceDeltaMv = Number(options.targetBalanceDeltaMv || 30);
+    const targetLevelPercent = Number(options.targetLevelPercent || 100);
+    const targetHealthPercent = Number(options.targetHealthPercent || 100);
+    const analysis = bq30CellBalanceAnalysis(rows, targetBalanceDeltaMv);
+    const health = calculateHealthPercent(rows);
+    const charge = calculateChargePercent(rows);
+    const ready = Boolean(
+      status?.chargeFetOn &&
+      status?.dischargeFetOn &&
+      status?.pfStatusHex === "0x00000000" &&
+      status?.safetyStatusHex === "0x00000000" &&
+      (analysis.delta === null || analysis.delta <= targetBalanceDeltaMv) &&
+      charge !== null &&
+      charge >= targetLevelPercent &&
+      health !== null &&
+      health >= targetHealthPercent
+    );
+    const healthText = health === null ? "Unknown" : `${formatNumber(health, 0)}%`;
+    const chargeText = charge === null ? "Unknown" : `${formatNumber(charge, 0)}%`;
+    return [
+      {
+        label: "Relearn Goal",
+        command: "Target",
+        writeHex: "-",
+        readHex: `${formatNumber(targetLevelPercent, 0)}% / ${formatNumber(targetHealthPercent, 0)}%`,
+        status: ready
+          ? "Ready for refresh/relearn goal."
+          : `Current ${chargeText} / ${healthText}. Target ${formatNumber(targetLevelPercent, 0)}% / ${formatNumber(targetHealthPercent, 0)}%.`
+      },
+      {
+        label: "Refresh Gauge Readiness",
+        command: "0x53/0x51/0x54",
+        writeHex: "-",
+        readHex: `${status?.pfStatusHex || "-"} / ${status?.safetyStatusHex || "-"} / ${status?.operationStatusHex || "-"}`,
+        status: ready
+          ? `Ready. Delta ${analysis.deltaText}, charge ${chargeText}, health ${healthText}.`
+          : `Not ready. Balance ${analysis.deltaText}, charge ${chargeText}, health ${healthText}.`
+      }
+    ];
+  }
+
   function transactionToMonitorRow(transaction) {
     const command = hex(transaction.command);
     const definition = monitorParameters.find((item) => item.command === command);
@@ -922,6 +1334,14 @@
       return null;
     }
     return Math.max(0, Math.min(100, number));
+  }
+
+  function normalizeTargetNumber(value, fallback, min, max) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return fallback;
+    }
+    return Math.max(min, Math.min(max, number));
   }
 
   function calculateChargePercent(rows) {
@@ -1352,12 +1772,6 @@
               <span class="material-symbols-outlined${state.busy ? " is-spinning" : ""}">${state.busy ? "progress_activity" : busLocked ? "verified" : "cable"}</span>
               <span>${escapeHtml(busLocked ? "Detek Ulang" : "Detek")}</span>
             </button>
-            ${state.busChipCanEdit ? `
-              <button id="batterySaveChipButton" type="button" class="ghost"${busy || !busLocked ? " disabled" : ""}>
-                <span class="material-symbols-outlined">save</span>
-                <span>Save Chip</span>
-              </button>
-            ` : ""}
           </div>
         </div>
         <div class="spi-form-grid battery-bus-grid">
@@ -1384,11 +1798,11 @@
           </label>
           <label class="battery-control-chip">
             Chip/IC
-            <input id="batteryDeviceChipInput" type="text" value="${escapeHtml(state.busChip || "")}" placeholder="kosong"${busy || !busLocked || !state.busChipCanEdit ? " readonly" : ""}>
+            <input id="batteryDeviceChipInput" type="text" value="${escapeHtml(state.busChip || "")}" placeholder="probe otomatis" readonly>
           </label>
           <label class="battery-control-family">
             Family
-            <input id="batteryDeviceFamilyInput" type="text" value="${escapeHtml(state.busChipFamily || "")}" placeholder="opsional"${busy || !busLocked || !state.busChipCanEdit ? " readonly" : ""}>
+            <input id="batteryDeviceFamilyInput" type="text" value="${escapeHtml(state.busChipFamily || "")}" placeholder="probe otomatis" readonly>
           </label>
         </div>
       </section>
@@ -1861,33 +2275,7 @@
   }
 
   function recoveryOperations(state, profile = selectedProfile(state), family = selectedCatalogFamily(state)) {
-    if (family && !findProfileForFamily(state, family)) {
-      return [{ id: "probe", name: "Read-only Probe", kind: "probe" }];
-    }
-    if (isBq30Profile(profile)) {
-      return [
-        { id: "bq30-status", name: "Read Status", kind: "bq30-status" },
-        { id: "bq30-full-flow", name: "Full Access + Clear PF + Enable FET", kind: "bq30-full-flow" },
-        { id: "bq30-after-cell-replace", name: "After Cell Replace / Relearn", kind: "bq30-after-cell-replace" },
-        { id: "bq30-enable-fet", name: "Enable FET", kind: "bq30-enable-fet" },
-        { id: "bq30-reset-pf", name: "Reset PF", kind: "bq30-reset-pf" }
-      ];
-    }
-    if (isRenesas045A20Profile(profile, family)) {
-      return [
-        { id: "renesas045-status", name: "Read Status", kind: "renesas045-status" },
-        { id: "renesas045-identity", name: "Probe Identity", kind: "renesas045-identity" },
-        { id: "renesas045-manufacturer", name: "Probe Manufacturer Area", kind: "renesas045-manufacturer" },
-        { id: "renesas045-after-cell", name: "After Cell Recovery Check", kind: "renesas045-after-cell" },
-        { id: "renesas045-unlock-fet", name: "Unlock / Clear PF / FET", kind: "renesas045-unlock-fet" }
-      ];
-    }
-    return (profile?.recoveryActions || []).map((action) => ({
-      id: action.id,
-      name: action.name,
-      kind: "profile",
-      action
-    }));
+    return universalRecoveryOperations.map((operation) => ({ ...operation }));
   }
 
   function selectedRecoveryOperation(state, profile = selectedProfile(state), family = selectedCatalogFamily(state)) {
@@ -1896,6 +2284,11 @@
   }
 
   function findProfileForFamily(state, family) {
+    const normalizedStatus = String(family?.status || "").toLowerCase();
+    if (normalizedStatus === "reference-only") {
+      return getProfiles(state).find((profile) => profile.id === family?.id) || null;
+    }
+
     const familyAliases = new Set([
       String(family?.id || "").toLowerCase(),
       String(family?.family || "").toLowerCase(),
@@ -1934,7 +2327,7 @@
       return { command: "0x59", operation: "read-block", readLength: 33, message: "Probe BQ304xx diset ke block 0x59. Jalankan Diagnostic/Send setelah baterai isolated." };
     }
     if (id.includes("bq80") || id.includes("bq90")) {
-      return { command: "0x23", operation: "read-block", readLength: 33, message: "Probe legacy diset ke ManufacturerData 0x23. Capture dulu sebelum write apa pun." };
+      return { command: "0x21", operation: "read-block", readLength: 33, message: "Probe BQ80xx/BQ90xx legacy diset ke DeviceName 0x21. Jika marking BQ9000 berperilaku seperti keluarga BQ40, pilih profile BQ40z50/BQ9000." };
     }
     return { command: "0x2F", operation: "read-block", readLength: 33, message: "Probe authenticate/manufacturer input diset ke 0x2F. Capture hasil read-only dulu." };
   }
@@ -1978,6 +2371,10 @@
     return String(profile?.family || "").trim().toUpperCase() === "BQ30";
   }
 
+  function isBq40Profile(profile) {
+    return String(profile?.family || "").trim().toUpperCase() === "BQ40";
+  }
+
   function isRenesas045A20Profile(profile, family = null) {
     const tokens = [
       profile?.id,
@@ -1998,11 +2395,75 @@
   function isReadOnlyRecoveryOperation(operation) {
     const kind = String(operation?.kind || "");
     return kind === "probe" ||
+      kind === "universal-read-info" ||
+      kind === "universal-read-status" ||
+      kind === "universal-scan-commands" ||
+      kind === "universal-check-cells" ||
+      kind === "universal-protection-status" ||
       kind === "bq30-status" ||
+      kind === "bq30-check-cell" ||
+      kind === "bq40-status" ||
       kind === "renesas045-status" ||
       kind === "renesas045-identity" ||
       kind === "renesas045-manufacturer" ||
       kind === "renesas045-after-cell";
+  }
+
+  function isCellCheckRecoveryOperation(operation) {
+    const kind = String(operation?.kind || "");
+    return kind === "universal-check-cells" || kind === "bq30-check-cell";
+  }
+
+  function showRecoveryTargetInputs(operation) {
+    const kind = String(operation?.kind || "");
+    return kind === "universal-check-cells" ||
+      kind === "universal-refresh-gauge" ||
+      kind.startsWith("bq30");
+  }
+
+  function bq30OperationNote(operation) {
+    switch (operation?.kind) {
+      case "bq30-status":
+        return "Baca SEC, PF, Safety, FET, dan status register BQ30 sebelum tindakan lain.";
+      case "bq30-full-access":
+        return "Buka Full Access memakai flow BQ30 yang sudah tervalidasi. Step ini belum clear PF atau enable FET.";
+      case "bq30-clear-protection":
+        return "Clear Protection setelah Full Access aktif. Status PF/Safety dibaca ulang sebelum lanjut.";
+      case "bq30-unlock-fet":
+        return "Enable CHG/DSG FET hanya setelah Full Access, PF clear, dan Safety clear.";
+      case "bq30-check-cell":
+        return "Continue baca cell, suhu, SOC, kapasitas, delta, target inject, dan hasil recheck sampai Stop ditekan.";
+      case "bq30-calibration":
+        return "Kirim trigger ManufacturerAccess untuk refresh/recalc gauge, tunggu settle, lalu baca ulang kapasitas, cell, PF/Safety, FET, level, dan health.";
+      default:
+        return "Flow BQ30 mengikuti urutan Read Info, Read Status, Scan Commands, Check Cells, Protection Status, Clear Protection, Full Access, Unlock FET, Refresh Gauge / Relearn.";
+    }
+  }
+
+  function universalOperationNote(operation, profile, family) {
+    const chipText = [profile?.family || family?.family || "", profile?.name || family?.id || ""].filter(Boolean).join(" / ") || "selected IC";
+    switch (operation?.kind) {
+      case "universal-read-info":
+        return "Baca Manufacturer, Device Name, Serial, Chemistry, Design Capacity, dan Design Voltage.";
+      case "universal-read-status":
+        return "Baca Voltage, Current, Remaining Capacity, Full Charge Capacity, Temperature, Battery Status, dan RSoC.";
+      case "universal-scan-commands":
+        return "Scan read-word command 0x00 sampai 0xFF dan catat command yang ACK.";
+      case "universal-check-cells":
+        return "Continue baca cell voltage, delta, target inject/recheck, level, dan health sampai Stop ditekan.";
+      case "universal-protection-status":
+        return "Baca status proteksi. BQ30/BQ40 memakai decoder PF/Safety/FET; chip lain memakai SBS/protection read-only.";
+      case "universal-clear-protection":
+        return "Clear Protection hanya dikirim jika handler chip sudah tervalidasi dan Write enable aktif.";
+      case "universal-full-access":
+        return "Full Access diarahkan ke handler chip yang tersedia untuk seri/IC terpilih.";
+      case "universal-unlock-fet":
+        return "Unlock FET hanya dikirim jika Full Access/protection state mendukung dan handler chip tersedia.";
+      case "universal-refresh-gauge":
+        return "Refresh Gauge / Relearn mengirim trigger refresh/recalc hanya jika writer chip sudah tervalidasi.";
+      default:
+        return `Target operasi universal untuk ${chipText}.`;
+    }
   }
 
   function renesas045A20OperationNote(operation) {
@@ -2022,20 +2483,173 @@
     }
   }
 
+  function renderBq30RecoveryGuidance(state, operation) {
+    const kind = String(operation?.kind || "");
+    if (!kind.startsWith("bq30-")) {
+      return "";
+    }
+    if (kind === "bq30-status" || kind === "bq30-full-access" || kind === "bq30-clear-protection" || kind === "bq30-unlock-fet") {
+      return "";
+    }
+
+    const targetBalanceDeltaMv = Number(state.bq30TargetBalanceDeltaMv || 30);
+    const targetLevelPercent = Number(state.bq30TargetLevelPercent || 100);
+    const targetHealthPercent = Number(state.bq30TargetHealthPercent || 100);
+    const rows = Array.isArray(state.monitorRows) ? state.monitorRows : [];
+    const analysis = bq30CellBalanceAnalysis(rows, targetBalanceDeltaMv);
+    const mode = kind === "bq30-calibration" ? "calibration" : "balance";
+    const title = kind === "bq30-calibration" ? "Refresh Gauge / Relearn guidance" : "Check Cells guidance";
+    const headline = kind === "bq30-calibration"
+      ? "Refresh Gauge / Relearn kirim trigger lalu readback"
+      : (analysis.needsBalance ? "Cell target siap disuntik" : "Cell sudah masuk target");
+    const currentLevel = calculateChargePercent(rows);
+    const currentHealth = calculateHealthPercent(rows);
+    const currentLevelText = currentLevel === null ? "Unknown" : `${formatNumber(currentLevel, 0)}%`;
+    const currentHealthText = currentHealth === null ? "Unknown" : `${formatNumber(currentHealth, 0)}%`;
+    const instruction = bq30CellInstructionText(
+      analysis,
+      mode,
+      `${formatNumber(targetBalanceDeltaMv, 0)} mV`
+    );
+    const detailText = kind === "bq30-calibration"
+      ? `Target level ${formatNumber(targetLevelPercent, 0)}% dan target health ${formatNumber(targetHealthPercent, 0)}% dipakai sebagai goal. Current level ${currentLevelText}, health ${currentHealthText}.`
+      : `Current delta ${analysis.deltaText}. Target balance ${formatNumber(targetBalanceDeltaMv, 0)} mV.`;
+    return `
+      <div class="battery-bq30-guidance">
+        <div class="battery-bq30-guidance-head">
+          <div class="battery-bq30-guidance-copy">
+            <p class="label">${escapeHtml(title)}</p>
+            <h4>${escapeHtml(headline)}</h4>
+            <p>${escapeHtml(instruction)}</p>
+          </div>
+          <div class="battery-bq30-guidance-chips">
+            <span class="battery-bq30-chip">${escapeHtml(analysis.packType === "-" ? "No pack" : analysis.packType)}</span>
+            <span class="battery-bq30-chip">Delta ${escapeHtml(analysis.deltaText || "-")}</span>
+            <span class="battery-bq30-chip">${escapeHtml(analysis.primaryCell ? `Primary Cell ${analysis.primaryCell.index}` : "No primary")}</span>
+            <span class="battery-bq30-chip">Target ${escapeHtml(analysis.targetVoltageText || "-")}</span>
+          </div>
+        </div>
+        <div class="battery-bq30-guidance-grid">
+          <div class="battery-bq30-guidance-copy">
+            <div class="battery-bq30-guidance-stats">
+              <div class="battery-bq30-stat">
+                <span>Pack</span>
+                <strong>${escapeHtml(analysis.packType === "-" ? "-" : `${analysis.packType} detected`)}</strong>
+              </div>
+              <div class="battery-bq30-stat">
+                <span>Primary inject</span>
+                <strong>${escapeHtml(analysis.primaryCell ? `Cell ${analysis.primaryCell.index}` : "-")}</strong>
+              </div>
+              <div class="battery-bq30-stat">
+                <span>Secondary</span>
+                <strong>${escapeHtml(analysis.secondaryCells.length ? analysis.secondaryCells.map((cell) => `Cell ${cell.index}`).join(", ") : "-")}</strong>
+              </div>
+              <div class="battery-bq30-stat">
+                <span>Current / Target</span>
+                <strong>${escapeHtml(kind === "bq30-calibration"
+                  ? `${currentLevelText} / ${formatNumber(targetLevelPercent, 0)}%`
+                  : `${analysis.deltaText || "-"} / ${formatNumber(targetBalanceDeltaMv, 0)} mV`)}</strong>
+              </div>
+              <div class="battery-bq30-stat">
+                <span>Health / Target</span>
+                <strong>${escapeHtml(`${currentHealthText} / ${formatNumber(targetHealthPercent, 0)}%`)}</strong>
+              </div>
+            </div>
+            <p class="spi-note battery-bq30-guidance-note">${escapeHtml(detailText)}</p>
+          </div>
+          ${renderBq30CellPackVisual(analysis, mode)}
+        </div>
+      </div>
+    `;
+  }
+
+  function bq30CheckCellFieldValue(rows, key, fallback = "-") {
+    const row = monitorRowByKey(rows, key);
+    const value = rowValueForDisplay(row);
+    if (!row || value === "-") {
+      return fallback;
+    }
+    return `${value}${row.unit ? ` ${row.unit}` : ""}`;
+  }
+
+  function renderBq30CheckCellField(label, value, detail = "") {
+    return `
+      <div class="battery-bq30-check-field">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value || "-")}</strong>
+        ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+      </div>
+    `;
+  }
+
+  function renderBq30CheckCellPanel(state) {
+    const rows = Array.isArray(state.monitorRows) ? state.monitorRows : [];
+    const targetDeltaMv = Number(state.bq30TargetBalanceDeltaMv || 30);
+    const analysis = bq30CellBalanceAnalysis(rows, targetDeltaMv);
+    const health = calculateHealthPercent(rows);
+    const charge = calculateChargePercent(rows);
+    const instruction = bq30CellInstructionText(analysis, "balance", `${formatNumber(targetDeltaMv, 0)} mV`);
+    const primaryInject = analysis.primaryCell ? `Cell ${analysis.primaryCell.index}` : "-";
+    const secondaryInject = analysis.secondaryCells.length
+      ? analysis.secondaryCells.map((cell) => `Cell ${cell.index}`).join(", ")
+      : "-";
+    const fields = [
+      ["Action", instruction, `target delta ${formatNumber(targetDeltaMv, 0)} mV`],
+      ["Primary Inject", primaryInject, analysis.needsBalance ? "suntik dulu" : "tidak perlu"],
+      ["Secondary", secondaryInject, analysis.secondaryCells.length ? "cek setelah primary" : "tidak ada"],
+      ["Target Voltage", analysis.targetVoltageText || "-", "batas aman recheck"],
+      ["Temperature", bq30CheckCellFieldValue(rows, "temperature"), "0x08"],
+      ["Pack Voltage", bq30CheckCellFieldValue(rows, "voltage"), "0x09"],
+      ["Current", bq30CheckCellFieldValue(rows, "current"), "0x0A"],
+      ["Average Current", bq30CheckCellFieldValue(rows, "averageCurrent"), "0x0B"],
+      ["Level / RSoC", charge === null ? bq30CheckCellFieldValue(rows, "relativeSoc") : `${formatNumber(charge, 0)}%`, "0x0D"],
+      ["Health / SOH", health === null ? "-" : `${formatNumber(health, 0)}%`, "FCC / Design"],
+      ["Remaining Capacity", bq30CheckCellFieldValue(rows, "remainingCapacity"), "0x0F"],
+      ["Full Charge Capacity", bq30CheckCellFieldValue(rows, "fullChargeCapacity"), "0x10"],
+      ["Design Capacity", bq30CheckCellFieldValue(rows, "designCapacity"), "0x18"],
+      ["Design Voltage", bq30CheckCellFieldValue(rows, "designVoltage"), "0x19"],
+      ["Cycle Count", bq30CheckCellFieldValue(rows, "cycleCount"), "0x17"],
+      ["Battery Status", bq30CheckCellFieldValue(rows, "batteryStatus"), "0x16"],
+      ["Cell 1", bq30CheckCellFieldValue(rows, "cellVoltage1"), "0x3F"],
+      ["Cell 2", bq30CheckCellFieldValue(rows, "cellVoltage2"), "0x3E"],
+      ["Cell 3", bq30CheckCellFieldValue(rows, "cellVoltage3"), "0x3D"],
+      ["Cell 4", bq30CheckCellFieldValue(rows, "cellVoltage4"), "0x3C"],
+      ["Cell Delta", analysis.deltaText || "-", `target ${formatNumber(targetDeltaMv, 0)} mV`],
+      ["Pack Type", analysis.packType === "-" ? "-" : analysis.packType, "active cells"],
+      ["Security", bq30CheckCellFieldValue(rows, "bq30Security"), "MA status"],
+      ["FET", bq30CheckCellFieldValue(rows, "bq30FetStatus"), "CHG / DSG"],
+      ["PF Status", bq30CheckCellFieldValue(rows, "bq30PfStatus"), "Permanent failure"],
+      ["Safety Status", bq30CheckCellFieldValue(rows, "bq30SafetyStatus"), "Safety flags"]
+    ];
+    return `
+      <div class="battery-bq30-check-panel">
+        <div class="battery-bq30-check-visual">
+          ${renderBq30CellPackVisual(analysis, "balance")}
+        </div>
+        <div class="battery-bq30-check-fields">
+          ${fields.map(([label, value, detail]) => renderBq30CheckCellField(label, value, detail)).join("")}
+        </div>
+      </div>
+    `;
+  }
+
   function visibleMonitorParameters(rows = []) {
     return monitorParameters.filter((parameter) => isSbsMonitorCommand(parameter));
   }
 
-  function renderRecoveryResultPanel(state) {
+  function renderRecoveryResultPanel(state, operation) {
     const rows = Array.isArray(state.bq30RecoveryRows) ? state.bq30RecoveryRows : [];
+    const isBq30CheckCell = isCellCheckRecoveryOperation(operation);
     return `
       <section class="spi-card battery-result-panel">
         <div class="spi-card-head">
           <div>
             <p class="label">Result</p>
-            <h4>Operation Log</h4>
+            <h4>${isBq30CheckCell ? "Check Cells" : "Operation Log"}</h4>
           </div>
         </div>
+        ${isBq30CheckCell ? renderBq30CheckCellPanel(state) : `
+        ${renderBq30RecoveryGuidance(state, operation)}
         <div class="battery-table-wrap">
           <table class="battery-table">
             <thead>
@@ -2054,12 +2668,14 @@
             </tbody>
           </table>
         </div>
+        `}
       </section>
     `;
   }
 
   function renderRecovery(state) {
-    const busy = state.busy || state.monitorRunning;
+    const cellCheckRunning = Boolean(state.bq30CellCheckRunning);
+    const busy = state.busy || state.monitorRunning || cellCheckRunning;
     const busLocked = hasBatteryBusLock(state);
     const profiles = getProfiles(state);
     const profile = selectedProfile(state);
@@ -2072,8 +2688,24 @@
       : `profile:${profile?.id || ""}`;
     const selectedFamilyIsReferenceOnly = selectedSeriesValue.startsWith("catalog:");
     const operationRequiresWrite = !isReadOnlyRecoveryOperation(operation);
-    const executeDisabled = busy || !busLocked || !operation || !state.isolatedConfirmed || (operationRequiresWrite && !state.writeConfirmed);
+    const isCellCheckOperation = isCellCheckRecoveryOperation(operation);
+    const showTargetInputs = showRecoveryTargetInputs(operation);
+    const executeDisabled = isCellCheckOperation
+      ? state.busy || state.monitorRunning || cellCheckRunning || !busLocked || !operation || !state.isolatedConfirmed
+      : busy || !busLocked || !operation || !state.isolatedConfirmed || (operationRequiresWrite && !state.writeConfirmed);
     const previewDisabled = busy || !busLocked || operation?.kind !== "profile" || !profile || !action;
+    const executeLabel = isCellCheckOperation
+      ? (cellCheckRunning ? "Checking" : "Continue")
+      : operation?.kind === "probe"
+        ? "Set Probe"
+        : "Run";
+    const executeIcon = cellCheckRunning
+      ? "progress_activity"
+      : operation?.kind === "probe"
+        ? "search"
+        : isCellCheckOperation
+          ? "play_circle"
+          : "play_arrow";
     const steps = operation?.kind === "profile" ? state.recoveryPreview?.steps || action?.steps || [] : [];
     return `
       <section class="spi-card battery-panel-main">
@@ -2088,9 +2720,15 @@
               <span>Preview</span>
             </button>
             <button id="batteryRecoveryExecuteButton" type="button"${executeDisabled ? " disabled" : ""}>
-              <span class="material-symbols-outlined${busy ? " is-spinning" : ""}">${busy ? "progress_activity" : operation?.kind === "probe" ? "search" : "play_arrow"}</span>
-              <span>${operation?.kind === "probe" ? "Set Probe" : "Run"}</span>
+              <span class="material-symbols-outlined${state.busy || cellCheckRunning ? " is-spinning" : ""}">${executeIcon}</span>
+              <span>${executeLabel}</span>
             </button>
+            ${isCellCheckOperation ? `
+              <button id="batteryBq30StopCellCheckButton" type="button" class="ghost"${cellCheckRunning ? "" : " disabled"}>
+                <span class="material-symbols-outlined">stop_circle</span>
+                <span>Stop</span>
+              </button>
+            ` : ""}
           </div>
         </div>
         <div class="spi-form-grid">
@@ -2111,6 +2749,23 @@
           <label><input id="batteryRecoveryIsolatedConfirmed" type="checkbox"${state.isolatedConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Battery isolated</span></label>
           <label><input id="batteryRecoveryWriteConfirmed" type="checkbox"${state.writeConfirmed ? " checked" : ""}${busy ? " disabled" : ""}> <span>Write enable</span></label>
         </div>
+        ${showTargetInputs ? `
+          <div class="spi-form-grid battery-bq30-params">
+            <label>
+              Target balance delta (mV)
+              <input id="batteryBq30TargetBalanceDeltaMv" type="number" min="1" max="500" value="${Number(state.bq30TargetBalanceDeltaMv || 30)}"${busy ? " disabled" : ""}>
+            </label>
+            <label>
+              Target level (%)
+              <input id="batteryBq30TargetLevelPercent" type="number" min="0" max="100" value="${Number(state.bq30TargetLevelPercent || 100)}"${busy ? " disabled" : ""}>
+            </label>
+            <label>
+              Target health (%)
+              <input id="batteryBq30TargetHealthPercent" type="number" min="0" max="100" value="${Number(state.bq30TargetHealthPercent || 100)}"${busy ? " disabled" : ""}>
+            </label>
+          </div>
+          <p class="spi-note battery-bq30-params-note">Check Cells memakai target delta untuk instruksi inject dan recheck. Refresh Gauge / Relearn mengirim trigger refresh/recalc lalu membaca ulang hasil gauge jika handler chip tersedia.</p>
+        ` : ""}
       </section>
       <section class="spi-card battery-sequence-panel">
         <div class="spi-card-head">
@@ -2121,7 +2776,14 @@
           <span class="spi-mini-badge">${operation?.kind === "profile" ? `${steps.length} step` : operation?.kind || "-"}</span>
         </div>
         <div class="battery-step-list">
-          ${operation?.kind === "probe" ? `
+          ${operation?.kind?.startsWith("universal") ? `
+            <div class="battery-step">
+              <strong>${Number(operation.order || 1)}</strong>
+              <span>${operationRequiresWrite ? "guarded-write" : "read-only"}</span>
+              <code>${escapeHtml(operation.target || operation.name || "-")}</code>
+              <small>${escapeHtml(universalOperationNote(operation, profile, selectedFamily))}</small>
+            </div>
+          ` : operation?.kind === "probe" ? `
             <div class="battery-step">
               <strong>1</strong>
               <span>read-only</span>
@@ -2133,9 +2795,14 @@
               <strong>1</strong>
               <span>${operationRequiresWrite ? "guarded-write" : "read-only"}</span>
               <code>BQ30</code>
-              <small>${escapeHtml(operation.kind === "bq30-after-cell-replace"
-                ? "Clear fault/FET, lalu baca FCC, Design Capacity, Cycle Count, dan cell voltage untuk hitung Health/SOH dari data terbaru."
-                : `${operation.name} memakai flow BQ30 yang sesuai. Battery isolated wajib; write enable wajib untuk operasi tulis.`)}</small>
+              <small>${escapeHtml(bq30OperationNote(operation))}</small>
+            </div>
+          ` : operation?.kind?.startsWith("bq40") ? `
+            <div class="battery-step">
+              <strong>1</strong>
+              <span>read-only</span>
+              <code>BQ40</code>
+              <small>Baca status langsung 0x50-0x57 plus SBS dasar. Tidak ada write pada operasi ini.</small>
             </div>
           ` : operation?.kind?.startsWith("renesas045") ? `
             <div class="battery-step">
@@ -2154,7 +2821,7 @@
           `).join("") || `<div class="battery-step"><strong>-</strong><span>No step</span><code>-</code><small>-</small></div>`}
         </div>
       </section>
-      ${renderRecoveryResultPanel(state)}
+      ${renderRecoveryResultPanel(state, operation)}
     `;
   }
 
@@ -2186,6 +2853,8 @@
     let monitorAbortController = null;
     let batteryOperationAbortController = null;
     let batteryOperationId = 0;
+    let bq30CellCheckAbortController = null;
+    let bq30CellCheckRunId = 0;
     let notifyUser = () => {};
     let lastMonitorToastMessage = "";
     let lastMonitorToastAt = 0;
@@ -2240,9 +2909,26 @@
       batteryOperationId += 1;
     }
 
+    function stopBq30CellCheck(message = "Check Cells dihentikan.") {
+      if (bq30CellCheckAbortController) {
+        bq30CellCheckAbortController.abort();
+        bq30CellCheckAbortController = null;
+      }
+      bq30CellCheckRunId += 1;
+      if (state.bq30CellCheckRunning) {
+        setState({
+          bq30CellCheckRunning: false,
+          recoveryMessage: message
+        });
+      }
+    }
+
     async function withBusy(work, options = {}) {
       if (state.busy) {
         return;
+      }
+      if (state.bq30CellCheckRunning) {
+        stopBq30CellCheck("Check Cells dihentikan karena operasi lain dimulai.");
       }
       if (state.monitorRunning) {
         stopMonitor("Monitoring dihentikan karena operasi Battery Unlock lain dimulai.");
@@ -2290,7 +2976,7 @@
       };
     }
 
-    function clearBatteryBusLockPatch(message = "Detek SCL/SDA belum dijalankan.") {
+  function clearBatteryBusLockPatch(message = "Detek SCL/SDA belum dijalankan.") {
       return {
         busDetected: false,
         busPinMode: "",
@@ -2305,37 +2991,614 @@
         busChipUpdatedAt: "",
         busChipUpdatedBy: "",
         busChipDatabaseHash: "",
-        busChipMessage: "Database chip belum dicek.",
+        busChipMessage: "Chip/IC belum diprobe.",
         smbusPinMode: "auto"
       };
     }
 
     async function detectDeviceNameWithPinMode(deviceType, pinMode, signal) {
-      const result = await fetchJson("/tools/battery-unlock/smbus/command", {
+      const plans = [
+        { label: "ManufacturerName", command: "0x20", text: true },
+        { label: "DeviceName", command: "0x21", text: true },
+        { label: "DeviceChemistry", command: "0x22", text: true },
+        { label: "ManufacturerData", command: "0x23", text: false }
+      ];
+      const attempts = [];
+      let manufacturerName = "";
+      let deviceName = "";
+      let chemistry = "";
+      let fallbackResult = null;
+
+      for (const plan of plans) {
+        try {
+          const result = await fetchJson("/tools/battery-unlock/smbus/command", {
+            method: "POST",
+            timeoutMs: busDetectRequestTimeoutMs,
+            signal,
+            body: JSON.stringify({
+              deviceType,
+              operation: "read-block",
+              address: "0x0B",
+              command: plan.command,
+              readLength: 33,
+              requireBusIdle: false,
+              pinMode,
+              speedMode: state.smbusSpeedMode || "auto",
+              isolatedBatteryConfirmed: true,
+              writeEnableConfirmed: false,
+              keepDeviceOpen: true
+            })
+          });
+          fallbackResult = fallbackResult || result;
+          const text = plan.text ? decodeBlockText(parseHexBytes(result.readHex)) : "";
+          if (plan.command === "0x20" && isValidDeviceName(text)) {
+            manufacturerName = text;
+          }
+          if (plan.command === "0x21" && isValidDeviceName(text)) {
+            deviceName = text;
+          }
+          if (plan.command === "0x22" && isValidDeviceName(text)) {
+            chemistry = text;
+          }
+          if (deviceName || manufacturerName || chemistry || (plan.command === "0x23" && result?.readHex)) {
+            return {
+              result,
+              deviceName: deviceName || manufacturerName || chemistry || "SMBus battery",
+              manufacturerName,
+              chemistry
+            };
+          }
+          attempts.push(`${plan.command}: data kosong`);
+        } catch (error) {
+          attempts.push(`${plan.command}: ${error?.message || "gagal"}`);
+        }
+      }
+
+      try {
+        const diagnostic = await fetchJson("/tools/battery-unlock/smbus/diagnostic", {
+          method: "POST",
+          timeoutMs: busDetectRequestTimeoutMs,
+          signal,
+          body: JSON.stringify({
+            deviceType,
+            address: "0x0B",
+            command: "0x21",
+            scanAddresses: true,
+            quickProbe: false,
+            pinMode,
+            speedMode: state.smbusSpeedMode || "auto",
+            isolatedBatteryConfirmed: true,
+            keepDeviceOpen: false
+          })
+        });
+        if (diagnostic?.batteryDetected) {
+          throw new Error(`Address 0x0B ACK pada ${pinMode.toUpperCase()}, tetapi identity 0x20-0x23 belum bisa dibaca. ${attempts.join(" | ")}`);
+        }
+      } catch (error) {
+        if (String(error?.message || "").includes("Address 0x0B ACK")) {
+          throw error;
+        }
+      }
+
+      throw new Error(`Universal identity 0x20-0x23 gagal pada ${pinMode.toUpperCase()}. ${attempts.join(" | ")}`);
+    }
+
+    function chipProbePatch(result) {
+      const mapped = result?.mapped || decodeBatteryChipFromDeviceType(result?.deviceTypeHex);
+      const chip = String(result?.chip || mapped?.chip || "").trim();
+      const family = String(result?.family || mapped?.family || "").trim();
+      const profilePatch = profileSelectionPatchForChip(chip, family);
+      return {
+        busChip: chip,
+        busChipFamily: family,
+        busChipManufacturer: result?.manufacturerName || "",
+        busChipNotes: result?.notes || "",
+        busChipUpdatedAt: "",
+        busChipUpdatedBy: "",
+        busChipCanEdit: false,
+        busChipDatabaseHash: "",
+        busChipMessage: chip
+          ? `Chip/IC hardware terbaca ${chip}.`
+          : result?.message || "Probe Chip/IC selesai.",
+        ...profilePatch
+      };
+    }
+
+    function wordHexFromPayload(payload) {
+      if (!Array.isArray(payload) || payload.length < 2) {
+        return "";
+      }
+      const word = payload[0] | (payload[1] << 8);
+      return `0x${word.toString(16).toUpperCase().padStart(4, "0")}`;
+    }
+
+    function blockPayload(readHex) {
+      const bytes = parseHexBytes(readHex);
+      if ((bytes[0] || 0) > 32) {
+        return [];
+      }
+      const count = Math.min(bytes[0] || 0, bytes.length - 1);
+      return count > 0 ? bytes.slice(1, 1 + count) : [];
+    }
+
+    function isUsableDeviceTypeHex(deviceTypeHex, rejectedValues = []) {
+      const normalized = String(deviceTypeHex || "").trim().toUpperCase();
+      const value = normalized.replace(/^0X/, "");
+      if (!value || value === "0000" || value === "FFFF" || value === "0001" || value.startsWith("FF") || value.endsWith("FF")) {
+        return false;
+      }
+      return !rejectedValues.map((item) => String(item || "").trim().toUpperCase()).includes(normalized);
+    }
+
+    function findLikelyDeviceTypeHex(payload) {
+      if (!Array.isArray(payload) || payload.length < 2) {
+        return "";
+      }
+
+      const candidates = [];
+      for (let index = 0; index + 1 < payload.length; index += 1) {
+        const word = payload[index] | (payload[index + 1] << 8);
+        if (word === 0x0000 || word === 0xFFFF) {
+          continue;
+        }
+
+        const deviceTypeHex = `0x${word.toString(16).toUpperCase().padStart(4, "0")}`;
+        if (!isUsableDeviceTypeHex(deviceTypeHex)) {
+          continue;
+        }
+        candidates.push({
+          deviceTypeHex,
+          mapped: decodeBatteryChipFromDeviceType(deviceTypeHex),
+          index
+        });
+      }
+
+      const mappedCandidate = candidates.find((candidate) => candidate.mapped);
+      return mappedCandidate?.deviceTypeHex || candidates[0]?.deviceTypeHex || "";
+    }
+
+    function decodeBatteryChipFromDeviceType(deviceTypeHex) {
+      const key = String(deviceTypeHex || "").replace(/^0x/i, "").toUpperCase().padStart(4, "0");
+      return batteryChipDecodeRules[key] || null;
+    }
+
+    function isKnownRenesas045A20Identity(deviceName, manufacturerName) {
+      const normalizedDeviceName = String(deviceName || "").trim().toUpperCase();
+      const normalizedManufacturerName = String(manufacturerName || "").trim().toUpperCase();
+      return normalizedDeviceName.includes("AS16A5K") &&
+        (normalizedManufacturerName === "PANASONIC" || normalizedManufacturerName === "SANYO");
+    }
+
+    function isValidRenesas045A20Challenge(readHex) {
+      const payload = blockPayload(readHex);
+      if (payload.length < 2) {
+        return false;
+      }
+      const unique = uniqueNonEmpty(payload.map((value) => value.toString(16).padStart(2, "0")));
+      return unique.length > 1 && !payload.every((value) => value === 0x00 || value === 0xFF);
+    }
+
+    function uniqueNonEmpty(values) {
+      return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+    }
+
+    async function sendBatteryDetectCommand({ deviceType, pinMode, signal, operation, command, dataHex = "", readLength = 2, write = false }) {
+      return fetchJson("/tools/battery-unlock/smbus/command", {
         method: "POST",
         timeoutMs: busDetectRequestTimeoutMs,
         signal,
         body: JSON.stringify({
           deviceType,
-          operation: "read-block",
+          operation,
           address: "0x0B",
-          command: "0x21",
-          readLength: 33,
+          command,
+          dataHex,
+          readLength,
           requireBusIdle: false,
           pinMode,
           speedMode: state.smbusSpeedMode || "auto",
           isolatedBatteryConfirmed: true,
-          writeEnableConfirmed: false,
+          writeEnableConfirmed: write,
           keepDeviceOpen: true
         })
       });
-      const deviceName = decodeBlockText(parseHexBytes(result.readHex));
-      if (!result.success || !isValidDeviceName(deviceName)) {
-        throw new Error(result.message || `Device Name 0x21 tidak valid pada ${pinMode.toUpperCase()}.`);
+    }
+
+    async function tryReadBlockTextForDetect(deviceType, pinMode, command, signal) {
+      try {
+        const result = await sendBatteryDetectCommand({
+          deviceType,
+          pinMode,
+          signal,
+          operation: "read-block",
+          command,
+          readLength: 33
+        });
+        return decodeBlockText(parseHexBytes(result.readHex));
+      } catch {
+        return "";
+      }
+    }
+
+    async function probeManufacturerDataDirectDeviceType(deviceType, pinMode, signal) {
+      const read = await sendBatteryDetectCommand({
+        deviceType,
+        pinMode,
+        signal,
+        operation: "read-block",
+        command: "0x23",
+        readLength: 33
+      });
+      const deviceTypeHex = findLikelyDeviceTypeHex(blockPayload(read.readHex));
+      if (!deviceTypeHex) {
+        throw new Error("ManufacturerData 0x23 tidak memberi Device Type.");
       }
       return {
-        result,
-        deviceName
+        method: "Direct read-block 0x23",
+        deviceTypeHex,
+        rawHex: read.readHex || ""
+      };
+    }
+
+    async function probeTiManufacturerDataDeviceType(deviceType, pinMode, signal) {
+      return probeTiManufacturerDataSubcommand(deviceType, pinMode, signal, {
+        label: "MA 0x0001 -> 0x23",
+        dataHex: "01 00",
+        deviceTypeResult: true
+      });
+    }
+
+    async function probeTiManufacturerDataSubcommand(deviceType, pinMode, signal, options) {
+      await sendBatteryDetectCommand({
+        deviceType,
+        pinMode,
+        signal,
+        operation: "write-word",
+        command: "0x00",
+        dataHex: options.dataHex,
+        readLength: 0,
+        write: true
+      });
+      await delay(180);
+      const read = await sendBatteryDetectCommand({
+        deviceType,
+        pinMode,
+        signal,
+        operation: "read-block",
+        command: "0x23",
+        readLength: 33
+      });
+      if (!options.deviceTypeResult) {
+        return {
+          method: options.label,
+          rawHex: read.readHex || "",
+          supportOnly: true
+        };
+      }
+      const deviceTypeHex = findLikelyDeviceTypeHex(blockPayload(read.readHex));
+      if (!isUsableDeviceTypeHex(deviceTypeHex, options.rejectHex ? [options.rejectHex] : [])) {
+        throw new Error("ManufacturerData 0x23 tidak memberi Device Type.");
+      }
+      return {
+        method: options.label,
+        deviceTypeHex,
+        rawHex: read.readHex || ""
+      };
+    }
+
+    async function probeTiFirmwareVersion(deviceType, pinMode, signal) {
+      return probeTiManufacturerDataSubcommand(deviceType, pinMode, signal, {
+        label: "MA 0x0002 -> 0x23 FirmwareVersion",
+        dataHex: "02 00"
+      });
+    }
+
+    async function probeTiChemId(deviceType, pinMode, signal) {
+      return probeTiManufacturerDataSubcommand(deviceType, pinMode, signal, {
+        label: "MA 0x0006 -> 0x23 ChemID",
+        dataHex: "06 00"
+      });
+    }
+
+    async function probeTiLegacyManufacturerDataDeviceType(deviceType, pinMode, signal) {
+      return probeTiManufacturerDataSubcommand(deviceType, pinMode, signal, {
+        label: "MA 0x0100 -> 0x23 Legacy DeviceType",
+        dataHex: "00 01",
+        rejectHex: "0x0100",
+        deviceTypeResult: true
+      });
+    }
+
+    async function probeSanyoManufacturerAccessBlockDeviceType(deviceType, pinMode, signal) {
+      const attempts = [
+        { label: "Sanyo MA 0x0050 -> read-block 0x00", dataHex: "50 00", rejectHex: "0x0050" },
+        { label: "Sanyo MA 0x0001 -> read-block 0x00", dataHex: "01 00", rejectHex: "0x0001" }
+      ];
+      const failures = [];
+      for (const attempt of attempts) {
+        try {
+          await sendBatteryDetectCommand({
+            deviceType,
+            pinMode,
+            signal,
+            operation: "write-word",
+            command: "0x00",
+            dataHex: attempt.dataHex,
+            readLength: 0,
+            write: true
+          });
+          await delay(180);
+          const read = await sendBatteryDetectCommand({
+            deviceType,
+            pinMode,
+            signal,
+            operation: "read-block",
+            command: "0x00",
+            readLength: 33
+          });
+          const payload = blockPayload(read.readHex);
+          const commandBytes = parseHexBytes(attempt.dataHex);
+          const candidate = payload.length >= 4 && payload[0] === commandBytes[0] && payload[1] === commandBytes[1]
+            ? payload.slice(2, 4)
+            : payload.slice(0, 2);
+          const deviceTypeHex = wordHexFromPayload(candidate);
+          if (!isUsableDeviceTypeHex(deviceTypeHex, [attempt.rejectHex])) {
+            throw new Error(`${attempt.label} belum memberi Device Type valid.`);
+          }
+          return {
+            method: attempt.label,
+            deviceTypeHex,
+            rawHex: read.readHex || ""
+          };
+        } catch (error) {
+          failures.push(error?.message || `${attempt.label} gagal`);
+        }
+      }
+      throw new Error(failures.join(" | "));
+    }
+
+    async function probeRenesas045A20Rwr1Gate(deviceType, pinMode, signal, context = {}) {
+      if (!isKnownRenesas045A20Identity(context.deviceName, context.manufacturerName)) {
+        throw new Error("Renesas 045A20 identity belum cocok.");
+      }
+
+      const gates = [
+        { label: "0x1402", dataHex: "14 02" },
+        { label: "0x1502", dataHex: "15 02" },
+        { label: "0x1602", dataHex: "16 02" },
+        { label: "0x1702", dataHex: "17 02" }
+      ];
+      const validReads = [];
+      const failures = [];
+      for (const gate of gates) {
+        try {
+          await sendBatteryDetectCommand({
+            deviceType,
+            pinMode,
+            signal,
+            operation: "write-word",
+            command: "0x71",
+            dataHex: gate.dataHex,
+            readLength: 0,
+            write: true
+          });
+          await delay(150);
+          const read = await sendBatteryDetectCommand({
+            deviceType,
+            pinMode,
+            signal,
+            operation: "read-block",
+            command: "0x73",
+            readLength: 33
+          });
+          if (isValidRenesas045A20Challenge(read.readHex)) {
+            validReads.push(`${gate.label}:${read.readHex || ""}`);
+          } else {
+            failures.push(`${gate.label}: challenge tidak valid`);
+          }
+        } catch (error) {
+          failures.push(`${gate.label}: ${error?.message || "gagal"}`);
+        }
+      }
+      if (!validReads.length) {
+        throw new Error(`Renesas 045A20 gate 0x71/0x73 belum valid. ${failures.join(" | ")}`);
+      }
+      return {
+        method: "Renesas 045A20 RWR1 gate 0x71/0x73",
+        deviceTypeHex: "",
+        rawHex: validReads.join(" | "),
+        mapped: {
+          chip: "045A20",
+          family: "Renesas",
+          catalogFamilyId: "renesas-045a20-raj240045"
+        },
+        chip: "045A20",
+        family: "Renesas"
+      };
+    }
+
+    async function probeManufacturerAccessWordDeviceType(deviceType, pinMode, signal) {
+      return probeManufacturerAccessWordSubcommandDeviceType(deviceType, pinMode, signal, {
+        label: "MA 0x0001 -> read-word 0x00",
+        dataHex: "01 00"
+      });
+    }
+
+    async function probeTiLegacyManufacturerAccessWordDeviceType(deviceType, pinMode, signal) {
+      return probeManufacturerAccessWordSubcommandDeviceType(deviceType, pinMode, signal, {
+        label: "MA 0x0100 -> read-word 0x00",
+        dataHex: "00 01",
+        rejectHex: "0x0100"
+      });
+    }
+
+    async function probeManufacturerAccessWordSubcommandDeviceType(deviceType, pinMode, signal, options) {
+      await sendBatteryDetectCommand({
+        deviceType,
+        pinMode,
+        signal,
+        operation: "write-word",
+        command: "0x00",
+        dataHex: options.dataHex,
+        readLength: 0,
+        write: true
+      });
+      await delay(120);
+      const read = await sendBatteryDetectCommand({
+        deviceType,
+        pinMode,
+        signal,
+        operation: "read-word",
+        command: "0x00",
+        readLength: 2
+      });
+      const deviceTypeHex = wordHexFromPayload(parseHexBytes(read.readHex));
+      if (!isUsableDeviceTypeHex(deviceTypeHex, options.rejectHex ? [options.rejectHex] : [])) {
+        throw new Error("Read-word 0x00 belum memberi Device Type valid.");
+      }
+      return {
+        method: options.label,
+        deviceTypeHex,
+        rawHex: read.readHex || ""
+      };
+    }
+
+    async function probeManufacturerBlockDeviceType(deviceType, pinMode, signal) {
+      return probeManufacturerBlockSubcommand(deviceType, pinMode, signal, {
+        label: "MBA 0x44/0x0100",
+        dataHex: "01 00",
+        deviceTypeResult: true
+      });
+    }
+
+    async function probeManufacturerBlockFirmwareVersion(deviceType, pinMode, signal) {
+      return probeManufacturerBlockSubcommand(deviceType, pinMode, signal, {
+        label: "MBA 0x44/0x0200 FirmwareVersion",
+        dataHex: "02 00"
+      });
+    }
+
+    async function probeManufacturerBlockChemId(deviceType, pinMode, signal) {
+      return probeManufacturerBlockSubcommand(deviceType, pinMode, signal, {
+        label: "MBA 0x44/0x0600 ChemID",
+        dataHex: "06 00"
+      });
+    }
+
+    async function probeManufacturerBlockSubcommand(deviceType, pinMode, signal, options) {
+      await sendBatteryDetectCommand({
+        deviceType,
+        pinMode,
+        signal,
+        operation: "write-block",
+        command: "0x44",
+        dataHex: options.dataHex,
+        readLength: 0,
+        write: true
+      });
+      await delay(180);
+      const read = await sendBatteryDetectCommand({
+        deviceType,
+        pinMode,
+        signal,
+        operation: "read-block",
+        command: "0x44",
+        readLength: 33
+      });
+      if (!options.deviceTypeResult) {
+        return {
+          method: options.label,
+          rawHex: read.readHex || "",
+          supportOnly: true
+        };
+      }
+      const payload = blockPayload(read.readHex);
+      const queryBytes = parseHexBytes(options.dataHex);
+      const candidate = payload.length >= 4 && payload[0] === queryBytes[0] && payload[1] === queryBytes[1]
+        ? payload.slice(2, 4)
+        : payload.slice(0, 2);
+      const deviceTypeHex = wordHexFromPayload(candidate);
+      if (!isUsableDeviceTypeHex(deviceTypeHex, options.rejectHex ? [options.rejectHex] : [])) {
+        throw new Error("ManufacturerBlockAccess 0x44 belum memberi Device Type valid.");
+      }
+      return {
+        method: options.label,
+        deviceTypeHex,
+        rawHex: read.readHex || ""
+      };
+    }
+
+    async function probeBatteryChipInfo(deviceType, pinMode, signal, deviceName = "") {
+      const manufacturerName = await tryReadBlockTextForDetect(deviceType, pinMode, "0x20", signal);
+      const detections = [];
+      const failures = [];
+      const supportNotes = [];
+      const context = { deviceName, manufacturerName };
+      for (const probe of [
+        probeManufacturerDataDirectDeviceType,
+        probeTiManufacturerDataDeviceType,
+        probeTiFirmwareVersion,
+        probeTiChemId,
+        probeTiLegacyManufacturerDataDeviceType,
+        probeTiLegacyManufacturerAccessWordDeviceType,
+        probeRenesas045A20Rwr1Gate,
+        probeSanyoManufacturerAccessBlockDeviceType,
+        probeManufacturerAccessWordDeviceType,
+        probeManufacturerBlockDeviceType,
+        probeManufacturerBlockFirmwareVersion,
+        probeManufacturerBlockChemId
+      ]) {
+        try {
+          const result = await probe(deviceType, pinMode, signal, context);
+          if (result.supportOnly) {
+            supportNotes.push(`${result.method}: raw ${result.rawHex || "-"}`);
+            continue;
+          }
+          const mapped = result.mapped || decodeBatteryChipFromDeviceType(result.deviceTypeHex);
+          if (!mapped) {
+            failures.push(`${result.method}: ${result.deviceTypeHex} bukan chip-id decode valid`);
+            continue;
+          }
+          detections.push({
+            ...result,
+            mapped,
+            chip: result.chip || mapped?.chip || "",
+            family: result.family || mapped?.family || ""
+          });
+        } catch (error) {
+          failures.push(error?.message || "probe gagal");
+        }
+      }
+
+      if (detections.length > 0) {
+        const chips = uniqueNonEmpty(detections.map((item) => item.chip));
+        const families = uniqueNonEmpty(detections.map((item) => item.family));
+        const deviceTypes = uniqueNonEmpty(detections.map((item) => item.deviceTypeHex));
+        const decodedNotes = detections
+          .map((item) => `${item.method}: ${item.deviceTypeHex} -> ${item.chip || "no chip decode"}; raw ${item.rawHex}`)
+          .join(" | ");
+        const supportSuffix = supportNotes.length > 0 ? ` | support: ${supportNotes.join(" | ")}` : "";
+        const failureNotes = failures.length > 0 ? ` | failed: ${failures.join(" | ")}` : "";
+        const chipText = chips.join("/");
+        return {
+          detections,
+          mapped: detections.find((item) => item.mapped)?.mapped || null,
+          chip: chipText,
+          family: families.join("/"),
+          deviceTypeHex: deviceTypes.join("/"),
+          manufacturerName: manufacturerName === "-" ? "" : manufacturerName,
+          notes: `${decodedNotes}${supportSuffix}${failureNotes}`,
+          message: chipText
+            ? `Chip/IC hardware terbaca ${chipText}.`
+            : "Chip/IC belum valid dari detektor."
+        };
+      }
+
+      const supportSuffix = supportNotes.length > 0 ? `Support raw: ${supportNotes.join(" | ")}. ` : "";
+      return {
+        manufacturerName: manufacturerName === "-" ? "" : manufacturerName,
+        notes: `${supportSuffix}${failures.join(" | ")}`,
+        message: "Chip/IC belum valid dari detektor."
       };
     }
 
@@ -2485,7 +3748,7 @@
             busChipUpdatedAt: "",
             busChipUpdatedBy: "",
             busChipDatabaseHash: "",
-            busChipMessage: "Mengecek database chip online...",
+            busChipMessage: "Probe Chip/IC dari hardware...",
             smbusPinMode: pinMode,
             smbusResult: detected.result,
             smbusDiagnostic: null,
@@ -2495,7 +3758,8 @@
             recoveryMessage: message
           });
           notifyUser(message, "success");
-          await lookupBatteryDeviceInfo(detected.deviceName, signal);
+          const chipProbe = await probeBatteryChipInfo(deviceType, pinMode, signal, detected.deviceName);
+          setState(chipProbePatch(chipProbe));
           return;
         } catch (error) {
           attempts.push(`${pinMode.toUpperCase()}: ${error?.message || "gagal"}`);
@@ -2568,11 +3832,17 @@
       const profiles = Array.isArray(database.profiles) ? database.profiles : [];
       const families = Array.isArray(database.catalog?.families) ? database.catalog.families : [];
       const profile = profiles.find((item) => item.id === state.selectedProfileId) || profiles[0] || null;
-      const action = profile?.recoveryActions?.find((item) => item.id === state.selectedActionId) || profile?.recoveryActions?.[0] || null;
       const family = families.find((item) => item.id === state.selectedCatalogFamilyId)
         || families.find((item) => item.id === profile?.id || (item.aliases || []).some((alias) => (profile?.aliases || []).includes(alias)))
         || families[0]
         || null;
+      const operations = recoveryOperations({
+        ...state,
+        database,
+        selectedProfileId: profile?.id || state.selectedProfileId,
+        selectedCatalogFamilyId: family?.id || state.selectedCatalogFamilyId
+      }, profile, family);
+      const action = operations.find((item) => item.id === state.selectedActionId) || operations[0] || null;
       state = {
         ...state,
         database,
@@ -3441,17 +4711,18 @@
       notifyUser(result.message || "Preview recovery siap.", result.success === false ? "warning" : "success");
     }
 
-    async function executeRecovery() {
+    async function executeRecovery(actionIdOverride = "") {
       if (!requireBatteryBusLock("recovery")) {
         return;
       }
+      const actionId = actionIdOverride || state.selectedActionId;
       const result = await fetchJson("/tools/battery-unlock/recovery/execute", {
         method: "POST",
         timeoutMs: recoveryLongOperationTimeoutMs,
         body: JSON.stringify({
           deviceType: state.deviceType,
           profileId: state.selectedProfileId,
-          actionId: state.selectedActionId,
+          actionId,
           pinMode: lockedBatteryPinMode(state),
           speedMode: state.smbusSpeedMode || "auto",
           isolatedBatteryConfirmed: state.isolatedConfirmed,
@@ -3474,7 +4745,13 @@
         notifyUser("Operasi belum dipilih.", "warning");
         return;
       }
-      if (String(operation.kind || "").startsWith("bq30") && bq30OperationBlockedByCurrentIdentity()) {
+      const universalBq30Write = isBq30Profile(profile) && [
+        "universal-clear-protection",
+        "universal-full-access",
+        "universal-unlock-fet",
+        "universal-refresh-gauge"
+      ].includes(String(operation.kind || ""));
+      if ((String(operation.kind || "").startsWith("bq30") || universalBq30Write) && bq30OperationBlockedByCurrentIdentity()) {
         const message = "Operasi BQ30 diblokir: identity terakhir terbaca Panasonic/Sanyo, belum ada konfirmasi BQ30-like dari Probe IC. Pilih seri/IC yang sesuai atau jalankan SMBus Probe IC dulu.";
         setState({
           recoveryMessage: message
@@ -3503,8 +4780,88 @@
         bq30RecoveryRows: [],
         recoveryMessage: "Operasi Recovery mulai dari sesi SMBus baru."
       }));
+      if (operation.kind === "universal-read-info") {
+        await runUniversalReadInfo();
+        return;
+      }
+      if (operation.kind === "universal-read-status") {
+        await runUniversalReadStatus();
+        return;
+      }
+      if (operation.kind === "universal-scan-commands") {
+        await runUniversalScanCommands();
+        return;
+      }
+      if (operation.kind === "universal-check-cells") {
+        await runUniversalCheckCells();
+        return;
+      }
+      if (operation.kind === "universal-protection-status") {
+        await runUniversalProtectionStatus();
+        return;
+      }
+      if (operation.kind === "universal-clear-protection") {
+        if (isBq30Profile(profile)) {
+          await runBq30ClearProtection();
+          return;
+        }
+        unsupportedUniversalOperation(operation, profile, family);
+        return;
+      }
+      if (operation.kind === "universal-full-access") {
+        if (isBq30Profile(profile)) {
+          await runBq30FullAccess();
+          return;
+        }
+        if (isBq40Profile(profile) && profileActionById(profile, "bq40-full-access")) {
+          await executeRecovery("bq40-full-access");
+          return;
+        }
+        unsupportedUniversalOperation(operation, profile, family);
+        return;
+      }
+      if (operation.kind === "universal-unlock-fet") {
+        if (isBq30Profile(profile)) {
+          await runBq30UnlockFet();
+          return;
+        }
+        unsupportedUniversalOperation(operation, profile, family);
+        return;
+      }
+      if (operation.kind === "universal-refresh-gauge") {
+        if (isBq30Profile(profile)) {
+          await runBq30Calibration();
+          return;
+        }
+        unsupportedUniversalOperation(operation, profile, family);
+        return;
+      }
       if (operation.kind === "bq30-status") {
         await readBq30RecoveryStatus();
+        return;
+      }
+      if (operation.kind === "bq40-status") {
+        await readBq40RecoveryStatus();
+        return;
+      }
+      if (operation.kind === "bq30-full-access") {
+        await runBq30FullAccess();
+        return;
+      }
+      if (operation.kind === "bq30-clear-protection") {
+        await runBq30ClearProtection();
+        return;
+      }
+      if (operation.kind === "bq30-unlock-fet") {
+        await runBq30UnlockFet();
+        return;
+      }
+      if (operation.kind === "bq30-check-cell") {
+        await runBq30CheckCell();
+        return;
+      }
+      if (operation.kind === "bq30-calibration") {
+        await runBq30Calibration();
         return;
       }
       if (operation.kind === "bq30-full-flow") {
@@ -3546,10 +4903,11 @@
       await executeRecovery();
     }
 
-    async function sendBatteryRecoverySmbusCommand(payload, timeoutMs = recoverySmbusCommandTimeoutMs) {
+    async function sendBatteryRecoverySmbusCommand(payload, timeoutMs = recoverySmbusCommandTimeoutMs, options = {}) {
       return fetchJson("/tools/battery-unlock/smbus/command", {
         method: "POST",
         timeoutMs,
+        signal: options.signal || null,
         body: JSON.stringify({
           deviceType: state.deviceType,
           address: state.smbusAddress || "0x0B",
@@ -3564,14 +4922,246 @@
       });
     }
 
-    async function sendBq30SmbusCommand(payload, timeoutMs = recoverySmbusCommandTimeoutMs) {
+    async function sendBq30SmbusCommand(payload, timeoutMs = recoverySmbusCommandTimeoutMs, options = {}) {
       return sendBatteryRecoverySmbusCommand({
         address: "0x0B",
         ...payload
-      }, timeoutMs);
+      }, timeoutMs, options);
     }
 
-    async function executeBq30FullAccessClearFaultEnableFet() {
+    async function readUniversalRecoveryPlanRow(plan, signal = null) {
+      const definition = monitorParameters.find((item) => item.key === plan.key) ||
+        monitorParameters.find((item) => item.command === plan.command) ||
+        plan;
+      try {
+        const result = await sendBatteryRecoverySmbusCommand({
+          operation: plan.operation,
+          command: plan.command,
+          readLength: plan.readLength,
+          writeEnableConfirmed: false
+        }, recoverySmbusCommandTimeoutMs, { signal });
+        const renesasManufacturerAccess = plan.command === "0x00"
+          ? decodeRenesas045A20ManufacturerAccess(result.readHex)
+          : null;
+        const value = renesasManufacturerAccess?.text || decodeDirectMonitorValue(definition, result.readHex, result.decodedValue);
+        const unit = definition.unit || plan.unit || "";
+        const statusValue = value && value !== "-" ? `${value}${unit ? ` ${unit}` : ""}` : result.message || "OK";
+        return {
+          resultRow: {
+            label: plan.label,
+            command: plan.command,
+            writeHex: "-",
+            readHex: result.readHex || "-",
+            status: result.success ? statusValue : result.message || "ERR"
+          },
+          monitorRow: {
+            key: plan.key || `universal-${plan.command}`,
+            source: "Recovery",
+            label: plan.label,
+            command: plan.command,
+            value,
+            unit,
+            numeric: decodeDirectMonitorNumber(definition, result.readHex),
+            raw: result.readHex || "-",
+            status: result.success ? "OK" : result.message || "ERR",
+            meta: "universal read"
+          }
+        };
+      } catch (error) {
+        return {
+          resultRow: {
+            label: plan.label,
+            command: plan.command,
+            writeHex: "-",
+            readHex: "-",
+            status: error?.message || "ERR"
+          },
+          monitorRow: {
+            key: plan.key || `universal-${plan.command}`,
+            source: "Recovery",
+            label: plan.label,
+            command: plan.command,
+            value: "-",
+            unit: definition.unit || plan.unit || "",
+            numeric: null,
+            raw: "-",
+            status: error?.message || "ERR",
+            meta: "universal read"
+          }
+        };
+      }
+    }
+
+    async function runUniversalReadPlan(plan, label, options = {}) {
+      const signal = options.signal || null;
+      if (!options.keepSession) {
+        setState(freshBatteryBusSessionPatch({
+          bq30RecoveryRows: [],
+          recoveryMessage: `${label} mulai.`
+        }));
+      }
+      const resultRows = [];
+      const monitorRows = [];
+      for (const item of plan) {
+        if (signal?.aborted) {
+          throw new DOMException(`${label} dihentikan.`, "AbortError");
+        }
+        const row = await readUniversalRecoveryPlanRow(item, signal);
+        resultRows.push(row.resultRow);
+        monitorRows.push(row.monitorRow);
+        setState({
+          bq30RecoveryRows: resultRows,
+          recoveryMessage: `${label}: ${resultRows.length}/${plan.length} command dibaca.`
+        });
+        await delay(35);
+      }
+      const finalMonitorRows = appendDerivedCellBalanceRows(monitorRows);
+      const directMetrics = finalMonitorRows.reduce((acc, row) => ({ ...acc, ...directRowToMetrics(row) }), {});
+      setState({
+        bq30RecoveryRows: resultRows,
+        monitorRows: options.updateMonitor === false ? state.monitorRows : finalMonitorRows,
+        metrics: options.updateMonitor === false ? state.metrics : mergeMetrics(createInitialMetrics(), directMetrics),
+        recoveryMessage: options.message || `${label} selesai. ${resultRows.filter((row) => row.readHex !== "-").length}/${resultRows.length} command terbaca.`
+      });
+      if (!options.silent) {
+        notifyUser(options.toast || `${label} selesai.`, options.tone || "success");
+      }
+      return { resultRows, monitorRows: finalMonitorRows };
+    }
+
+    async function runUniversalReadInfo() {
+      const chipRow = state.busChip ? [{
+        label: "Chip/IC",
+        command: "Detector",
+        writeHex: "-",
+        readHex: state.busChipNotes || "-",
+        status: [state.busChip, state.busChipFamily].filter(Boolean).join(" / ")
+      }] : [];
+      const result = await runUniversalReadPlan(universalReadInfoPlan, "Read Info");
+      if (chipRow.length) {
+        setState({
+          bq30RecoveryRows: [...chipRow, ...result.resultRows],
+          recoveryMessage: `Read Info selesai. Chip/IC ${state.busChip} dari detektor.`
+        });
+      }
+      return result;
+    }
+
+    async function runUniversalReadStatus() {
+      return runUniversalReadPlan(universalReadStatusPlan, "Read Status");
+    }
+
+    async function runUniversalProtectionStatus() {
+      const profile = selectedProfile(state);
+      const family = selectedCatalogFamily(state);
+      if (isBq30Profile(profile)) {
+        return readBq30RecoveryStatus();
+      }
+      if (isBq40Profile(profile)) {
+        return readBq40RecoveryStatus();
+      }
+      if (isRenesas045A20Profile(profile, family)) {
+        return runRenesas045A20ReadStatus();
+      }
+      return runUniversalReadPlan(universalProtectionReadPlan, "Protection Status");
+    }
+
+    async function runUniversalCheckCells(options = {}) {
+      const profile = selectedProfile(state);
+      if (isBq30Profile(profile)) {
+        return runBq30ServiceCheck(options.label || "Check Cells", null, {
+          ...options,
+          message: options.message || "Check Cells selesai."
+        });
+      }
+      return runUniversalReadPlan([
+        ...universalReadStatusPlan,
+        ...universalCellReadPlan
+      ], options.label || "Check Cells", {
+        ...options,
+        message: options.message || "Check Cells selesai."
+      });
+    }
+
+    async function runUniversalScanCommands() {
+      const rows = [];
+      const hits = [];
+      setState(freshBatteryBusSessionPatch({
+        bq30RecoveryRows: [],
+        recoveryMessage: "Scan Commands mulai: read-word 0x00-0xFF."
+      }));
+      for (let command = 0; command <= 0xFF; command += 1) {
+        const commandHex = `0x${command.toString(16).toUpperCase().padStart(2, "0")}`;
+        try {
+          const result = await sendBatteryRecoverySmbusCommand({
+            operation: "read-word",
+            command: commandHex,
+            readLength: 2,
+            writeEnableConfirmed: false
+          }, 5000);
+          if (result?.success !== false) {
+            hits.push({
+              label: commandLabels[command] || `Command ${commandHex}`,
+              command: commandHex,
+              writeHex: "-",
+              readHex: result.readHex || "-",
+              status: result.decodedValue || result.message || "ACK"
+            });
+          }
+        } catch {
+          // NACK/no response is expected during command scan.
+        }
+        if (command % 16 === 15 || command === 0xFF) {
+          rows.splice(0, rows.length, ...hits);
+          setState({
+            bq30RecoveryRows: rows.length ? rows : [{
+              label: "Scan Commands",
+              command: "0x00-0xFF",
+              writeHex: "-",
+              readHex: "-",
+              status: `Progress ${command + 1}/256, belum ada ACK read-word.`
+            }],
+            recoveryMessage: `Scan Commands berjalan ${command + 1}/256. Hit ${hits.length}.`
+          });
+          await delay(10);
+        }
+      }
+      const finalRows = hits.length ? hits : [{
+        label: "Scan Commands",
+        command: "0x00-0xFF",
+        writeHex: "-",
+        readHex: "-",
+        status: "Tidak ada ACK read-word."
+      }];
+      setState({
+        bq30RecoveryRows: finalRows,
+        recoveryMessage: `Scan Commands selesai. Hit ${hits.length}/256.`
+      });
+      notifyUser(`Scan Commands selesai. Hit ${hits.length}/256.`, hits.length ? "success" : "warning");
+      return { rows: finalRows, hits };
+    }
+
+    function profileActionById(profile, actionId) {
+      return (profile?.recoveryActions || []).find((action) => action.id === actionId) || null;
+    }
+
+    function unsupportedUniversalOperation(operation, profile, family) {
+      const target = profile?.name || family?.family || "seri/IC ini";
+      const message = `${operation?.name || "Operasi"} belum punya handler write tervalidasi untuk ${target}. Tidak ada command write dikirim.`;
+      setState({
+        bq30RecoveryRows: [{
+          label: operation?.name || "Operasi",
+          command: "-",
+          writeHex: "-",
+          readHex: "-",
+          status: message
+        }],
+        recoveryMessage: message
+      });
+      notifyUser(message, "warning");
+    }
+
+    async function executeBq30WorkflowStep({ clearPermanentFailure, enableFets }) {
       return fetchJson("/tools/battery-unlock/bq30/dji-killer-unlock", {
         method: "POST",
         timeoutMs: recoveryLongOperationTimeoutMs,
@@ -3582,9 +5172,16 @@
           speedMode: state.smbusSpeedMode || "auto",
           isolatedBatteryConfirmed: state.isolatedConfirmed,
           writeEnableConfirmed: state.writeConfirmed,
-          clearPermanentFailure: true,
-          enableFets: true
+          clearPermanentFailure,
+          enableFets
         })
+      });
+    }
+
+    async function executeBq30FullAccessClearFaultEnableFet() {
+      return executeBq30WorkflowStep({
+        clearPermanentFailure: true,
+        enableFets: true
       });
     }
 
@@ -3598,6 +5195,30 @@
           status: step.status || "-"
         }))
         : [];
+    }
+
+    function latestBq30StatusFromUnlockResult(result) {
+      return result?.finalStatus ||
+        result?.afterFetEnableStatus ||
+        result?.afterPermanentFailureResetStatus ||
+        result?.afterFullAccessStatus ||
+        result?.beforeStatus ||
+        null;
+    }
+
+    function setBq30UnlockOperationResult(result, fallbackMessage) {
+      const rows = bq30UnlockResultRows(result);
+      const finalStatus = latestBq30StatusFromUnlockResult(result);
+      const monitorRows = finalStatus ? bq30StatusToMonitorRows(finalStatus) : [];
+      const directMetrics = monitorRows.reduce((acc, row) => ({ ...acc, ...directRowToMetrics(row) }), {});
+      setState({
+        bq30RecoveryRows: rows,
+        monitorRows,
+        metrics: mergeMetrics(createInitialMetrics(), directMetrics),
+        recoveryMessage: result.message || fallbackMessage
+      });
+      notifyUser(result.message || fallbackMessage, result.success === false ? "warning" : "success");
+      return { result, rows, finalStatus };
     }
 
     async function readRenesas045A20PlanRow(plan) {
@@ -3937,14 +5558,53 @@
       return { result, rows };
     }
 
-    async function readBq30ServiceMonitorRow(plan) {
+    async function runBq30FullAccess() {
+      if (!state.writeConfirmed) {
+        setState({ recoveryMessage: "Full Access belum dikirim. Centang Write enable dulu." });
+        notifyUser("Full Access belum dikirim. Centang Write enable dulu.", "warning");
+        return;
+      }
+      const result = await executeBq30WorkflowStep({
+        clearPermanentFailure: false,
+        enableFets: false
+      });
+      return setBq30UnlockOperationResult(result, "BQ30 Full Access selesai.");
+    }
+
+    async function runBq30ClearProtection() {
+      if (!state.writeConfirmed) {
+        setState({ recoveryMessage: "Clear Protection belum dikirim. Centang Write enable dulu." });
+        notifyUser("Clear Protection belum dikirim. Centang Write enable dulu.", "warning");
+        return;
+      }
+      const result = await executeBq30WorkflowStep({
+        clearPermanentFailure: true,
+        enableFets: false
+      });
+      return setBq30UnlockOperationResult(result, "BQ30 Clear Protection selesai.");
+    }
+
+    async function runBq30UnlockFet() {
+      if (!state.writeConfirmed) {
+        setState({ recoveryMessage: "Unlock FET belum dikirim. Centang Write enable dulu." });
+        notifyUser("Unlock FET belum dikirim. Centang Write enable dulu.", "warning");
+        return;
+      }
+      const result = await executeBq30WorkflowStep({
+        clearPermanentFailure: false,
+        enableFets: true
+      });
+      return setBq30UnlockOperationResult(result, "BQ30 Unlock FET selesai.");
+    }
+
+    async function readBq30ServiceMonitorRow(plan, signal = null) {
       const definition = monitorParameters.find((item) => item.command === plan.command) || plan;
       const result = await sendBq30SmbusCommand({
         operation: plan.operation,
         command: plan.command,
         readLength: plan.readLength,
         writeEnableConfirmed: false
-      });
+      }, recoverySmbusCommandTimeoutMs, { signal });
       return {
         key: plan.key,
         source: "Service",
@@ -3959,6 +5619,350 @@
       };
     }
 
+    function bq30MonitorRowToResultRow(row) {
+      const value = row?.value && row.value !== "-"
+        ? `${row.value}${row.unit ? ` ${row.unit}` : ""}`
+        : row?.status || "-";
+      return {
+        label: row?.label || "-",
+        command: row?.command || "-",
+        writeHex: "-",
+        readHex: row?.raw || "-",
+        status: row?.status === "OK" ? value : row?.status || value
+      };
+    }
+
+    function bq30BalanceDecisionRow(rows, targetDeltaMv = 30, mode = "balance") {
+      const analysis = bq30CellBalanceAnalysis(rows, targetDeltaMv);
+      const title = mode === "repair" ? "Repair Decision" : "Balance Decision";
+      const status = bq30CellInstructionText(analysis, mode, `${formatNumber(targetDeltaMv, 0)} mV`);
+      return {
+        label: title,
+        command: "0x3C-0x3F",
+        writeHex: "-",
+        readHex: analysis.cellListText,
+        status
+      };
+    }
+
+    function bq30CalibrationDecisionRow(rows, status, options = {}) {
+      const analysis = bq30CellBalanceAnalysis(rows, Number(options.targetBalanceDeltaMv || 30));
+      const health = calculateHealthPercent(rows);
+      const charge = calculateChargePercent(rows);
+      const targetLevelPercent = Number(options.targetLevelPercent || 100);
+      const targetHealthPercent = Number(options.targetHealthPercent || 100);
+      const ready = status?.chargeFetOn &&
+        status?.dischargeFetOn &&
+        status?.pfStatusHex === "0x00000000" &&
+        status?.safetyStatusHex === "0x00000000" &&
+        (analysis.delta === null || analysis.delta <= analysis.targetDeltaMv) &&
+        charge !== null &&
+        charge >= targetLevelPercent &&
+        health !== null &&
+        health >= targetHealthPercent;
+      const healthText = health === null ? "Unknown" : `${formatNumber(health, 0)}%`;
+      const chargeText = charge === null ? "Unknown" : `${formatNumber(charge, 0)}%`;
+      return {
+        label: "Refresh Gauge Readiness",
+        command: "Service",
+        writeHex: "-",
+        readHex: `${formatNumber(targetLevelPercent, 0)}% / ${formatNumber(targetHealthPercent, 0)}%`,
+        status: ready
+          ? `Ready for refresh/relearn cycle. Health ${healthText}, charge ${chargeText}.`
+          : `Not ready. PF/Safety/FET/cell balance perlu dicek dulu. Health ${healthText}, charge ${chargeText}. Target ${formatNumber(targetLevelPercent, 0)}% / ${formatNumber(targetHealthPercent, 0)}%.`
+      };
+    }
+
+    function bq30CalibrationReadbackRows(beforeRows, afterRows, status, options = {}) {
+      const targetDeltaMv = Number(options.targetBalanceDeltaMv || 30);
+      const targetLevelPercent = Number(options.targetLevelPercent || 100);
+      const targetHealthPercent = Number(options.targetHealthPercent || 100);
+      const beforeLevel = calculateChargePercent(beforeRows);
+      const afterLevel = calculateChargePercent(afterRows);
+      const beforeHealth = calculateHealthPercent(beforeRows);
+      const afterHealth = calculateHealthPercent(afterRows);
+      const beforeFcc = monitorNumericValue(beforeRows, "fullChargeCapacity");
+      const afterFcc = monitorNumericValue(afterRows, "fullChargeCapacity");
+      const beforeDelta = bq30CellBalanceAnalysis(beforeRows, targetDeltaMv);
+      const afterDelta = bq30CellBalanceAnalysis(afterRows, targetDeltaMv);
+      const textPercent = (value) => value === null ? "Unknown" : `${formatNumber(value, 0)}%`;
+      const textMah = (value) => value === null ? "Unknown" : `${formatNumber(value, 0)} mAh`;
+      const pfClear = !status?.permanentFailure && status?.pfStatusHex === "0x00000000";
+      const safetyClear = status?.safetyStatusHex === "0x00000000";
+      const fetOn = Boolean(status?.chargeFetOn && status?.dischargeFetOn);
+      return [
+        {
+          label: "Level Readback",
+          command: "0x0D/0x0F/0x10",
+          writeHex: "-",
+          readHex: `${textPercent(beforeLevel)} -> ${textPercent(afterLevel)}`,
+          status: afterLevel !== null && afterLevel >= targetLevelPercent
+            ? `Level masuk target ${formatNumber(targetLevelPercent, 0)}%.`
+            : `Level belum masuk target ${formatNumber(targetLevelPercent, 0)}%.`
+        },
+        {
+          label: "Health Readback",
+          command: "0x10/0x18",
+          writeHex: "-",
+          readHex: `${textPercent(beforeHealth)} -> ${textPercent(afterHealth)}`,
+          status: afterHealth !== null && afterHealth >= targetHealthPercent
+            ? `Health masuk target ${formatNumber(targetHealthPercent, 0)}%.`
+            : `Health masih hasil gauge: ${textPercent(afterHealth)}.`
+        },
+        {
+          label: "FCC Readback",
+          command: "0x10",
+          writeHex: "-",
+          readHex: `${textMah(beforeFcc)} -> ${textMah(afterFcc)}`,
+          status: "FCC dibaca ulang setelah trigger refresh/relearn."
+        },
+        {
+          label: "Cell Delta Readback",
+          command: "0x3C-0x3F",
+          writeHex: "-",
+          readHex: `${beforeDelta.deltaText} -> ${afterDelta.deltaText}`,
+          status: afterDelta.delta !== null && afterDelta.delta <= targetDeltaMv
+            ? `Delta masuk target ${formatNumber(targetDeltaMv, 0)} mV.`
+            : `Delta belum masuk target ${formatNumber(targetDeltaMv, 0)} mV.`
+        },
+        {
+          label: "Gauge State",
+          command: "0x53/0x51/0x54",
+          writeHex: "-",
+          readHex: `${status?.pfStatusHex || "-"} / ${status?.safetyStatusHex || "-"} / ${status?.operationStatusHex || "-"}`,
+          status: `PF=${pfClear ? "clear" : "active"} Safety=${safetyClear ? "clear" : "active"} FET=${fetOn ? "ON" : "OFF"}`
+        }
+      ];
+    }
+
+    async function runBq30ServiceCheck(label, extraRowsBuilder = null, options = {}) {
+      const signal = options.signal || null;
+      if (!options.keepSession) {
+        setState(freshBatteryBusSessionPatch({
+          bq30RecoveryRows: [],
+          recoveryMessage: `${label} mulai. Command service BQ30 membaca kondisi pack.`
+        }));
+      }
+      const serviceRows = [];
+      const resultRows = [];
+      for (const plan of bq30AfterCellReplaceReadPlan) {
+        if (signal?.aborted) {
+          throw new DOMException("Check Cells dihentikan.", "AbortError");
+        }
+        try {
+          const row = await readBq30ServiceMonitorRow(plan, signal);
+          serviceRows.push(row);
+          resultRows.push(bq30MonitorRowToResultRow(row));
+        } catch (error) {
+          if (signal?.aborted || error?.name === "AbortError") {
+            throw error;
+          }
+          const failed = {
+            key: plan.key,
+            source: "Service",
+            label: plan.label,
+            command: plan.command,
+            value: "-",
+            unit: "",
+            raw: "-",
+            status: error?.message || "ERR",
+            meta: label
+          };
+          serviceRows.push(failed);
+          resultRows.push(bq30MonitorRowToResultRow(failed));
+        }
+        setState({
+          bq30RecoveryRows: resultRows,
+          recoveryMessage: `${label}: ${resultRows.length}/${bq30AfterCellReplaceReadPlan.length} command dibaca.`
+        });
+        await delay(40);
+      }
+
+      const status = await fetchJson("/tools/battery-unlock/bq30/status", {
+        method: "POST",
+        timeoutMs: recoveryStatusTimeoutMs,
+        signal,
+        body: JSON.stringify({
+          deviceType: state.deviceType,
+          address: "0x0B",
+          pinMode: lockedBatteryPinMode(state),
+          speedMode: state.smbusSpeedMode || "auto",
+          isolatedBatteryConfirmed: state.isolatedConfirmed
+        })
+      });
+      const monitorRows = appendDerivedCellBalanceRows([
+        ...serviceRows,
+        ...bq30StatusToMonitorRows(status)
+      ]);
+      const summaryRows = bq30ServiceSummaryRows(monitorRows, status);
+      const extraRows = typeof extraRowsBuilder === "function" ? extraRowsBuilder(monitorRows, status) : [];
+      const directMetrics = monitorRows.reduce((acc, row) => ({ ...acc, ...directRowToMetrics(row) }), {});
+      setState({
+        bq30RecoveryRows: [...resultRows, ...summaryRows, ...extraRows],
+        monitorRows,
+        metrics: mergeMetrics(createInitialMetrics(), directMetrics),
+        recoveryMessage: options.message || `${label} selesai. ${status.message || ""}`.trim()
+      });
+      if (!options.silent) {
+        notifyUser(options.toast || `${label} selesai.`, options.tone || "success");
+      }
+      return { monitorRows, status, resultRows, summaryRows, extraRows };
+    }
+
+    async function runBq30CheckCell() {
+      return runBq30ServiceCheck("BQ30 Check Cells");
+    }
+
+    async function startUniversalContinuousCellCheck() {
+      if (state.bq30CellCheckRunning) {
+        return;
+      }
+      if (!requireBatteryBusLock("recovery")) {
+        return;
+      }
+      if (!state.isolatedConfirmed) {
+        const message = "Check Cells belum mulai. Centang Battery isolated dulu.";
+        setState({ recoveryMessage: message });
+        notifyUser(message, "warning");
+        return;
+      }
+      if (state.busy) {
+        notifyUser("Operasi lain masih berjalan.", "warning");
+        return;
+      }
+      if (state.monitorRunning) {
+        stopMonitor("Monitoring dihentikan karena Check Cells continue dimulai.");
+      }
+      abortActiveBatteryOperation();
+
+      const controller = new AbortController();
+      bq30CellCheckAbortController = controller;
+      const runId = bq30CellCheckRunId + 1;
+      bq30CellCheckRunId = runId;
+      setState(freshBatteryBusSessionPatch({
+        bq30CellCheckRunning: true,
+        bq30CellCheckCycle: 0,
+        bq30RecoveryRows: [],
+        recoveryMessage: "Check Cells continue mulai."
+      }));
+      notifyUser("Check Cells continue mulai.", "info");
+
+      let cycle = 0;
+      let failed = false;
+      try {
+        while (!controller.signal.aborted && bq30CellCheckRunId === runId) {
+          cycle += 1;
+          setState({
+            bq30CellCheckCycle: cycle,
+            recoveryMessage: `Check Cells continue cycle ${cycle} berjalan.`
+          });
+          await runUniversalCheckCells({
+            label: `Check Cells #${cycle}`,
+            signal: controller.signal,
+            keepSession: true,
+            silent: true,
+            message: `Check Cells continue aktif. Cycle ${cycle} selesai. Tekan Stop untuk berhenti.`
+          });
+          if (controller.signal.aborted || bq30CellCheckRunId !== runId) {
+            break;
+          }
+          await abortableDelay(1200, controller.signal);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted && error?.name !== "AbortError") {
+          failed = true;
+          const message = error?.message || "Check Cells continue gagal.";
+          setState({
+            bq30CellCheckRunning: false,
+            recoveryMessage: message
+          });
+          notifyUser(message, "warning");
+          return;
+        }
+      } finally {
+        if (bq30CellCheckRunId === runId) {
+          bq30CellCheckAbortController = null;
+          if (!failed) {
+            setState({
+              bq30CellCheckRunning: false,
+              recoveryMessage: `Check Cells berhenti. Cycle terakhir ${cycle}.`
+            });
+          }
+        }
+      }
+    }
+
+    async function runBq30Calibration() {
+      if (!state.writeConfirmed) {
+        setState({ recoveryMessage: "Refresh Gauge / Relearn belum dikirim. Centang Write enable dulu." });
+        notifyUser("Refresh Gauge / Relearn belum dikirim. Centang Write enable dulu.", "warning");
+        return;
+      }
+      const targetBalanceDeltaMv = Number(state.bq30TargetBalanceDeltaMv || 30);
+      const targetLevelPercent = Number(state.bq30TargetLevelPercent || 100);
+      const targetHealthPercent = Number(state.bq30TargetHealthPercent || 100);
+      const baseline = await runBq30ServiceCheck("BQ30 Refresh Gauge baseline", (rows, status) => [
+        bq30BalanceDecisionRow(rows, targetBalanceDeltaMv, "balance"),
+        bq30CalibrationDecisionRow(rows, status, {
+          targetBalanceDeltaMv,
+          targetLevelPercent,
+          targetHealthPercent
+        })
+      ], {
+        silent: true,
+        message: "Baseline refresh/relearn terbaca. Mengirim trigger refresh/recalc gauge..."
+      });
+      const trigger = await sendBq30SmbusCommand({
+        operation: "write-word",
+        command: bq30CalibrationTrigger.command,
+        dataHex: bq30CalibrationTrigger.dataHex,
+        readLength: 0
+      });
+      const triggerRow = {
+        label: bq30CalibrationTrigger.label,
+        command: `${bq30CalibrationTrigger.command}/${bq30CalibrationTrigger.subCommand}`,
+        writeHex: trigger.writeHex || `${bq30CalibrationTrigger.command} ${bq30CalibrationTrigger.dataHex}`,
+        readHex: trigger.readHex || "-",
+        status: trigger.success
+          ? `Trigger terkirim. Settle ${formatNumber(bq30CalibrationTrigger.settleMs)} ms lalu readback.`
+          : trigger.message || "Trigger gagal."
+      };
+      setState({
+        bq30RecoveryRows: [
+          ...baseline.resultRows,
+          ...baseline.summaryRows,
+          ...baseline.extraRows,
+          triggerRow
+        ],
+        recoveryMessage: trigger.success
+          ? "Trigger refresh/relearn terkirim. Menunggu gauge settle sebelum readback..."
+          : triggerRow.status
+      });
+      if (!trigger.success) {
+        notifyUser(trigger.message || "Refresh Gauge / Relearn trigger gagal.", "warning");
+        return { baseline, trigger, triggerRow };
+      }
+      await delay(bq30CalibrationTrigger.settleMs);
+      const result = await runBq30ServiceCheck("BQ30 Refresh Gauge readback", (rows, status) => [
+        triggerRow,
+        ...bq30CalibrationReadbackRows(baseline.monitorRows, rows, status, {
+          targetBalanceDeltaMv,
+          targetLevelPercent,
+          targetHealthPercent
+        }),
+        ...bq30CalibrationGoalRows(rows, status, {
+          targetBalanceDeltaMv,
+          targetLevelPercent,
+          targetHealthPercent
+        })
+      ], {
+        silent: true,
+        message: "Refresh Gauge / Relearn selesai. Trigger sudah dikirim dan hasil gauge sudah dibaca ulang."
+      });
+      notifyUser("Refresh Gauge / Relearn selesai. Trigger terkirim dan readback selesai.", "success");
+      return result;
+    }
+
     function bq30ServiceSummaryRows(rows, status) {
       const health = calculateHealthPercent(rows);
       const charge = calculateChargePercent(rows);
@@ -3966,6 +5970,7 @@
       const designCapacity = monitorNumericValue(rows, "designCapacity");
       const cycleCount = monitorNumericValue(rows, "cycleCount");
       const balance = monitorRowByKey(rows, "maxImbalance");
+      const balanceAnalysis = bq30CellBalanceAnalysis(rows, 30);
       const balanceDelta = Number.isFinite(balance?.numeric) ? balance.numeric : null;
       const pfClear = !status?.permanentFailure && status?.pfStatusHex === "0x00000000";
       const safetyClear = status?.safetyStatusHex === "0x00000000";
@@ -3976,7 +5981,7 @@
       const capacityText = fullChargeCapacity === null || designCapacity === null
         ? "-"
         : `${formatNumber(fullChargeCapacity)} / ${formatNumber(designCapacity)}`;
-      const serviceReady = pfClear && safetyClear && fetOn && health !== null && (balanceDelta === null || balanceDelta <= 80);
+      const serviceReady = pfClear && safetyClear && fetOn && health !== null && (balanceDelta === null || balanceDelta <= 30);
       return [
         {
           label: "Service Health / SOH",
@@ -3991,6 +5996,13 @@
           writeHex: "-",
           readHex: monitorRowByKey(rows, "relativeSoc")?.raw || "-",
           status: `${chargeText} after full charge`
+        },
+        {
+          label: "Cell Pack Type",
+          command: "Cells",
+          writeHex: "-",
+          readHex: balanceAnalysis.cellListText,
+          status: balanceAnalysis.packType === "-" ? "not enough cell data" : `${balanceAnalysis.packType} detected`
         },
         {
           label: "Cell Balance",
@@ -4147,6 +6159,87 @@
       return result;
     }
 
+    async function readBq40RecoveryStatus() {
+      const result = await fetchJson("/tools/battery-unlock/bq40/status", {
+        method: "POST",
+        timeoutMs: recoveryLongOperationTimeoutMs,
+        body: JSON.stringify({
+          deviceType: state.deviceType,
+          address: "0x0B",
+          pinMode: lockedBatteryPinMode(state),
+          speedMode: state.smbusSpeedMode || "auto",
+          isolatedBatteryConfirmed: state.isolatedConfirmed
+        })
+      });
+      const activePf = Array.isArray(result.activePermanentFailures) ? result.activePermanentFailures : [];
+      const activeSafety = Array.isArray(result.activeSafetyFlags) ? result.activeSafetyFlags : [];
+      const decoded = Number.isFinite(Number(result.securityMode)) && Number(result.securityMode) >= 0;
+      const backendRows = Array.isArray(result.rows) ? result.rows : [];
+      const summaryRows = [
+        {
+          label: "Security",
+          command: "0x54",
+          writeHex: "-",
+          readHex: result.operationStatusHex || "-",
+          status: decoded
+            ? `${result.securityModeName || "Unknown"} (SEC=${result.securityMode ?? "-"})`
+            : "raw status only"
+        },
+        {
+          label: "Operation Status",
+          command: "0x54",
+          writeHex: "-",
+          readHex: result.operationStatusHex || "-",
+          status: decoded
+            ? `CHG=${result.chargeFetOn ? "ON" : "OFF"} DSG=${result.dischargeFetOn ? "ON" : "OFF"} PF=${result.permanentFailure ? "ON" : "OFF"}`
+            : "not decoded"
+        },
+        {
+          label: "PF Status",
+          command: "0x53",
+          writeHex: "-",
+          readHex: result.pfStatusHex || "-",
+          status: decoded ? activePf.length ? activePf.join(", ") : "clear" : "raw only"
+        },
+        {
+          label: "Safety Status",
+          command: "0x51",
+          writeHex: "-",
+          readHex: result.safetyStatusHex || "-",
+          status: decoded ? activeSafety.length ? activeSafety.join(", ") : "clear" : "raw only"
+        },
+        {
+          label: "Manufacturing Status",
+          command: "0x57",
+          writeHex: "-",
+          readHex: result.manufacturingStatusHex || "-",
+          status: "manufacturing flags"
+        }
+      ];
+      const commandRows = backendRows.map((row) => ({
+        label: row.label || "-",
+        command: row.command || "-",
+        writeHex: "-",
+        readHex: row.readHex || "-",
+        status: row.success
+          ? `${row.value || "-"}${row.unit ? ` ${row.unit}` : ""}`
+          : row.status || "ERR"
+      }));
+      const monitorRows = appendDerivedCellBalanceRows([
+        ...backendRows.map(bq40BackendRowToMonitorRow),
+        ...bq40StatusToMonitorRows(result)
+      ]);
+      const directMetrics = monitorRows.reduce((acc, row) => ({ ...acc, ...directRowToMetrics(row) }), {});
+      setState({
+        bq30RecoveryRows: [...summaryRows, ...commandRows],
+        monitorRows,
+        metrics: mergeMetrics(createInitialMetrics(), directMetrics),
+        recoveryMessage: result.message || "BQ40 status terbaca."
+      });
+      notifyUser(result.message || "BQ40 status terbaca.", result.success === false ? "warning" : "success");
+      return result;
+    }
+
     async function runBq30ManufacturerAccessSequence(commands) {
       const rows = [];
       for (const item of commands) {
@@ -4262,12 +6355,6 @@
       });
       container.querySelector("#batteryResetSessionButton")?.addEventListener("click", resetBatterySession);
       container.querySelector("#batteryDetectBusButton")?.addEventListener("click", () => withBusy(detectBatteryBus));
-      container.querySelector("#batterySaveChipButton")?.addEventListener("click", () => withBusy(saveBatteryDeviceChip));
-
-      const chipInput = container.querySelector("#batteryDeviceChipInput");
-      const familyInput = container.querySelector("#batteryDeviceFamilyInput");
-      chipInput?.addEventListener("input", () => { state.busChip = chipInput.value; });
-      familyInput?.addEventListener("input", () => { state.busChipFamily = familyInput.value; });
 
       container.querySelectorAll("#batteryDeviceType").forEach((select) => {
         select.addEventListener("change", () => {
@@ -4367,6 +6454,9 @@
       const isolated = container.querySelector("#batteryRecoveryIsolatedConfirmed");
       const write = container.querySelector("#batteryRecoveryWriteConfirmed");
       profileSelect?.addEventListener("change", () => {
+        if (state.bq30CellCheckRunning) {
+          stopBq30CellCheck("Check Cells dihentikan karena seri/IC diganti.");
+        }
         const [kind, id] = String(profileSelect.value || "").split(":");
         if (kind === "catalog") {
           const family = getSeriesFamilies(state).find((item) => item.id === id);
@@ -4383,20 +6473,49 @@
         setState({
           selectedProfileId: profile?.id || id || profileSelect.value,
           selectedCatalogFamilyId: family?.id || state.selectedCatalogFamilyId,
-          selectedActionId: profile?.recoveryActions?.[0]?.id || "",
+          selectedActionId: universalRecoveryOperations[0]?.id || "",
           recoveryPreview: null,
           bq30RecoveryRows: []
         });
       });
-      actionSelect?.addEventListener("change", () => setState({
-        selectedActionId: actionSelect.value,
-        recoveryPreview: null,
-        bq30RecoveryRows: []
-      }));
+      actionSelect?.addEventListener("change", () => {
+        if (state.bq30CellCheckRunning) {
+          stopBq30CellCheck("Check Cells dihentikan karena operasi diganti.");
+        }
+        setState({
+          selectedActionId: actionSelect.value,
+          recoveryPreview: null,
+          bq30RecoveryRows: []
+        });
+      });
       isolated?.addEventListener("change", () => setState({ isolatedConfirmed: isolated.checked }));
       write?.addEventListener("change", () => setState({ writeConfirmed: write.checked }));
+      const balanceTarget = container.querySelector("#batteryBq30TargetBalanceDeltaMv");
+      const levelTarget = container.querySelector("#batteryBq30TargetLevelPercent");
+      const healthTarget = container.querySelector("#batteryBq30TargetHealthPercent");
+      balanceTarget?.addEventListener("input", () => setState({
+        bq30TargetBalanceDeltaMv: normalizeTargetNumber(balanceTarget.value, 30, 1, 500)
+      }));
+      levelTarget?.addEventListener("input", () => setState({
+        bq30TargetLevelPercent: normalizeTargetNumber(levelTarget.value, 100, 0, 100)
+      }));
+      healthTarget?.addEventListener("input", () => setState({
+        bq30TargetHealthPercent: normalizeTargetNumber(healthTarget.value, 100, 0, 100)
+      }));
       container.querySelector("#batteryRecoveryPreviewButton")?.addEventListener("click", () => withBusy(previewRecovery));
-      container.querySelector("#batteryRecoveryExecuteButton")?.addEventListener("click", () => withBusy(runSelectedRecoveryOperation));
+      container.querySelector("#batteryRecoveryExecuteButton")?.addEventListener("click", () => {
+        const profile = selectedProfile(state);
+        const family = selectedCatalogFamily(state);
+        const operation = selectedRecoveryOperation(state, profile, family);
+        if (isCellCheckRecoveryOperation(operation)) {
+          void startUniversalContinuousCellCheck();
+          return;
+        }
+        void withBusy(runSelectedRecoveryOperation);
+      });
+      container.querySelector("#batteryBq30StopCellCheckButton")?.addEventListener("click", () => {
+        stopBq30CellCheck("Check Cells dihentikan oleh user.");
+      });
     }
 
     function captureMonitorScrollState() {
