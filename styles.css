@@ -15287,18 +15287,20 @@ body.is-dark-mode .battery-monitor-table-area .battery-table tr.battery-monitor-
 
 .battery-bq30-check-panel {
   display: grid;
-  grid-template-columns: minmax(250px, 0.78fr) minmax(0, 1.22fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   align-items: start;
 }
 
 .battery-bq30-check-visual {
+  grid-column: 1 / -1;
   min-width: 0;
 }
 
 .battery-bq30-check-fields {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
 }
@@ -15835,5 +15837,270 @@ body.is-dark-mode .battery-bq30-cell {
   .logic-analyzer-socket-monitor.is-spi .logic-analyzer-socket-body em {
     grid-column: 1;
     grid-row: auto;
+  }
+}
+
+/* BIOS/EC Programmer: chip identity and voltage assurance */
+.spi-scope-theme .spi-jedec-assurance-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(99, 171, 198, 0.34);
+  background:
+    linear-gradient(135deg, rgba(40, 111, 139, 0.19), rgba(13, 23, 32, 0.96) 48%, rgba(13, 23, 32, 0.96)),
+    rgba(13, 23, 32, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 12px 30px rgba(0, 0, 0, 0.16);
+}
+
+.spi-scope-theme .spi-jedec-assurance-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: #6ec9ec;
+  box-shadow: 0 0 18px rgba(110, 201, 236, 0.46);
+}
+
+.spi-scope-theme .spi-jedec-assurance-card.is-verified {
+  border-color: rgba(69, 230, 191, 0.4);
+  background:
+    linear-gradient(135deg, rgba(35, 141, 111, 0.2), rgba(13, 23, 32, 0.96) 52%),
+    rgba(13, 23, 32, 0.96);
+}
+
+.spi-scope-theme .spi-jedec-assurance-card.is-verified::before {
+  background: #45e6bf;
+  box-shadow: 0 0 18px rgba(69, 230, 191, 0.46);
+}
+
+.spi-scope-theme .spi-jedec-assurance-card.is-attention {
+  border-color: rgba(240, 194, 103, 0.42);
+  background:
+    linear-gradient(135deg, rgba(118, 79, 22, 0.25), rgba(13, 23, 32, 0.96) 52%),
+    rgba(13, 23, 32, 0.96);
+}
+
+.spi-scope-theme .spi-jedec-assurance-card.is-attention::before {
+  background: #f0c267;
+  box-shadow: 0 0 18px rgba(240, 194, 103, 0.44);
+}
+
+.spi-jedec-assurance-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(137, 183, 204, 0.18);
+}
+
+.spi-jedec-assurance-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(110, 201, 236, 0.34);
+  border-radius: 10px;
+  background: rgba(110, 201, 236, 0.11);
+  color: #a4e8ff;
+}
+
+.spi-jedec-assurance-card.is-verified .spi-jedec-assurance-icon {
+  border-color: rgba(69, 230, 191, 0.36);
+  background: rgba(69, 230, 191, 0.12);
+  color: #79f0d1;
+}
+
+.spi-jedec-assurance-card.is-attention .spi-jedec-assurance-icon {
+  border-color: rgba(240, 194, 103, 0.36);
+  background: rgba(240, 194, 103, 0.1);
+  color: #ffd88b;
+}
+
+.spi-jedec-assurance-icon .material-symbols-outlined {
+  font-size: 1.2rem;
+}
+
+.spi-jedec-assurance-head > div:nth-child(2) {
+  min-width: 0;
+}
+
+.spi-scope-theme .spi-jedec-assurance-head h4 {
+  margin: 2px 0 0;
+  color: #f3fbff;
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.spi-jedec-assurance-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(110, 201, 236, 0.3);
+  border-radius: 999px;
+  background: rgba(110, 201, 236, 0.1);
+  color: #a4e8ff;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.spi-jedec-assurance-card.is-verified .spi-jedec-assurance-status {
+  border-color: rgba(69, 230, 191, 0.32);
+  background: rgba(69, 230, 191, 0.1);
+  color: #79f0d1;
+}
+
+.spi-jedec-assurance-card.is-attention .spi-jedec-assurance-status {
+  border-color: rgba(240, 194, 103, 0.32);
+  background: rgba(240, 194, 103, 0.1);
+  color: #ffd88b;
+}
+
+.spi-jedec-assurance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.spi-jedec-assurance-grid article {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(137, 183, 204, 0.16);
+  border-radius: 8px;
+  background: rgba(2, 10, 17, 0.26);
+}
+
+.spi-jedec-assurance-grid small,
+.spi-jedec-assurance-grid span {
+  display: block;
+  overflow: hidden;
+  color: #9ab4c5;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spi-jedec-assurance-grid strong {
+  display: block;
+  overflow: hidden;
+  margin: 4px 0 3px;
+  color: #f4fbff;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spi-jedec-assurance-grid article:nth-child(2) strong {
+  font-family: inherit;
+}
+
+.spi-jedec-assurance-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 11px;
+}
+
+.spi-jedec-assurance-footer p {
+  margin: 0;
+  color: #c3d7e3;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.spi-jedec-confirm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid rgba(240, 194, 103, 0.44);
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(178, 122, 34, 0.42), rgba(103, 67, 17, 0.48));
+  color: #fff0cc;
+  font-size: 0.76rem;
+  font-weight: 900;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.spi-jedec-confirm-button:hover,
+.spi-jedec-confirm-button:focus-visible {
+  border-color: #ffd477;
+  background: linear-gradient(180deg, rgba(205, 145, 45, 0.58), rgba(126, 83, 18, 0.6));
+  color: #fff8e7;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
+.spi-jedec-confirm-button .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-jedec-assurance-card {
+  border-color: rgba(48, 121, 152, 0.28);
+  background:
+    linear-gradient(135deg, rgba(203, 241, 255, 0.92), rgba(249, 253, 255, 0.98) 52%),
+    #f9fdff;
+  box-shadow: 0 10px 24px rgba(31, 80, 104, 0.1);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-jedec-assurance-card.is-verified {
+  border-color: rgba(25, 151, 116, 0.3);
+  background:
+    linear-gradient(135deg, rgba(203, 250, 233, 0.94), rgba(250, 255, 253, 0.98) 52%),
+    #fafffd;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-jedec-assurance-card.is-attention {
+  border-color: rgba(191, 133, 28, 0.34);
+  background:
+    linear-gradient(135deg, rgba(255, 242, 207, 0.95), rgba(255, 253, 248, 0.98) 52%),
+    #fffdf8;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-jedec-assurance-head {
+  border-bottom-color: rgba(45, 101, 126, 0.16);
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-jedec-assurance-head h4,
+body:not(.is-dark-mode) .spi-jedec-assurance-grid strong {
+  color: #17384c;
+}
+
+body:not(.is-dark-mode) .spi-jedec-assurance-grid article {
+  border-color: rgba(45, 101, 126, 0.15);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+body:not(.is-dark-mode) .spi-jedec-assurance-grid small,
+body:not(.is-dark-mode) .spi-jedec-assurance-grid span,
+body:not(.is-dark-mode) .spi-jedec-assurance-footer p {
+  color: #507084;
+}
+
+@media (max-width: 720px) {
+  .spi-jedec-assurance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spi-jedec-assurance-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .spi-jedec-confirm-button {
+    width: 100%;
   }
 }

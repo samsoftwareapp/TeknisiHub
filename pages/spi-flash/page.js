@@ -843,6 +843,12 @@
       speedHz: 0,
       chunkSizeBytes: 0,
       jedec: "",
+      jedecRawResponse: "",
+      jedecDetectionStatus: "idle",
+      jedecDetectionMessage: "",
+      jedecDetectedVoltage: "",
+      jedecProfileMatched: false,
+      jedecCanConfirm3v3: false,
       startAddress: "",
       length: "",
       fileName: "",
@@ -1009,6 +1015,12 @@
       speedHz: Number(session.speedHz || 0),
       chunkSizeBytes: Number(session.chunkSizeBytes || 0),
       jedec: session.jedec || "",
+      jedecRawResponse: session.jedecRawResponse || "",
+      jedecDetectionStatus: String(session.jedecDetectionStatus || "idle").trim().toLowerCase(),
+      jedecDetectionMessage: sanitizePublicMessage(session.jedecDetectionMessage || ""),
+      jedecDetectedVoltage: String(session.jedecDetectedVoltage || "").trim(),
+      jedecProfileMatched: Boolean(session.jedecProfileMatched),
+      jedecCanConfirm3v3: Boolean(session.jedecCanConfirm3v3),
       startAddress: session.startAddress || "",
       length: session.length || "",
       fileName: session.fileName || "",
@@ -1586,6 +1598,107 @@
     }).format(new Date(timestamp));
   }
 
+  function createJedecAssuranceMarkup(state, actionDisableAttr) {
+    const status = String(state.jedecDetectionStatus || "idle").trim().toLowerCase();
+    const rawResponse = String(state.jedec || state.jedecRawResponse || "").trim();
+    const profileMatched = Boolean(state.jedecProfileMatched) || status === "profile-verified";
+    const chipName = [state.chipVendor, state.chipModel].filter(Boolean).join(" ").trim();
+    const detectedVoltage = String(state.jedecDetectedVoltage || "").trim();
+    const profileVoltage = String(state.chipVoltage || "").trim();
+    const noResponse = status.startsWith("no-response");
+    const incomplete = status.startsWith("incomplete");
+    const unknown = status.startsWith("unknown");
+    const verificationFailed = status === "profile-verification-failed";
+    const tone = profileMatched && !verificationFailed
+      ? "verified"
+      : noResponse || incomplete || unknown || verificationFailed
+        ? "attention"
+        : "ready";
+    const icon = tone === "verified"
+      ? "verified_user"
+      : tone === "attention"
+        ? "shield_with_heart"
+        : "radar";
+    const headline = tone === "verified"
+      ? "Profil chip tervalidasi"
+      : noResponse
+        ? "Menunggu respons chip"
+        : incomplete
+          ? "Respons chip belum lengkap"
+          : unknown
+            ? "Profil chip belum dikenali"
+            : verificationFailed
+              ? "Verifikasi profil perlu diperiksa"
+              : "Identifikasi chip siap";
+    const statusLabel = tone === "verified"
+      ? "TERKUNCI"
+      : tone === "attention"
+        ? "DILINDUNGI"
+        : "SIAP";
+    const defaultMessage = tone === "verified"
+      ? "Identitas chip dan tegangan kerja sudah diselaraskan."
+      : "Deteksi selalu dimulai dari 1.8 V untuk menjaga target chip.";
+    const message = String(state.jedecDetectionMessage || defaultMessage).trim();
+    const voltageLabel = profileMatched
+      ? (profileVoltage || detectedVoltage || "Terkunci")
+      : (detectedVoltage || "Mulai 1.8 V");
+    const profileLabel = profileMatched
+      ? (chipName || "Profil chip")
+      : unknown
+        ? "Belum ada profil"
+        : incomplete
+          ? "Menunggu respons lengkap"
+          : noResponse
+            ? "Belum teridentifikasi"
+            : "Menunggu deteksi";
+    const capacityLabel = profileMatched
+      ? (state.chipCapacity || "-")
+      : rawResponse
+        ? "Tegangan ditahan"
+        : "Aman untuk memulai";
+
+    return `
+      <section class="spi-card spi-jedec-assurance-card is-${escapeHtml(tone)}">
+        <div class="spi-jedec-assurance-head">
+          <div class="spi-jedec-assurance-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">${escapeHtml(icon)}</span>
+          </div>
+          <div>
+            <p class="label">Chip Assurance</p>
+            <h4>${escapeHtml(headline)}</h4>
+          </div>
+          <span class="spi-jedec-assurance-status">${escapeHtml(statusLabel)}</span>
+        </div>
+        <div class="spi-jedec-assurance-grid">
+          <article>
+            <small>ID Chip</small>
+            <strong>${escapeHtml(rawResponse || "Menunggu pembacaan")}</strong>
+            <span>${escapeHtml(rawResponse ? "Respons pembacaan terbaru" : "Jalankan Detect BIOS untuk memulai")}</span>
+          </article>
+          <article>
+            <small>Profil</small>
+            <strong>${escapeHtml(profileLabel)}</strong>
+            <span>${escapeHtml(capacityLabel)}</span>
+          </article>
+          <article>
+            <small>Tegangan Aman</small>
+            <strong>${escapeHtml(voltageLabel)}</strong>
+            <span>${escapeHtml(profileMatched ? "Dikunci sesuai profil chip" : "Tidak dinaikkan otomatis")}</span>
+          </article>
+        </div>
+        <div class="spi-jedec-assurance-footer">
+          <p>${escapeHtml(message)}</p>
+          ${state.jedecCanConfirm3v3 ? `
+            <button type="button" class="spi-jedec-confirm-button" id="spiFlashConfirm3v3Button"${actionDisableAttr}>
+              <span class="material-symbols-outlined">electric_bolt</span>
+              <span>Uji 3.3 V</span>
+            </button>
+          ` : ""}
+        </div>
+      </section>
+    `;
+  }
+
   function createPinMonitorMarkup(state, disableAttr) {
     const monitor = state.pinMonitor || createDefaultPinMonitorState();
     const isContactMode = monitor.mode === "contact";
@@ -1877,7 +1990,7 @@
         </div>
         <div class="spi-action-command-grid is-default-actions">
           ${createActionButton("detect", "radar", "SmartID", "BIOS/EC/KBC", actionDisableAttr, "is-hero-action")}
-          ${createActionButton("detect-bios", "developer_board", "Detect BIOS", "25 SPI Series", actionDisableAttr)}
+          ${createActionButton("detect-bios", "developer_board", "Detect BIOS", "VCC aman", actionDisableAttr)}
           ${createActionButton("read", "download", "Read", readActionSummary, actionDisableAttr, "is-hero-action")}
           ${createActionButton("write", "upload", "Write", writeActionSummary, actionDisableAttr, "is-hero-action")}
           ${createActionButton("verify", "rule", "Verify", "Verify", actionDisableAttr)}
@@ -1989,7 +2102,7 @@
         </div>
         <div class="spi-action-command-grid is-kbc-actions">
           ${createActionButton("detect", "radar", "SmartID", "BIOS/EC/KBC", actionDisableAttr, "is-hero-action")}
-          ${createActionButton("detect-bios", "developer_board", "Detect BIOS", "25 SPI Series", actionDisableAttr)}
+          ${createActionButton("detect-bios", "developer_board", "Detect BIOS", "VCC aman", actionDisableAttr)}
           ${createActionButton(readAction, "download", "Read", `${targetLabel} ${readActionSummary}`, actionDisableAttr, "is-hero-action")}
           ${createActionButton(writeAction, "upload", "Write", `${targetLabel} ${writeActionSummary}`, actionDisableAttr, "is-hero-action")}
           ${createActionButton(verifyAction, "rule", "Verify", `${targetLabel} compare`, actionDisableAttr)}
@@ -2147,6 +2260,8 @@
             </p>
           </section>
         ` : ""}
+
+        ${isFlashOscDevice(state.selectedDevice) ? createJedecAssuranceMarkup(state, actionDisableAttr) : ""}
 
         ${isFlashOscDevice(state.selectedDevice) ? createPinMonitorMarkup(state, disableAttr) : ""}
 
@@ -2487,12 +2602,13 @@
       return chunkSizeBytes;
     }
 
-    function collectActionPayload(action = "") {
+    function collectActionPayload(action = "", options = {}) {
       return {
         chipVendor: state.chipVendor,
         chipModel: state.chipModel,
         chipCapacity: state.chipCapacity,
         autoProcess: state.autoProcess !== false,
+        confirm3v3Probe: options.confirm3v3Probe === true,
         pageSize: Number(state.pageSize || 256),
         speedHz: resolveActionSpeedHz(action),
         chunkSizeBytes: resolveActionChunkSizeBytes(action),
@@ -2593,7 +2709,7 @@
       render();
     }
 
-    async function runAction(action) {
+    async function runAction(action, options = {}) {
       if (action === "reset") {
         return fetchJson("/spi-flash/reset", {
           method: "POST",
@@ -2603,7 +2719,7 @@
 
       return fetchJson(`/spi-flash/actions/${encodeURIComponent(action)}`, {
         method: "POST",
-        body: JSON.stringify(collectActionPayload(action))
+        body: JSON.stringify(collectActionPayload(action, options))
       });
     }
 
@@ -2968,6 +3084,27 @@
           });
         });
       });
+
+      const confirm3v3Button = mountedContainer.querySelector("#spiFlashConfirm3v3Button");
+      if (confirm3v3Button) {
+        confirm3v3Button.addEventListener("click", () => {
+          const confirmed = window.confirm(
+            "Uji 3.3 V hanya untuk chip yang memang memakai 3.3 V. Jangan lanjutkan bila target chip adalah 1.8 V. Lanjutkan uji 3.3 V?"
+          );
+          if (!confirmed) {
+            return;
+          }
+
+          void withBusy(async () => {
+            const session = await runAction("detect-bios", { confirm3v3Probe: true });
+            applySessionState(session, { resetScroll: true });
+            state.monitorTarget = resolveMonitorTargetFromDetectedFields(session) || state.monitorTarget;
+            render();
+          }, {
+            activeOperation: "Uji BIOS 3.3 V"
+          });
+        });
+      }
 
       const editDatabaseButton = mountedContainer.querySelector("#spiFlashEditDatabaseButton");
       if (editDatabaseButton) {

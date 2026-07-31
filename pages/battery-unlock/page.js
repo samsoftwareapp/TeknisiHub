@@ -37,7 +37,7 @@
     database: null,
     selectedCatalogFamilyId: "bq30z554-family",
     selectedProfileId: "bq30z554-family",
-    selectedActionId: "universal-read-info",
+    selectedActionId: "universal-check-cells",
     isolatedConfirmed: false,
     writeConfirmed: false,
     smbusOperation: "read-word",
@@ -90,6 +90,11 @@
     bq30TargetBalanceDeltaMv: 30,
     bq30TargetLevelPercent: 100,
     bq30TargetHealthPercent: 100,
+    bq30AdvancedActionId: "bq30-advanced-design-capacity",
+    bq30AdvancedDesignCapacityMah: 3200,
+    bq30AdvancedHealthPercent: 100,
+    bq30AdvancedDesignVoltageMv: 10100,
+    bq30AdvancedCycleCount: 0,
     dataMessage: "Data tools siap.",
     dataBackup: null,
     dataImportedBackup: null,
@@ -189,6 +194,10 @@
   ];
 
   const bq30AfterCellReplaceReadPlan = [
+    { key: "manufacturerName", label: "Manufacturer", command: "0x20", operation: "read-block", readLength: 33 },
+    { key: "deviceName", label: "Device Name", command: "0x21", operation: "read-block", readLength: 33 },
+    { key: "deviceChemistry", label: "Chemistry", command: "0x22", operation: "read-block", readLength: 33 },
+    { key: "serialNumber", label: "Serial Number", command: "0x1C", operation: "read-word", readLength: 2 },
     { key: "temperature", label: "Temperature", command: "0x08", operation: "read-word", readLength: 2 },
     { key: "voltage", label: "Voltage", command: "0x09", operation: "read-word", readLength: 2 },
     { key: "current", label: "Current", command: "0x0A", operation: "read-word", readLength: 2 },
@@ -231,10 +240,8 @@
   };
 
   const universalRecoveryOperations = [
-    { id: "universal-read-info", name: "Read Info", kind: "universal-read-info", order: 1, target: "Read Info" },
-    { id: "universal-read-status", name: "Read Status", kind: "universal-read-status", order: 2, target: "Read Status" },
-    { id: "universal-scan-commands", name: "Scan Commands", kind: "universal-scan-commands", order: 3, target: "Scan Commands" },
-    { id: "universal-check-cells", name: "Check Cells", kind: "universal-check-cells", order: 4, target: "Check Cells" },
+    { id: "universal-check-cells", name: "Check Cells", kind: "universal-check-cells", order: 1, target: "Check Cells" },
+    { id: "universal-scan-commands", name: "Scan Commands", kind: "universal-scan-commands", order: 2, target: "Scan Commands" },
     { id: "universal-protection-status", name: "Protection Status", kind: "universal-protection-status", order: 5, target: "Protection Status" },
     { id: "universal-clear-protection", name: "Clear Protection", kind: "universal-clear-protection", order: 6, target: "Clear Protection" },
     { id: "universal-full-access", name: "Full Access", kind: "universal-full-access", order: 7, target: "Full Access" },
@@ -242,7 +249,44 @@
     { id: "universal-refresh-gauge", name: "Refresh Gauge / Relearn", kind: "universal-refresh-gauge", order: 9, target: "Refresh Gauge / Relearn" }
   ];
 
-  const universalReadInfoPlan = [
+  const bq30AdvancedRecoveryOperation = {
+    id: "bq30-advanced",
+    name: "Advanced",
+    kind: "bq30-advanced",
+    order: 10,
+    target: "BQ30 Advanced"
+  };
+
+  const bq30AdvancedOperations = [
+    { id: "bq30-advanced-design-capacity", name: "Ubah Design Capacity", mode: "write-word", command: "0x18", targetKey: "designCapacity", unit: "mAh" },
+    { id: "bq30-advanced-health", name: "Ubah Kesehatan / FCC", mode: "write-word", command: "0x10", targetKey: "fullChargeCapacity", unit: "mAh" },
+    { id: "bq30-advanced-design-voltage", name: "Ubah Design Voltage", mode: "write-word", command: "0x19", targetKey: "designVoltage", unit: "mV" },
+    { id: "bq30-advanced-cycle-count", name: "Ubah Cycle Count", mode: "write-word", command: "0x17", targetKey: "cycleCount", unit: "cycle" }
+  ];
+
+  const bq30AdvancedReadbackPlans = {
+    "bq30-advanced-design-capacity": [
+      { key: "fullChargeCapacity", label: "Full Charge Capacity", command: "0x10", operation: "read-word", readLength: 2 },
+      { key: "designCapacity", label: "Design Capacity", command: "0x18", operation: "read-word", readLength: 2 }
+    ],
+    "bq30-advanced-health": [
+      { key: "fullChargeCapacity", label: "Full Charge Capacity", command: "0x10", operation: "read-word", readLength: 2 },
+      { key: "designCapacity", label: "Design Capacity", command: "0x18", operation: "read-word", readLength: 2 }
+    ],
+    "bq30-advanced-design-voltage": [
+      { key: "designVoltage", label: "Design Voltage", command: "0x19", operation: "read-word", readLength: 2 }
+    ],
+    "bq30-advanced-cycle-count": [
+      { key: "cycleCount", label: "Cycle Count", command: "0x17", operation: "read-word", readLength: 2 }
+    ]
+  };
+
+  const bq30AdvancedHealthPlan = [
+    { key: "fullChargeCapacity", label: "Full Charge Capacity", command: "0x10", operation: "read-word", readLength: 2 },
+    { key: "designCapacity", label: "Design Capacity", command: "0x18", operation: "read-word", readLength: 2 }
+  ];
+
+  const universalIdentityReadPlan = [
     { key: "manufacturerName", label: "Manufacturer", command: "0x20", operation: "read-block", readLength: 33 },
     { key: "deviceName", label: "Device Name", command: "0x21", operation: "read-block", readLength: 33 },
     { key: "serialNumber", label: "Serial Number", command: "0x1C", operation: "read-word", readLength: 2 },
@@ -251,7 +295,7 @@
     { key: "designVoltage", label: "Design Voltage", command: "0x19", operation: "read-word", readLength: 2 }
   ];
 
-  const universalReadStatusPlan = [
+  const universalSbsStatusReadPlan = [
     { key: "voltage", label: "Voltage", command: "0x09", operation: "read-word", readLength: 2 },
     { key: "current", label: "Current", command: "0x0A", operation: "read-word", readLength: 2 },
     { key: "remainingCapacity", label: "Remaining Capacity", command: "0x0F", operation: "read-word", readLength: 2 },
@@ -2275,12 +2319,21 @@
   }
 
   function recoveryOperations(state, profile = selectedProfile(state), family = selectedCatalogFamily(state)) {
-    return universalRecoveryOperations.map((operation) => ({ ...operation }));
+    const operations = universalRecoveryOperations.map((operation) => ({ ...operation }));
+    const catalogOnly = family && !findProfileForFamily(state, family);
+    if (isBq30Profile(profile) && !catalogOnly) {
+      operations.push({ ...bq30AdvancedRecoveryOperation });
+    }
+    return operations;
   }
 
   function selectedRecoveryOperation(state, profile = selectedProfile(state), family = selectedCatalogFamily(state)) {
     const operations = recoveryOperations(state, profile, family);
     return operations.find((item) => item.id === state.selectedActionId) || operations[0] || null;
+  }
+
+  function selectedBq30AdvancedOperation(state) {
+    return bq30AdvancedOperations.find((item) => item.id === state.bq30AdvancedActionId) || bq30AdvancedOperations[0];
   }
 
   function findProfileForFamily(state, family) {
@@ -2395,8 +2448,6 @@
   function isReadOnlyRecoveryOperation(operation) {
     const kind = String(operation?.kind || "");
     return kind === "probe" ||
-      kind === "universal-read-info" ||
-      kind === "universal-read-status" ||
       kind === "universal-scan-commands" ||
       kind === "universal-check-cells" ||
       kind === "universal-protection-status" ||
@@ -2418,7 +2469,13 @@
     const kind = String(operation?.kind || "");
     return kind === "universal-check-cells" ||
       kind === "universal-refresh-gauge" ||
-      kind.startsWith("bq30");
+      kind === "bq30-check-cell" ||
+      kind === "bq30-calibration" ||
+      kind === "bq30-after-cell-replace";
+  }
+
+  function showBq30AdvancedInputs(operation) {
+    return String(operation?.kind || "") === "bq30-advanced";
   }
 
   function bq30OperationNote(operation) {
@@ -2435,22 +2492,20 @@
         return "Continue baca cell, suhu, SOC, kapasitas, delta, target inject, dan hasil recheck sampai Stop ditekan.";
       case "bq30-calibration":
         return "Kirim trigger ManufacturerAccess untuk refresh/recalc gauge, tunggu settle, lalu baca ulang kapasitas, cell, PF/Safety, FET, level, dan health.";
+      case "bq30-advanced":
+        return "Advanced BQ30 khusus write guarded: Design Capacity, Kesehatan/FCC, Design Voltage, dan Cycle Count. Readback hanya untuk verifikasi hasil write.";
       default:
-        return "Flow BQ30 mengikuti urutan Read Info, Read Status, Scan Commands, Check Cells, Protection Status, Clear Protection, Full Access, Unlock FET, Refresh Gauge / Relearn.";
+        return "Flow BQ30 mengikuti urutan Check Cells, Scan Commands, Protection Status, Clear Protection, Full Access, Unlock FET, Refresh Gauge / Relearn.";
     }
   }
 
   function universalOperationNote(operation, profile, family) {
     const chipText = [profile?.family || family?.family || "", profile?.name || family?.id || ""].filter(Boolean).join(" / ") || "selected IC";
     switch (operation?.kind) {
-      case "universal-read-info":
-        return "Baca Manufacturer, Device Name, Serial, Chemistry, Design Capacity, dan Design Voltage.";
-      case "universal-read-status":
-        return "Baca Voltage, Current, Remaining Capacity, Full Charge Capacity, Temperature, Battery Status, dan RSoC.";
       case "universal-scan-commands":
         return "Scan read-word command 0x00 sampai 0xFF dan catat command yang ACK.";
       case "universal-check-cells":
-        return "Continue baca cell voltage, delta, target inject/recheck, level, dan health sampai Stop ditekan.";
+        return "Continue baca identity, SBS status, cell voltage, delta, target inject/recheck, level, dan health sampai Stop ditekan.";
       case "universal-protection-status":
         return "Baca status proteksi. BQ30/BQ40 memakai decoder PF/Safety/FET; chip lain memakai SBS/protection read-only.";
       case "universal-clear-protection":
@@ -2488,7 +2543,11 @@
     if (!kind.startsWith("bq30-")) {
       return "";
     }
-    if (kind === "bq30-status" || kind === "bq30-full-access" || kind === "bq30-clear-protection" || kind === "bq30-unlock-fet") {
+    if (kind === "bq30-status" ||
+      kind === "bq30-full-access" ||
+      kind === "bq30-clear-protection" ||
+      kind === "bq30-unlock-fet" ||
+      kind === "bq30-advanced") {
       return "";
     }
 
@@ -2594,6 +2653,10 @@
       ? analysis.secondaryCells.map((cell) => `Cell ${cell.index}`).join(", ")
       : "-";
     const fields = [
+      ["Manufacturer", bq30CheckCellFieldValue(rows, "manufacturerName"), "0x20"],
+      ["Device Name", bq30CheckCellFieldValue(rows, "deviceName"), "0x21"],
+      ["Chemistry", bq30CheckCellFieldValue(rows, "deviceChemistry"), "0x22"],
+      ["Serial", bq30CheckCellFieldValue(rows, "serialNumber"), "0x1C"],
       ["Action", instruction, `target delta ${formatNumber(targetDeltaMv, 0)} mV`],
       ["Primary Inject", primaryInject, analysis.needsBalance ? "suntik dulu" : "tidak perlu"],
       ["Secondary", secondaryInject, analysis.secondaryCells.length ? "cek setelah primary" : "tidak ada"],
@@ -2690,6 +2753,13 @@
     const operationRequiresWrite = !isReadOnlyRecoveryOperation(operation);
     const isCellCheckOperation = isCellCheckRecoveryOperation(operation);
     const showTargetInputs = showRecoveryTargetInputs(operation);
+    const showAdvancedInputs = showBq30AdvancedInputs(operation);
+    const advancedOperation = selectedBq30AdvancedOperation(state);
+    const currentDesignCapacity = monitorNumericValue(state.monitorRows, "designCapacity");
+    const currentFullChargeCapacity = monitorNumericValue(state.monitorRows, "fullChargeCapacity");
+    const currentDesignVoltage = monitorNumericValue(state.monitorRows, "designVoltage");
+    const currentCycleCount = monitorNumericValue(state.monitorRows, "cycleCount");
+    const currentHealth = calculateHealthPercent(state.monitorRows);
     const executeDisabled = isCellCheckOperation
       ? state.busy || state.monitorRunning || cellCheckRunning || !busLocked || !operation || !state.isolatedConfirmed
       : busy || !busLocked || !operation || !state.isolatedConfirmed || (operationRequiresWrite && !state.writeConfirmed);
@@ -2765,6 +2835,38 @@
             </label>
           </div>
           <p class="spi-note battery-bq30-params-note">Check Cells memakai target delta untuk instruksi inject dan recheck. Refresh Gauge / Relearn mengirim trigger refresh/recalc lalu membaca ulang hasil gauge jika handler chip tersedia.</p>
+        ` : ""}
+        ${showAdvancedInputs ? `
+          <div class="spi-form-grid battery-bq30-params">
+            <label>
+              Advanced
+              <select id="batteryBq30AdvancedActionSelect"${busy ? " disabled" : ""}>
+                ${bq30AdvancedOperations.map((item) => `<option value="${escapeHtml(item.id)}"${advancedOperation?.id === item.id ? " selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
+              </select>
+            </label>
+            ${advancedOperation?.id === "bq30-advanced-design-capacity" ? `
+              <label>
+                Design Capacity (mAh)
+                <input id="batteryBq30AdvancedDesignCapacityMah" type="number" min="1" max="65000" value="${Number(state.bq30AdvancedDesignCapacityMah || 3200)}"${busy ? " disabled" : ""}>
+              </label>
+            ` : advancedOperation?.id === "bq30-advanced-health" ? `
+              <label>
+                Target Kesehatan (%)
+                <input id="batteryBq30AdvancedHealthPercent" type="number" min="1" max="100" value="${Number(state.bq30AdvancedHealthPercent || 100)}"${busy ? " disabled" : ""}>
+              </label>
+            ` : advancedOperation?.id === "bq30-advanced-design-voltage" ? `
+              <label>
+                Design Voltage (mV)
+                <input id="batteryBq30AdvancedDesignVoltageMv" type="number" min="1" max="65000" value="${Number(state.bq30AdvancedDesignVoltageMv || 10100)}"${busy ? " disabled" : ""}>
+              </label>
+            ` : `
+              <label>
+                Cycle Count
+                <input id="batteryBq30AdvancedCycleCount" type="number" min="0" max="65535" value="${Number(state.bq30AdvancedCycleCount || 0)}"${busy ? " disabled" : ""}>
+              </label>
+            `}
+          </div>
+          <p class="spi-note battery-bq30-params-note">Advanced BQ30 khusus write guarded lalu readback verifikasi. Current FCC ${escapeHtml(currentFullChargeCapacity === null ? "-" : `${formatNumber(currentFullChargeCapacity)} mAh`)}, Design ${escapeHtml(currentDesignCapacity === null ? "-" : `${formatNumber(currentDesignCapacity)} mAh`)}, Design Voltage ${escapeHtml(currentDesignVoltage === null ? "-" : `${formatNumber(currentDesignVoltage)} mV`)}, Cycle ${escapeHtml(currentCycleCount === null ? "-" : formatNumber(currentCycleCount))}, Health ${escapeHtml(currentHealth === null ? "-" : `${formatNumber(currentHealth, 0)}%`)}.</p>
         ` : ""}
       </section>
       <section class="spi-card battery-sequence-panel">
@@ -4749,7 +4851,8 @@
         "universal-clear-protection",
         "universal-full-access",
         "universal-unlock-fet",
-        "universal-refresh-gauge"
+        "universal-refresh-gauge",
+        "bq30-advanced"
       ].includes(String(operation.kind || ""));
       if ((String(operation.kind || "").startsWith("bq30") || universalBq30Write) && bq30OperationBlockedByCurrentIdentity()) {
         const message = "Operasi BQ30 diblokir: identity terakhir terbaca Panasonic/Sanyo, belum ada konfirmasi BQ30-like dari Probe IC. Pilih seri/IC yang sesuai atau jalankan SMBus Probe IC dulu.";
@@ -4780,14 +4883,6 @@
         bq30RecoveryRows: [],
         recoveryMessage: "Operasi Recovery mulai dari sesi SMBus baru."
       }));
-      if (operation.kind === "universal-read-info") {
-        await runUniversalReadInfo();
-        return;
-      }
-      if (operation.kind === "universal-read-status") {
-        await runUniversalReadStatus();
-        return;
-      }
       if (operation.kind === "universal-scan-commands") {
         await runUniversalScanCommands();
         return;
@@ -4864,6 +4959,10 @@
         await runBq30Calibration();
         return;
       }
+      if (operation.kind === "bq30-advanced") {
+        await runBq30AdvancedOperation();
+        return;
+      }
       if (operation.kind === "bq30-full-flow") {
         await runBq30UnlockFetFlow();
         return;
@@ -4927,6 +5026,258 @@
         address: "0x0B",
         ...payload
       }, timeoutMs, options);
+    }
+
+    function wordDataHex(value) {
+      const word = Math.max(0, Math.min(0xFFFF, Math.round(Number(value) || 0))) & 0xFFFF;
+      return `${(word & 0xFF).toString(16).toUpperCase().padStart(2, "0")} ${((word >> 8) & 0xFF).toString(16).toUpperCase().padStart(2, "0")}`;
+    }
+
+    function bq30AdvancedReadbackPlanForOperation(advanced) {
+      return bq30AdvancedReadbackPlans[advanced?.id] || [];
+    }
+
+    function bq30AdvancedShowsHealth(advanced) {
+      return advanced?.id === "bq30-advanced-design-capacity" ||
+        advanced?.id === "bq30-advanced-health";
+    }
+
+    async function readBq30AdvancedRows(advanced, phase) {
+      const rows = [];
+      for (const plan of bq30AdvancedReadbackPlanForOperation(advanced)) {
+        try {
+          const row = await readBq30ServiceMonitorRow(plan);
+          rows.push({
+            ...row,
+            source: "Advanced",
+            meta: phase
+          });
+        } catch (error) {
+          rows.push({
+            key: plan.key,
+            source: "Advanced",
+            label: plan.label,
+            command: plan.command,
+            value: "-",
+            unit: "",
+            numeric: null,
+            raw: "-",
+            status: error?.message || "ERR",
+            meta: phase
+          });
+        }
+        await delay(40);
+      }
+      return rows;
+    }
+
+    async function ensureBq30AdvancedHealthRows(existingRows) {
+      const hasFullChargeCapacity = monitorNumericValue(existingRows, "fullChargeCapacity") !== null ||
+        monitorNumericValue(state.monitorRows, "fullChargeCapacity") !== null;
+      const hasDesignCapacity = monitorNumericValue(existingRows, "designCapacity") !== null ||
+        monitorNumericValue(state.monitorRows, "designCapacity") !== null;
+      if (hasFullChargeCapacity && hasDesignCapacity) {
+        return existingRows;
+      }
+
+      const rows = [...existingRows];
+      const missingPlans = bq30AdvancedHealthPlan.filter((plan) =>
+        monitorNumericValue(rows, plan.key) === null &&
+        monitorNumericValue(state.monitorRows, plan.key) === null);
+      for (const plan of missingPlans) {
+        try {
+          const row = await readBq30ServiceMonitorRow(plan);
+          rows.push({
+            ...row,
+            source: "Advanced",
+            meta: "target"
+          });
+        } catch (error) {
+          rows.push({
+            key: plan.key,
+            source: "Advanced",
+            label: plan.label,
+            command: plan.command,
+            value: "-",
+            unit: "",
+            numeric: null,
+            raw: "-",
+            status: error?.message || "ERR",
+            meta: "target"
+          });
+        }
+        await delay(40);
+      }
+      return rows;
+    }
+
+    function bq30AdvancedMonitorRowsToResultRows(rows, phase) {
+      return (rows || []).map((row) => ({
+        ...bq30MonitorRowToResultRow(row),
+        label: `${phase} ${row.label || "-"}`
+      }));
+    }
+
+    function bq30AdvancedHealthSummaryRow(rows, label = "Health / SOH") {
+      const fullChargeCapacity = monitorNumericValue(rows, "fullChargeCapacity");
+      const designCapacity = monitorNumericValue(rows, "designCapacity");
+      const health = calculateHealthPercent(rows);
+      const capacityText = fullChargeCapacity === null || designCapacity === null
+        ? "-"
+        : `${formatNumber(fullChargeCapacity)} / ${formatNumber(designCapacity)}`;
+      return {
+        label,
+        command: "0x10/0x18",
+        writeHex: "-",
+        readHex: capacityText,
+        status: health === null ? "Health belum bisa dihitung." : `${formatNumber(health, 0)}% dari FCC / Design Capacity`
+      };
+    }
+
+    async function runBq30AdvancedOperation() {
+      if (!state.writeConfirmed) {
+        setState({ recoveryMessage: "Advanced BQ30 belum dikirim. Centang Write enable dulu." });
+        notifyUser("Advanced BQ30 belum dikirim. Centang Write enable dulu.", "warning");
+        return;
+      }
+      const advanced = selectedBq30AdvancedOperation(state);
+      const rows = [];
+      setState({
+        bq30RecoveryRows: [],
+        recoveryMessage: `${advanced.name} mulai. Menyiapkan write guarded...`
+      });
+
+      let beforeRows = [];
+      let command = advanced.command;
+      let targetValue = null;
+      let targetStatus = "";
+      if (advanced.id === "bq30-advanced-design-capacity") {
+        targetValue = normalizeTargetNumber(state.bq30AdvancedDesignCapacityMah, 3200, 1, 65000);
+        targetStatus = `Target Design Capacity ${formatNumber(targetValue)} mAh.`;
+      } else if (advanced.id === "bq30-advanced-health") {
+        beforeRows = await ensureBq30AdvancedHealthRows(beforeRows);
+        rows.splice(0, rows.length, ...bq30AdvancedMonitorRowsToResultRows(beforeRows, "Target"));
+        rows.push(bq30AdvancedHealthSummaryRow(beforeRows, "Target Health / SOH"));
+        setState({ bq30RecoveryRows: rows });
+
+        const targetHealth = normalizeTargetNumber(state.bq30AdvancedHealthPercent, 100, 1, 100);
+        const designCapacity = monitorNumericValue(beforeRows, "designCapacity") ?? monitorNumericValue(state.monitorRows, "designCapacity");
+        if (!(designCapacity > 0)) {
+          rows.push({
+            label: "Target FCC",
+            command: "0x10",
+            writeHex: "-",
+            readHex: "-",
+            status: "Design Capacity belum terbaca, jadi target Kesehatan belum bisa dihitung."
+          });
+          setState({
+            bq30RecoveryRows: rows,
+            recoveryMessage: "Advanced BQ30 berhenti: Design Capacity belum terbaca."
+          });
+          notifyUser("Design Capacity belum terbaca. Jalankan Check Cells dulu.", "warning");
+          return { beforeRows };
+        }
+        targetValue = normalizeTargetNumber(Math.round((designCapacity * targetHealth) / 100), 1, 1, 65000);
+        targetStatus = `Target Kesehatan ${formatNumber(targetHealth, 0)}% -> FCC ${formatNumber(targetValue)} mAh dari Design ${formatNumber(designCapacity)} mAh.`;
+        rows.push({
+          label: "Target FCC",
+          command: "0x10",
+          writeHex: "-",
+          readHex: `${formatNumber(targetValue)} mAh`,
+          status: targetStatus
+        });
+      } else if (advanced.id === "bq30-advanced-design-voltage") {
+        targetValue = normalizeTargetNumber(state.bq30AdvancedDesignVoltageMv, 10100, 1, 65000);
+        targetStatus = `Target Design Voltage ${formatNumber(targetValue)} mV.`;
+      } else if (advanced.id === "bq30-advanced-cycle-count") {
+        targetValue = normalizeTargetNumber(state.bq30AdvancedCycleCount, 0, 0, 65535);
+        targetStatus = `Target Cycle Count ${formatNumber(targetValue)}.`;
+      } else {
+        setState({ recoveryMessage: "Advanced BQ30 belum punya handler write." });
+        notifyUser("Advanced BQ30 belum punya handler write.", "warning");
+        return { beforeRows, rows };
+      }
+
+      const dataHex = wordDataHex(targetValue);
+      rows.push({
+        label: advanced.name,
+        command,
+        writeHex: `${command} ${dataHex}`,
+        readHex: "-",
+        status: "sending"
+      });
+      setState({
+        bq30RecoveryRows: rows,
+        recoveryMessage: `${advanced.name}: ${targetStatus} Write dikirim...`
+      });
+
+      try {
+        const writeResult = await sendBq30SmbusCommand({
+          operation: "write-word",
+          command,
+          dataHex,
+          readLength: 0
+        }, recoverySmbusCommandTimeoutMs);
+        rows[rows.length - 1] = {
+          label: advanced.name,
+          command,
+          writeHex: writeResult.writeHex || `${command} ${dataHex}`,
+          readHex: writeResult.readHex || "-",
+          status: writeResult.message || "Write terkirim."
+        };
+      } catch (error) {
+        rows[rows.length - 1] = {
+          label: advanced.name,
+          command,
+          writeHex: `${command} ${dataHex}`,
+          readHex: "-",
+          status: error?.message || "Write gagal."
+        };
+        setState({
+          bq30RecoveryRows: rows,
+          recoveryMessage: `${advanced.name} gagal dikirim.`
+        });
+        notifyUser(`${advanced.name} gagal dikirim.`, "warning");
+        return { beforeRows, rows };
+      }
+
+      setState({
+        bq30RecoveryRows: rows,
+        recoveryMessage: `${advanced.name}: write terkirim. Menunggu readback...`
+      });
+      await delay(250);
+      const afterRows = await readBq30AdvancedRows(advanced, "after");
+      const afterValue = monitorNumericValue(afterRows, advanced.targetKey);
+      const readbackOk = afterValue !== null && Math.round(afterValue) === Math.round(targetValue);
+      rows.push(...bq30AdvancedMonitorRowsToResultRows(afterRows, "After"));
+      const targetUnit = advanced.id === "bq30-advanced-health" ? "mAh" : advanced.unit;
+      rows.push({
+        label: "Verify Readback",
+        command,
+        writeHex: "-",
+        readHex: afterValue === null ? "-" : `${formatNumber(afterValue)} ${targetUnit}`,
+        status: readbackOk
+          ? "Readback sesuai target."
+          : `Readback belum match target ${formatNumber(targetValue)} ${targetUnit}.`
+      });
+      if (bq30AdvancedShowsHealth(advanced)) {
+        rows.push(bq30AdvancedHealthSummaryRow(afterRows, "After Health / SOH"));
+      }
+      const mergedRows = mergeMonitorRows(state.monitorRows, afterRows);
+      const directMetrics = mergedRows.reduce((acc, row) => ({ ...acc, ...directRowToMetrics(row) }), {});
+      const afterHealth = calculateHealthPercent(afterRows);
+      setState({
+        bq30RecoveryRows: rows,
+        monitorRows: mergedRows,
+        metrics: mergeMetrics(createInitialMetrics(), directMetrics),
+        recoveryMessage: readbackOk
+          ? (bq30AdvancedShowsHealth(advanced)
+            ? `${advanced.name} selesai. Health sekarang ${afterHealth === null ? "-" : `${formatNumber(afterHealth, 0)}%`}.`
+            : `${advanced.name} selesai. Readback ${afterValue === null ? "-" : `${formatNumber(afterValue)} ${targetUnit}`}.`)
+          : `${advanced.name} terkirim, tetapi readback belum sesuai target.`
+      });
+      notifyUser(readbackOk ? `${advanced.name} selesai.` : `${advanced.name} perlu cek readback.`, readbackOk ? "success" : "warning");
+      return { beforeRows, afterRows, rows, readbackOk };
     }
 
     async function readUniversalRecoveryPlanRow(plan, signal = null) {
@@ -5029,28 +5380,6 @@
       return { resultRows, monitorRows: finalMonitorRows };
     }
 
-    async function runUniversalReadInfo() {
-      const chipRow = state.busChip ? [{
-        label: "Chip/IC",
-        command: "Detector",
-        writeHex: "-",
-        readHex: state.busChipNotes || "-",
-        status: [state.busChip, state.busChipFamily].filter(Boolean).join(" / ")
-      }] : [];
-      const result = await runUniversalReadPlan(universalReadInfoPlan, "Read Info");
-      if (chipRow.length) {
-        setState({
-          bq30RecoveryRows: [...chipRow, ...result.resultRows],
-          recoveryMessage: `Read Info selesai. Chip/IC ${state.busChip} dari detektor.`
-        });
-      }
-      return result;
-    }
-
-    async function runUniversalReadStatus() {
-      return runUniversalReadPlan(universalReadStatusPlan, "Read Status");
-    }
-
     async function runUniversalProtectionStatus() {
       const profile = selectedProfile(state);
       const family = selectedCatalogFamily(state);
@@ -5075,7 +5404,8 @@
         });
       }
       return runUniversalReadPlan([
-        ...universalReadStatusPlan,
+        ...universalIdentityReadPlan,
+        ...universalSbsStatusReadPlan,
         ...universalCellReadPlan
       ], options.label || "Check Cells", {
         ...options,
@@ -6493,6 +6823,11 @@
       const balanceTarget = container.querySelector("#batteryBq30TargetBalanceDeltaMv");
       const levelTarget = container.querySelector("#batteryBq30TargetLevelPercent");
       const healthTarget = container.querySelector("#batteryBq30TargetHealthPercent");
+      const advancedAction = container.querySelector("#batteryBq30AdvancedActionSelect");
+      const advancedDesignCapacity = container.querySelector("#batteryBq30AdvancedDesignCapacityMah");
+      const advancedHealth = container.querySelector("#batteryBq30AdvancedHealthPercent");
+      const advancedDesignVoltage = container.querySelector("#batteryBq30AdvancedDesignVoltageMv");
+      const advancedCycleCount = container.querySelector("#batteryBq30AdvancedCycleCount");
       balanceTarget?.addEventListener("input", () => setState({
         bq30TargetBalanceDeltaMv: normalizeTargetNumber(balanceTarget.value, 30, 1, 500)
       }));
@@ -6501,6 +6836,23 @@
       }));
       healthTarget?.addEventListener("input", () => setState({
         bq30TargetHealthPercent: normalizeTargetNumber(healthTarget.value, 100, 0, 100)
+      }));
+      advancedAction?.addEventListener("change", () => setState({
+        bq30AdvancedActionId: advancedAction.value,
+        bq30RecoveryRows: [],
+        recoveryPreview: null
+      }));
+      advancedDesignCapacity?.addEventListener("input", () => setState({
+        bq30AdvancedDesignCapacityMah: normalizeTargetNumber(advancedDesignCapacity.value, 3200, 1, 65000)
+      }));
+      advancedHealth?.addEventListener("input", () => setState({
+        bq30AdvancedHealthPercent: normalizeTargetNumber(advancedHealth.value, 100, 1, 100)
+      }));
+      advancedDesignVoltage?.addEventListener("input", () => setState({
+        bq30AdvancedDesignVoltageMv: normalizeTargetNumber(advancedDesignVoltage.value, 10100, 1, 65000)
+      }));
+      advancedCycleCount?.addEventListener("input", () => setState({
+        bq30AdvancedCycleCount: normalizeTargetNumber(advancedCycleCount.value, 0, 0, 65535)
       }));
       container.querySelector("#batteryRecoveryPreviewButton")?.addEventListener("click", () => withBusy(previewRecovery));
       container.querySelector("#batteryRecoveryExecuteButton")?.addEventListener("click", () => {
