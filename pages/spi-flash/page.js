@@ -849,6 +849,7 @@
       jedecDetectedVoltage: "",
       jedecProfileMatched: false,
       jedecCanConfirm3v3: false,
+      force3v3Enabled: false,
       startAddress: "",
       length: "",
       fileName: "",
@@ -1021,6 +1022,7 @@
       jedecDetectedVoltage: String(session.jedecDetectedVoltage || "").trim(),
       jedecProfileMatched: Boolean(session.jedecProfileMatched),
       jedecCanConfirm3v3: Boolean(session.jedecCanConfirm3v3),
+      force3v3Enabled: Boolean(session.force3v3Enabled),
       startAddress: session.startAddress || "",
       length: session.length || "",
       fileName: session.fileName || "",
@@ -2084,6 +2086,7 @@
     const writeAction = isEneTarget ? "ene-write" : isIteTarget ? "ite-write" : "write";
     const verifyAction = isEneTarget ? "ene-verify" : isIteTarget ? "ite-verify" : "verify";
     const eraseAction = isEneTarget ? "ene-erase" : isIteTarget ? "ite-erase" : "erase";
+    const force3v3Enabled = Boolean(state.force3v3Enabled);
 
     return `
       <div class="spi-action-surface">
@@ -2098,6 +2101,17 @@
               <span class="material-symbols-outlined">edit_note</span>
               <span>Edit Database</span>
             </button>
+            ${force3v3Enabled ? `
+              <button type="button" class="spi-vcc-control-button is-active" id="spiFlashVccOffButton" title="FORCE 3.3V aktif. Klik untuk mematikan VCC."${actionDisableAttr}>
+                <span class="material-symbols-outlined">power_settings_new</span>
+                <span>FORCE 3.3V AKTIF · VCC OFF</span>
+              </button>
+            ` : `
+              <button type="button" class="spi-vcc-control-button" id="spiFlashForce3v3Button" title="Aktifkan override VCC 3.3V manual."${actionDisableAttr}>
+                <span class="material-symbols-outlined">electric_bolt</span>
+                <span>FORCE 3.3V</span>
+              </button>
+            `}
           </div>
         </div>
         <div class="spi-action-command-grid is-kbc-actions">
@@ -3102,6 +3116,48 @@
             render();
           }, {
             activeOperation: "Uji BIOS 3.3 V"
+          });
+        });
+      }
+
+      const force3v3Button = mountedContainer.querySelector("#spiFlashForce3v3Button");
+      if (force3v3Button) {
+        force3v3Button.addEventListener("click", () => {
+          const confirmed = window.confirm(
+            "FORCE 3.3 V hanya untuk target yang memang aman pada 3.3 V. Mode ini akan dipakai untuk operasi BIOS/EC berikutnya sampai VCC OFF, Reset Session, atau ganti device. Lanjutkan?"
+          );
+          if (!confirmed) {
+            return;
+          }
+
+          void withBusy(async () => {
+            const result = await fetchJson("/spi-flash/flash-osc/target-vcc/3v3", {
+              method: "POST",
+              body: JSON.stringify({})
+            });
+            notifyUser(result?.message || "FORCE 3.3V aktif.", "warning");
+          }, {
+            activeOperation: "FORCE 3.3 V"
+          });
+        });
+      }
+
+      const vccOffButton = mountedContainer.querySelector("#spiFlashVccOffButton");
+      if (vccOffButton) {
+        const vccOffLabel = vccOffButton.querySelector("span:last-child");
+        if (vccOffLabel) {
+          vccOffLabel.textContent = "FORCE 3.3V AKTIF - VCC OFF";
+        }
+
+        vccOffButton.addEventListener("click", () => {
+          void withBusy(async () => {
+            const result = await fetchJson("/spi-flash/flash-osc/target-vcc/off", {
+              method: "POST",
+              body: JSON.stringify({})
+            });
+            notifyUser(result?.message || "VCC target dimatikan.", "info");
+          }, {
+            activeOperation: "VCC OFF"
           });
         });
       }

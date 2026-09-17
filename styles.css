@@ -6134,9 +6134,9 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
 
 .spi-action-utility-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(106px, 1fr));
+  grid-template-columns: repeat(3, minmax(106px, 1fr));
   gap: 8px;
-  min-width: 240px;
+  min-width: 360px;
 }
 
 .spi-action-utility-row button {
@@ -6147,6 +6147,25 @@ body.is-dark-mode .spi-device-combobox-option .material-symbols-outlined {
   justify-content: center;
   gap: 7px;
   white-space: nowrap;
+}
+
+.spi-action-utility-row .spi-vcc-control-button {
+  border-color: rgba(240, 194, 103, 0.46);
+  background: linear-gradient(180deg, rgba(178, 122, 34, 0.42), rgba(103, 67, 17, 0.48));
+  color: #fff0cc;
+}
+
+.spi-action-utility-row .spi-vcc-control-button:hover,
+.spi-action-utility-row .spi-vcc-control-button:focus-visible {
+  border-color: #ffd477;
+  background: linear-gradient(180deg, rgba(205, 145, 45, 0.58), rgba(126, 83, 18, 0.6));
+  color: #fff8e7;
+}
+
+.spi-action-utility-row .spi-vcc-control-button.is-active {
+  border-color: rgba(255, 133, 108, 0.58);
+  background: linear-gradient(180deg, rgba(168, 62, 43, 0.58), rgba(102, 31, 24, 0.68));
+  color: #fff0eb;
 }
 
 .spi-action-command-grid {
@@ -10090,6 +10109,18 @@ body.is-dark-mode .spi-scope-theme .spi-soic-chip-profile strong {
   min-height: 52px;
 }
 
+.spi-scope-theme .spi-action-utility-row .spi-vcc-control-button {
+  border-color: rgba(240, 194, 103, 0.46);
+  background: linear-gradient(180deg, rgba(178, 122, 34, 0.42), rgba(103, 67, 17, 0.48));
+  color: #fff0cc;
+}
+
+.spi-scope-theme .spi-action-utility-row .spi-vcc-control-button.is-active {
+  border-color: rgba(255, 133, 108, 0.58);
+  background: linear-gradient(180deg, rgba(168, 62, 43, 0.58), rgba(102, 31, 24, 0.68));
+  color: #fff0eb;
+}
+
 .spi-scope-theme .spi-action-command-side button,
 .spi-scope-theme .spi-action-utility-row button {
   min-height: 44px;
@@ -10340,6 +10371,18 @@ body:not(.is-dark-mode) .spi-scope-theme .spi-action-utility-row button:focus-vi
   border-color: rgba(21, 128, 111, 0.28);
   background: rgba(30, 190, 160, 0.14);
   color: #0b7b69;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-utility-row .spi-vcc-control-button {
+  border-color: rgba(191, 124, 28, 0.42);
+  background: rgba(255, 231, 181, 0.72);
+  color: #7b4c00;
+}
+
+body:not(.is-dark-mode) .spi-scope-theme .spi-action-utility-row .spi-vcc-control-button.is-active {
+  border-color: rgba(190, 70, 49, 0.48);
+  background: rgba(255, 220, 211, 0.82);
+  color: #9a2e20;
 }
 
 body:not(.is-dark-mode) .spi-scope-theme .spi-device-combobox-trigger {
