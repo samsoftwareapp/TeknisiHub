@@ -80,7 +80,7 @@
 
   function buildNativeViewerUrl(payload) {
     const targetUrl = new URL("boardview-teknisihub.html", globalScope.location.href);
-    targetUrl.searchParams.set("v", "20260518a");
+    targetUrl.searchParams.set("v", "202609180003");
     if (payload.sessionId) {
       targetUrl.searchParams.set("sessionId", payload.sessionId);
     }
@@ -318,7 +318,7 @@
         const formData = new FormData();
         formData.set("file", selectedNativeFile);
 
-        const nativeSession = await fetchJson("/tools/boardviewer/native-session", {
+        const nativeSession = await fetchJson("/tools/boardviewer/native-session?includePreview=false", {
           method: "POST",
           body: formData
         });

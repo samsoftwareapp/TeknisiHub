@@ -114,6 +114,26 @@
     return nextHeaders;
   }
 
+  async function isNonceRejectedResponse(response) {
+    if (!response || response.status !== 403) {
+      return false;
+    }
+
+    try {
+      const payload = await response.clone().json();
+      return String(payload?.requiredHeader || "").toLowerCase() ===
+        String(localApiState.headerName || "").toLowerCase();
+    } catch {
+      return false;
+    }
+  }
+
+  function invalidateLocalApiSession() {
+    localApiState.nonce = "";
+    localApiState.expiresAtMs = 0;
+    localApiState.unsupported = false;
+  }
+
   if (originalFetch) {
     globalScope.fetch = async function fetchWithTeknisiHubLocalNonce(input, options) {
       const method = resolveRequestMethod(input, options);
@@ -128,10 +148,44 @@
 
       const sourceHeaders = options?.headers || (input instanceof Request ? input.headers : undefined);
       const headers = appendNonceHeader(sourceHeaders, session);
-      return originalFetch(input, {
-        ...(options || {}),
-        headers
-      });
+      let request = null;
+      let retryRequest = null;
+      try {
+        request = new Request(input, {
+          ...(options || {}),
+          headers
+        });
+        retryRequest = request.clone();
+      } catch {
+        // Preserve the caller request when it cannot safely be cloned for a retry.
+        return originalFetch(input, {
+          ...(options || {}),
+          headers
+        });
+      }
+
+      const response = await originalFetch(request);
+
+      // A LocalService restart replaces the in-memory nonce while an existing
+      // browser tab still considers its cached nonce fresh. Refresh once and
+      // replay the same request so opening a BoardViewer session is seamless.
+      if (!await isNonceRejectedResponse(response)) {
+        return response;
+      }
+
+      invalidateLocalApiSession();
+      try {
+        const refreshedSession = await ensureLocalApiSession();
+        if (!refreshedSession.nonce) {
+          return response;
+        }
+
+        return originalFetch(new Request(retryRequest, {
+          headers: appendNonceHeader(retryRequest.headers, refreshedSession)
+        }));
+      } catch {
+        return response;
+      }
     };
   }
 

@@ -118,17 +118,23 @@ const state = {
   config: { uploadAuthRequired: false, maxUploadMb: null, boardTtlMinutes: null, supportUrl: '', appVersion: '', appRevision: '', appTagline: '', googleAuthEnabled: false, appleAuthEnabled: false, authProviders: [], requireLogin: false, loginGateEnabled: false, authConfigured: false, currentUser: null, canViewMetrics: false },
   auth: { username: '', password: '' },
   drag: { active: false, moved: false, startX: 0, startY: 0, offsetX: 0, offsetY: 0 },
+  viewInteraction: { active: false, settleTimer: 0 },
   camera: { scale: 1, offsetX: 0, offsetY: 0, baseScale: 1 },
   indexes: {
     pinsByPart: new Map(),
     pinsByNet: new Map(),
     nailsByNet: new Map(),
     partsByName: new Map(),
+    partsByIndex: new Map(),
+    partOrder: new Map(),
+    pinOrder: new Map(),
+    netsByName: new Map(),
     routesByNet: new Map(),
     arcsByNet: new Map(),
     pinGrid: new Map(),
     partGrid: new Map(),
     partBoxes: new Map(),
+    unindexedParts: [],
     connectionCache: new Map(),
     cellSize: 50,
   },
@@ -155,6 +161,7 @@ const state = {
   },
   searchMode: 'all',
   searchFocusPulse: null,
+  minimapCache: { board: null, key: '', canvas: null, layout: null },
 };
 
 const THEMES = {
@@ -1306,6 +1313,48 @@ function getItemsNearPoint(grid, x, y, radiusWorld, cellSize) {
   return found;
 }
 
+function getItemsInWorldBounds(grid, bounds, cellSize) {
+  const x1 = Math.floor(bounds.x_min / cellSize);
+  const x2 = Math.floor(bounds.x_max / cellSize);
+  const y1 = Math.floor(bounds.y_min / cellSize);
+  const y2 = Math.floor(bounds.y_max / cellSize);
+  const found = [];
+  const seen = new Set();
+  for (let gx = x1; gx <= x2; gx += 1) {
+    for (let gy = y1; gy <= y2; gy += 1) {
+      const bucket = grid.get(gridKey(gx, gy));
+      if (!bucket) continue;
+      for (const item of bucket) {
+        if (seen.has(item)) continue;
+        seen.add(item);
+        found.push(item);
+      }
+    }
+  }
+  return found;
+}
+
+function getSpatiallyCulledRenderItems(source, grid, order, viewport, unindexed = [], getOrderKey = (item) => item.index) {
+  if (!state.board || source.length < 400) return source;
+  const boardBounds = state.board.bounds || {};
+  const boardWidth = Math.max(0, Number(boardBounds.x_max) - Number(boardBounds.x_min));
+  const boardHeight = Math.max(0, Number(boardBounds.y_max) - Number(boardBounds.y_min));
+  const viewportWidth = Math.max(0, viewport.x_max - viewport.x_min);
+  const viewportHeight = Math.max(0, viewport.y_max - viewport.y_min);
+  const boardArea = boardWidth * boardHeight;
+  const viewportArea = viewportWidth * viewportHeight;
+  if (!Number.isFinite(boardArea) || !Number.isFinite(viewportArea) ||
+      boardArea <= 0 || viewportArea >= boardArea * 0.78) {
+    return source;
+  }
+
+  const candidates = getItemsInWorldBounds(grid, viewport, state.indexes.cellSize);
+  if (unindexed.length) candidates.push(...unindexed);
+  if (candidates.length >= source.length * 0.78) return source;
+  candidates.sort((left, right) => (order.get(getOrderKey(left)) ?? 0) - (order.get(getOrderKey(right)) ?? 0));
+  return candidates;
+}
+
 function derivePinsBBox(pins) {
   if (!pins.length) return null;
   const xs = pins.map((pin) => pin.x);
@@ -1559,20 +1608,33 @@ function buildIndexes(board) {
     pinsByNet: new Map(),
     nailsByNet: new Map(),
     partsByName: new Map(),
+    partsByIndex: new Map(),
+    partOrder: new Map(),
+    pinOrder: new Map(),
+    netsByName: new Map(),
     routesByNet: new Map(),
     arcsByNet: new Map(),
     pinGrid: new Map(),
     partGrid: new Map(),
     partBoxes: new Map(),
+    unindexedParts: [],
     connectionCache: new Map(),
     cellSize: computeAutoCellSize(board),
   };
 
-  for (const part of board.parts) {
+  for (const [partOrder, part] of board.parts.entries()) {
     state.indexes.partsByName.set(part.name.toLowerCase(), part);
+    state.indexes.partsByIndex.set(part.index, part);
+    state.indexes.partOrder.set(part.index, partOrder);
   }
 
-  for (const pin of board.pins) {
+  for (const net of board.nets || []) {
+    const key = String(net.name || '').toLowerCase();
+    if (key) state.indexes.netsByName.set(key, net);
+  }
+
+  for (const [pinOrder, pin] of board.pins.entries()) {
+    state.indexes.pinOrder.set(pin.index, pinOrder);
     if (!state.indexes.pinsByPart.has(pin.part)) state.indexes.pinsByPart.set(pin.part, []);
     state.indexes.pinsByPart.get(pin.part).push(pin);
     const key = (pin.net || '').toLowerCase();
@@ -1592,7 +1654,10 @@ function buildIndexes(board) {
   for (const part of board.parts) {
     const pins = state.indexes.pinsByPart.get(part.index) || [];
     const box = derivePartBBox(part, pins, board);
-    if (!box) continue;
+    if (!box) {
+      state.indexes.unindexedParts.push(part);
+      continue;
+    }
     state.indexes.partBoxes.set(part.index, box);
     addItemToGrid(state.indexes.partGrid, box, state.indexes.cellSize, part);
   }
@@ -1617,6 +1682,7 @@ function buildIndexes(board) {
     if (!state.indexes.arcsByNet.has(key)) state.indexes.arcsByNet.set(key, []);
     state.indexes.arcsByNet.get(key).push(arc);
   }
+
 }
 
 function isSideVisible(side) {
@@ -1757,7 +1823,7 @@ function hideTooltip() {
 function updateHoverTooltip(clientX, clientY) {
   if (state.hoverPin) {
     const pin = state.hoverPin;
-    const part = pin.part ? state.board?.parts?.find((item) => item.index === pin.part) : null;
+    const part = pin.part ? state.indexes.partsByIndex.get(pin.part) || null : null;
     const lines = [
       `<strong>${escapeHtml(pin.name || `#${pin.index}`)}</strong>`,
       `Net: ${escapeHtml(pin.net || 'No net')}`,
@@ -1770,7 +1836,7 @@ function updateHoverTooltip(clientX, clientY) {
   }
   if (state.hoverPart) {
     const part = state.hoverPart;
-    const pinCount = (state.board?.pins || []).filter((pin) => pin.part === part.index).length;
+    const pinCount = state.indexes.pinsByPart.get(part.index)?.length || 0;
     const note = notesGet(partNoteKey(part.name));
     const mark = markGet(part.name);
     const markLabel = mark ? { ok: 'OK', suspect: 'Suspect', bad: 'Bad' }[mark] : null;
@@ -1824,51 +1890,91 @@ function transformedViewToMinimapScreen(x, y, layout) {
   };
 }
 
-function drawMinimap() {
-  if (!minimapCtx || !minimapShellEl) return;
-  const hasBoard = Boolean(state.board);
-  minimapShellEl.classList.toggle('is-hidden', !hasBoard);
-  if (!hasBoard) return;
-  const layout = getMinimapLayout();
-  if (!layout) return;
+function getMinimapCacheKey() {
+  return [
+    state.theme,
+    state.visibleSide,
+    state.rotationDeg,
+    state.mirrorMode,
+    minimapCanvas.width,
+    minimapCanvas.height,
+  ].join('|');
+}
 
-  minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-  minimapCtx.fillStyle = state.theme === 'light' ? '#f8fbff' : '#0b1220';
-  minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+function buildMinimapBase(layout) {
+  const baseCanvas = document.createElement('canvas');
+  baseCanvas.width = minimapCanvas.width;
+  baseCanvas.height = minimapCanvas.height;
+  const baseCtx = baseCanvas.getContext('2d');
+  if (!baseCtx) return null;
 
-  minimapCtx.strokeStyle = state.theme === 'light' ? '#94a3b8' : '#334155';
-  minimapCtx.lineWidth = 1;
-  minimapCtx.strokeRect(layout.offsetX, layout.offsetY, layout.bounds.width * layout.scale, layout.bounds.height * layout.scale);
+  baseCtx.fillStyle = state.theme === 'light' ? '#f8fbff' : '#0b1220';
+  baseCtx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
+  baseCtx.strokeStyle = state.theme === 'light' ? '#94a3b8' : '#334155';
+  baseCtx.lineWidth = 1;
+  baseCtx.strokeRect(layout.offsetX, layout.offsetY, layout.bounds.width * layout.scale, layout.bounds.height * layout.scale);
 
   const parts = state.board.parts || [];
   const isLight = state.theme === 'light';
-  const colorTop    = isLight ? 'rgba(37, 99, 235, 0.40)'  : 'rgba(96, 165, 250, 0.50)';
-  const colorBottom = isLight ? 'rgba(190, 24, 93, 0.38)'  : 'rgba(244, 114, 182, 0.50)';
-  const colorBoth   = isLight ? 'rgba(71, 85, 105, 0.30)'  : 'rgba(148, 163, 184, 0.35)';
+  const colorTop = isLight ? 'rgba(37, 99, 235, 0.40)' : 'rgba(96, 165, 250, 0.50)';
+  const colorBottom = isLight ? 'rgba(190, 24, 93, 0.38)' : 'rgba(244, 114, 182, 0.50)';
+  const colorBoth = isLight ? 'rgba(71, 85, 105, 0.30)' : 'rgba(148, 163, 184, 0.35)';
   for (const part of parts) {
     if (!isSideVisible(part.mounting_side || 'both')) continue;
     const box = getPartBox(part);
     if (!box) continue;
     const side = part.mounting_side || 'both';
-    minimapCtx.fillStyle = side === 'top' ? colorTop : side === 'bottom' ? colorBottom : colorBoth;
+    baseCtx.fillStyle = side === 'top' ? colorTop : side === 'bottom' ? colorBottom : colorBoth;
     const p1 = minimapWorldToScreen(box.x_min, box.y_min, layout);
     const p2 = minimapWorldToScreen(box.x_max, box.y_max, layout);
     const x = Math.min(p1.x, p2.x);
     const y = Math.min(p1.y, p2.y);
-    const w = Math.max(1, Math.abs(p2.x - p1.x));
-    const h = Math.max(1, Math.abs(p2.y - p1.y));
-    minimapCtx.fillRect(x, y, w, h);
+    const width = Math.max(1, Math.abs(p2.x - p1.x));
+    const height = Math.max(1, Math.abs(p2.y - p1.y));
+    baseCtx.fillRect(x, y, width, height);
   }
+
+  return baseCanvas;
+}
+
+function drawMinimap() {
+  if (!minimapCtx || !minimapShellEl) return;
+  const hasBoard = Boolean(state.board);
+  minimapShellEl.classList.toggle('is-hidden', !hasBoard);
+  if (!hasBoard) {
+    state.minimapCache = { board: null, key: '', canvas: null, layout: null };
+    return;
+  }
+  const layout = getMinimapLayout();
+  if (!layout) return;
+
+  const cacheKey = getMinimapCacheKey();
+  if (state.minimapCache.board !== state.board ||
+      state.minimapCache.key !== cacheKey ||
+      !state.minimapCache.canvas) {
+    state.minimapCache = {
+      board: state.board,
+      key: cacheKey,
+      canvas: buildMinimapBase(layout),
+      layout,
+    };
+  }
+
+  const cachedBase = state.minimapCache.canvas;
+  if (!cachedBase) return;
+  minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+  minimapCtx.drawImage(cachedBase, 0, 0);
+  const cachedLayout = state.minimapCache.layout || layout;
 
   const vp1 = transformedViewToMinimapScreen(
     (0 - state.camera.offsetX) / state.camera.scale,
     (0 - state.camera.offsetY) / state.camera.scale,
-    layout,
+    cachedLayout,
   );
   const vp2 = transformedViewToMinimapScreen(
     (canvas.clientWidth - state.camera.offsetX) / state.camera.scale,
     (canvas.clientHeight - state.camera.offsetY) / state.camera.scale,
-    layout,
+    cachedLayout,
   );
   minimapCtx.fillStyle = state.theme === 'light' ? 'rgba(14, 165, 233, 0.15)' : 'rgba(56, 189, 248, 0.18)';
   minimapCtx.strokeStyle = state.theme === 'light' ? '#0284c7' : '#38bdf8';
@@ -2060,7 +2166,8 @@ function runActiveSearch() {
 function getNetPinCount(netName) {
   if (!state.board || !netName) return 0;
   const key = netName.toLowerCase();
-  const found = (state.board.nets || []).find(n => n.name.toLowerCase() === key);
+  const found = state.indexes.netsByName.get(key)
+    || (state.board.nets || []).find((net) => String(net.name || '').toLowerCase() === key);
   return found ? found.pin_count : 0;
 }
 
@@ -2074,6 +2181,30 @@ function getNetGlowColor(netName) {
 const DENSE_NET_THRESHOLD = 50;
 const PART_RATSNEST_TRACE_NEIGHBORS = 1;
 const PART_RATSNEST_FULL_NEIGHBORS = 3;
+const VIEW_INTERACTION_SETTLE_MS = 180;
+
+function beginViewInteraction() {
+  state.viewInteraction.active = true;
+  if (state.viewInteraction.settleTimer) {
+    window.clearTimeout(state.viewInteraction.settleTimer);
+  }
+  state.viewInteraction.settleTimer = window.setTimeout(() => {
+    state.viewInteraction.settleTimer = 0;
+    if (!state.viewInteraction.active) return;
+    state.viewInteraction.active = false;
+    render();
+  }, VIEW_INTERACTION_SETTLE_MS);
+}
+
+function finishViewInteraction() {
+  if (state.viewInteraction.settleTimer) {
+    window.clearTimeout(state.viewInteraction.settleTimer);
+    state.viewInteraction.settleTimer = 0;
+  }
+  if (!state.viewInteraction.active) return;
+  state.viewInteraction.active = false;
+  render();
+}
 
 function render() {
   if (state.renderLoop.scheduled) return;
@@ -2219,8 +2350,28 @@ function drawGrid() {
 }
 
 function drawOutline() {
-  const viewport = getViewportWorldBounds(40);
   const segments = state.board.outline_segments || [];
+  // A dense native outline can contain thousands of fabricated-detail
+  // segments. Replaying all of it during every wheel tick is the remaining
+  // source of zoom stutter, so keep a stable board boundary while moving and
+  // restore the exact outline after the interaction settles.
+  if (state.viewInteraction.active && segments.length >= 400) {
+    const bounds = getTransformedBoardBounds();
+    if (!bounds) return;
+    const topLeft = {
+      x: bounds.x_min * state.camera.scale + state.camera.offsetX,
+      y: bounds.y_min * state.camera.scale + state.camera.offsetY,
+    };
+    ctx.save();
+    ctx.strokeStyle = state.theme === 'light' ? 'rgba(30,41,59,0.52)' : 'rgba(226,232,240,0.52)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(topLeft.x, topLeft.y, bounds.width * state.camera.scale, bounds.height * state.camera.scale);
+    ctx.restore();
+    return;
+  }
+
+  const viewport = getViewportWorldBounds(40);
   if (segments.length) {
     ctx.save();
     const tvwNative = hasTvwNativeSegments();
@@ -2299,13 +2450,23 @@ function getScreenBoundsForPart(part, pins, partBox, options = {}) {
   if (!bbox && part.center) {
     bbox = { x_min: part.center.x - 1, x_max: part.center.x + 1, y_min: part.center.y - 1, y_max: part.center.y + 1 };
   }
-  const pinSource = pins.length ? pins.map((pin) => worldToScreen(pin.x, pin.y)) : [worldToScreen(part.center?.x || 0, part.center?.y || 0)];
-  const xs = pinSource.map((p) => p.x);
-  const ys = pinSource.map((p) => p.y);
-  let xMin = Math.min(...xs);
-  let xMax = Math.max(...xs);
-  let yMin = Math.min(...ys);
-  let yMax = Math.max(...ys);
+  let xMin = Number.POSITIVE_INFINITY;
+  let xMax = Number.NEGATIVE_INFINITY;
+  let yMin = Number.POSITIVE_INFINITY;
+  let yMax = Number.NEGATIVE_INFINITY;
+  if (pins.length) {
+    for (const pin of pins) {
+      const screen = worldToScreen(pin.x, pin.y);
+      xMin = Math.min(xMin, screen.x);
+      xMax = Math.max(xMax, screen.x);
+      yMin = Math.min(yMin, screen.y);
+      yMax = Math.max(yMax, screen.y);
+    }
+  } else {
+    const screen = worldToScreen(part.center?.x || 0, part.center?.y || 0);
+    xMin = xMax = screen.x;
+    yMin = yMax = screen.y;
+  }
   if (bbox) {
     const a = worldToScreen(bbox.x_min, bbox.y_min);
     const b = worldToScreen(bbox.x_max, bbox.y_max);
@@ -2345,10 +2506,18 @@ function classifyPartGeometry(part, pins, bounds) {
   const width = bounds.width;
   const height = bounds.height;
   const aspect = width > 0 && height > 0 ? Math.max(width, height) / Math.max(1, Math.min(width, height)) : 1;
-  const xs = pins.map((pin) => pin.x);
-  const ys = pins.map((pin) => pin.y);
-  const xSpan = xs.length ? Math.max(...xs) - Math.min(...xs) : 0;
-  const ySpan = ys.length ? Math.max(...ys) - Math.min(...ys) : 0;
+  let pinXMin = Number.POSITIVE_INFINITY;
+  let pinXMax = Number.NEGATIVE_INFINITY;
+  let pinYMin = Number.POSITIVE_INFINITY;
+  let pinYMax = Number.NEGATIVE_INFINITY;
+  for (const pin of pins) {
+    pinXMin = Math.min(pinXMin, pin.x);
+    pinXMax = Math.max(pinXMax, pin.x);
+    pinYMin = Math.min(pinYMin, pin.y);
+    pinYMax = Math.max(pinYMax, pin.y);
+  }
+  const xSpan = count ? pinXMax - pinXMin : 0;
+  const ySpan = count ? pinYMax - pinYMin : 0;
   if (/^(J|CN|CON|PJP|XW)/.test(name) || (count >= 4 && aspect > 3.2)) return 'connector';
   if (/^(TP|TEST|VIA)/.test(name)) return 'testpoint';
   if (/^(D)/.test(name) && count <= 3) return 'diode';
@@ -2386,6 +2555,56 @@ function drawPartMarker(kind, bounds, strokeStyle) {
   ctx.restore();
 }
 
+function drawPartsDuringViewInteraction(viewport) {
+  const renderParts = getSpatiallyCulledRenderItems(
+    state.board.parts,
+    state.indexes.partGrid,
+    state.indexes.partOrder,
+    viewport,
+    state.indexes.unindexedParts,
+  );
+  const selectedPartIndex = state.selectedPart?.index || null;
+  const hoverPartIndex = state.hoverPart?.index || null;
+  const selectedNetKey = (state.selectedNet || '').toLowerCase();
+  ctx.save();
+
+  for (const part of renderParts) {
+    if (!isSideVisible(part.mounting_side)) continue;
+    const partBox = getPartBox(part);
+    if (partBox && !rectIntersectsWorldBounds(partBox, viewport)) continue;
+    const pins = getPartPins(part);
+    const center = part.center || pins[0];
+    if (!partBox && !center) continue;
+    state.renderLoop.lastVisibleParts += 1;
+
+    const isSelected = part.index === selectedPartIndex || part.index === hoverPartIndex;
+    const hasSelectedNet = selectedNetKey && (part.nets || []).some((net) => net.toLowerCase() === selectedNetKey);
+    ctx.fillStyle = isSelected
+      ? COLORS.selected
+      : hasSelectedNet
+        ? COLORS.net
+        : part.mounting_side === 'bottom'
+          ? 'rgba(244,114,182,0.62)'
+          : 'rgba(96,165,250,0.62)';
+
+    if (partBox) {
+      const a = worldToScreen(partBox.x_min, partBox.y_min);
+      const b = worldToScreen(partBox.x_max, partBox.y_max);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const width = Math.max(isSelected ? 3 : 1, Math.abs(b.x - a.x));
+      const height = Math.max(isSelected ? 3 : 1, Math.abs(b.y - a.y));
+      ctx.fillRect(x, y, width, height);
+      continue;
+    }
+
+    const screen = worldToScreen(center.x, center.y);
+    const size = isSelected ? 4 : 2;
+    ctx.fillRect(screen.x - size / 2, screen.y - size / 2, size, size);
+  }
+
+  ctx.restore();
+}
 
 function drawParts() {
   const zoom = state.camera.scale;
@@ -2394,19 +2613,58 @@ function drawParts() {
   const tvwNativeSegments = hasTvwNativeSegments();
   const selectedNetKey = (state.selectedNet || '').toLowerCase();
   const viewport = getViewportWorldBounds(90);
-  // Spatial label deconfliction: track occupied screen rectangles
-  // Only show label if its bounding box doesn't overlap an already-placed label
-  const labelRects = []; // [{x,y,w,h}]
+  if (state.viewInteraction.active) {
+    drawPartsDuringViewInteraction(viewport);
+    return;
+  }
+  const renderParts = getSpatiallyCulledRenderItems(
+    state.board.parts,
+    state.indexes.partGrid,
+    state.indexes.partOrder,
+    viewport,
+    state.indexes.unindexedParts,
+  );
+  // Spatial label deconfliction. The old flat rectangle list made dense boards
+  // compare every candidate label with every accepted label. Bucket labels in
+  // screen space so the exact collision rule only checks nearby neighbours.
+  const labelCellSize = 96;
+  const labelGrid = new Map();
+  const labelCellKey = (x, y) => `${x}:${y}`;
   function labelFits(lx, ly, lw, lh) {
     const pad = 2;
-    for (const r of labelRects) {
-      if (lx - pad < r.x + r.w && lx + lw + pad > r.x &&
-          ly - pad < r.y + r.h && ly + lh + pad > r.y) return false;
+    const minCellX = Math.floor((lx - pad) / labelCellSize);
+    const maxCellX = Math.floor((lx + lw + pad) / labelCellSize);
+    const minCellY = Math.floor((ly - pad) / labelCellSize);
+    const maxCellY = Math.floor((ly + lh + pad) / labelCellSize);
+    for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+        const bucket = labelGrid.get(labelCellKey(cellX, cellY));
+        if (!bucket) continue;
+        for (const r of bucket) {
+          if (lx - pad < r.x + r.w && lx + lw + pad > r.x &&
+              ly - pad < r.y + r.h && ly + lh + pad > r.y) return false;
+        }
+      }
     }
     return true;
   }
+  function rememberLabel(rect) {
+    const minCellX = Math.floor(rect.x / labelCellSize);
+    const maxCellX = Math.floor((rect.x + rect.w) / labelCellSize);
+    const minCellY = Math.floor(rect.y / labelCellSize);
+    const maxCellY = Math.floor((rect.y + rect.h) / labelCellSize);
+    for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+        const key = labelCellKey(cellX, cellY);
+        const bucket = labelGrid.get(key);
+        if (bucket) bucket.push(rect);
+        else labelGrid.set(key, [rect]);
+      }
+    }
+  }
 
-  for (const part of state.board.parts) {
+  ctx.save();
+  for (const part of renderParts) {
     if (!isSideVisible(part.mounting_side)) continue;
     const pins = getPartPins(part);
     const partBox = getPartBox(part);
@@ -2438,7 +2696,6 @@ function drawParts() {
         ? (part.mounting_side === 'bottom' ? 'rgba(244,114,182,0.045)' : 'rgba(96,165,250,0.045)')
         : (part.mounting_side === 'bottom' ? 'rgba(244,114,182,0.05)' : 'rgba(96,165,250,0.05)');
 
-    ctx.save();
     ctx.strokeStyle = edgeColor;
     ctx.fillStyle = fillColor;
     ctx.lineWidth = tvwMode
@@ -2509,7 +2766,7 @@ function drawParts() {
             : part.mounting_side === 'bottom' ? '#fbcfe8' : '#bfdbfe';
         }
         ctx.fillText(part.name, c.x, bounds.yMin - 4);
-        if (!forced) labelRects.push({ x: lx, y: ly, w: tw, h: th });
+        if (!forced) rememberLabel({ x: lx, y: ly, w: tw, h: th });
       }
     }
 
@@ -2524,13 +2781,51 @@ function drawParts() {
         ctx.restore();
       }
     }
-
-    ctx.restore();
   }
+  ctx.restore();
+}
+
+function drawPinsDuringViewInteraction(viewport) {
+  const renderPins = getSpatiallyCulledRenderItems(
+    state.board.pins,
+    state.indexes.pinGrid,
+    state.indexes.pinOrder,
+    viewport,
+  );
+  const selectedNetKey = (state.selectedNet || '').toLowerCase();
+  const selectedPartIndex = state.selectedPart?.index || null;
+  const hoverPartIndex = state.hoverPart?.index || null;
+  const selectedPinIndex = state.selectedPin?.index || null;
+  const hoverPinIndex = state.hoverPin?.index || null;
+  const detailZoom = getDetailZoom();
+  const baseSize = detailZoom < 1.5 ? 1.2 : detailZoom < 3.2 ? 1.8 : 2.4;
+  ctx.save();
+
+  for (const pin of renderPins) {
+    if (!isSideVisible(pin.side)) continue;
+    if (!pointInWorldBounds(pin.x, pin.y, viewport)) continue;
+    state.renderLoop.lastVisiblePins += 1;
+
+    const isActive = pin.index === selectedPinIndex || pin.index === hoverPinIndex ||
+      pin.part === selectedPartIndex || pin.part === hoverPartIndex ||
+      (selectedNetKey && (pin.net || '').toLowerCase() === selectedNetKey);
+    const screen = worldToScreen(pin.x, pin.y);
+    const size = isActive ? Math.max(3.5, baseSize * 2) : baseSize;
+    ctx.fillStyle = isActive
+      ? COLORS.selected
+      : pin.side === 'bottom'
+        ? 'rgba(244,114,182,0.8)'
+        : 'rgba(96,165,250,0.8)';
+    ctx.fillRect(screen.x - size / 2, screen.y - size / 2, size, size);
+  }
+
+  ctx.restore();
 }
 
 function drawPins() {
   const selectedNetKey = (state.selectedNet || '').toLowerCase();
+  const selectedNetDense = selectedNetKey && getNetPinCount(state.selectedNet) >= DENSE_NET_THRESHOLD;
+  const selectedNetColor = selectedNetDense ? getNetGlowColor(state.selectedNet) : COLORS.net;
   const selectedPartIndex = state.selectedPart?.index || null;
   const hoverPartIndex = state.hoverPart?.index || null;
   const hoverPinIndex = state.hoverPin?.index || null;
@@ -2540,6 +2835,16 @@ function drawPins() {
   const viewport = getViewportWorldBounds(50);
   const forceVisible = Boolean(selectedNetKey || selectedPartIndex || hoverPartIndex || hoverPinIndex || state.selectedPin);
   if (!forceVisible && getDetailZoom() < 0.85) return;
+  if (state.viewInteraction.active) {
+    drawPinsDuringViewInteraction(viewport);
+    return;
+  }
+  const renderPins = getSpatiallyCulledRenderItems(
+    state.board.pins,
+    state.indexes.pinGrid,
+    state.indexes.pinOrder,
+    viewport,
+  );
 
   const dz = getDetailZoom();
   // Pin rendering mode: scales with zoom so pins don't dominate at overview
@@ -2548,7 +2853,7 @@ function drawPins() {
   const pinMode = dz < 1.5 ? 'dot' : dz < 3.2 ? 'ring' : 'full';
 
   ctx.save();
-  for (const pin of state.board.pins) {
+  for (const pin of renderPins) {
     if (!isSideVisible(pin.side)) continue;
     if (!pointInWorldBounds(pin.x, pin.y, viewport)) continue;
 
@@ -2584,9 +2889,8 @@ function drawPins() {
     } else if (isHoverNet) {
       ring = '#5eead4'; outer = Math.max(outer, 4.0); inner = 'rgba(13,30,30,0.88)';
     } else if (isSelectedNet) {
-      const _dense = getNetPinCount(state.selectedNet) >= DENSE_NET_THRESHOLD;
-      ring = _dense ? getNetGlowColor(state.selectedNet) : COLORS.net;
-      outer = _dense ? Math.max(outer * 0.75, 1.8) : Math.max(outer, 4.2);
+      ring = selectedNetColor;
+      outer = selectedNetDense ? Math.max(outer * 0.75, 1.8) : Math.max(outer, 4.2);
     } else if (isSelectedPart || isHoverPart) {
       ring = COLORS.selected; outer = Math.max(outer, 3.8);
     } else if (state.selectedNet || state.selectedPart || state.selectedPin) {
@@ -3593,6 +3897,9 @@ function initContextMenu() {
 }
 
 // -- Permalink -----------------------------------------------------------------
+const VIEW_PERMALINK_DEBOUNCE_MS = 120;
+let viewPermalinkTimer = 0;
+
 function permalinkEncode() {
   if (!state.board) return;
   const p = new URLSearchParams();
@@ -3642,7 +3949,25 @@ function permalinkApply(pl) {
   }
   render();
 }
-function onViewChanged() { if (state.board) permalinkEncode(); }
+function onViewChanged(options = {}) {
+  if (!state.board) return;
+  if (options.defer) {
+    if (viewPermalinkTimer) {
+      window.clearTimeout(viewPermalinkTimer);
+    }
+    viewPermalinkTimer = window.setTimeout(() => {
+      viewPermalinkTimer = 0;
+      if (state.board) permalinkEncode();
+    }, VIEW_PERMALINK_DEBOUNCE_MS);
+    return;
+  }
+
+  if (viewPermalinkTimer) {
+    window.clearTimeout(viewPermalinkTimer);
+    viewPermalinkTimer = 0;
+  }
+  permalinkEncode();
+}
 
 function notesRenderMarkBadge(partName) {
   const existing = resultsEl.querySelector('.mark-badge-row');
@@ -3863,7 +4188,9 @@ function runHoverPick() {
   const rect = canvas.getBoundingClientRect();
   const picked = pickAt(state.hoverScheduler.clientX - rect.left, state.hoverScheduler.clientY - rect.top);
   const newHoverPin = picked?.kind === 'pin' ? picked.value : null;
-  const newHoverPart = picked?.kind === 'part' ? picked.value : (newHoverPin ? state.board.parts[newHoverPin.part - 1] : null);
+  const newHoverPart = picked?.kind === 'part'
+    ? picked.value
+    : (newHoverPin ? state.indexes.partsByIndex.get(newHoverPin.part) || null : null);
   const changed = (state.hoverPin?.index || null) !== (newHoverPin?.index || null)
     || (state.hoverPart?.index || null) !== (newHoverPart?.index || null);
   if (changed) {
@@ -4444,7 +4771,6 @@ function convertTeknisiHubSessionToLabBoard(session) {
       pad_width: Number(connection.padWidth || 0),
       pad_height: Number(connection.padHeight || 0),
       rotation: Number(connection.padRotation || 0),
-      raw: connection,
     });
   });
 
@@ -5001,6 +5327,7 @@ canvas.addEventListener('mousedown', (ev) => {
 });
 
 window.addEventListener('mouseup', (ev) => {
+  const didMove = state.drag.active && state.drag.moved;
   if (state.drag.active && !state.drag.moved) {
     const rect = canvas.getBoundingClientRect();
     const insideCanvas = ev.clientX >= rect.left && ev.clientX <= rect.right &&
@@ -5019,6 +5346,10 @@ window.addEventListener('mouseup', (ev) => {
   }
   state.drag.active = false;
   canvas.classList.remove('dragging');
+  if (didMove) {
+    finishViewInteraction();
+    onViewChanged();
+  }
 });
 
 window.addEventListener('mousemove', (ev) => {
@@ -5028,8 +5359,9 @@ window.addEventListener('mousemove', (ev) => {
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) state.drag.moved = true;
     state.camera.offsetX = state.drag.offsetX + dx;
     state.camera.offsetY = state.drag.offsetY + dy;
+    beginViewInteraction();
     render();
-    onViewChanged();
+    onViewChanged({ defer: true });
     return;
   }
 
@@ -5080,18 +5412,24 @@ canvas.addEventListener('wheel', (ev) => {
   const transformed = transformWorld(before.x, before.y);
   state.camera.offsetX = mouseX - transformed.x * state.camera.scale;
   state.camera.offsetY = mouseY - transformed.y * state.camera.scale;
+  beginViewInteraction();
   render();
-  onViewChanged();
+  onViewChanged({ defer: true });
 }, { passive: false });
 
 
 window.addEventListener('keydown', handleHotkeys);
 window.addEventListener('storage', handleSharedThemeStorageChange);
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    onViewChanged();
+    return;
+  }
   if (!document.hidden) {
     syncThemeFromSharedMode();
   }
 });
+window.addEventListener('pagehide', () => onViewChanged());
 window.setInterval(syncThemeFromSharedMode, 60000);
 
 
