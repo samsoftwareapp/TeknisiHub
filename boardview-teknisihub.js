@@ -4843,14 +4843,14 @@ function exportCanvasJpegBlob(quality = 0.92) {
 
 async function saveSnapshotJpeg() {
   const blob = await exportCanvasJpegBlob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = snapshotFilename('jpg');
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  const result = await window.teknisiHubMasterDownload.saveBlob(blob, snapshotFilename('jpg'), 'boardview-snapshot');
+  if (result.cancelled) {
+    setStatus(result.message || 'Penyimpanan snapshot dibatalkan.');
+    return false;
+  }
+
+  setStatus(result.message || 'Snapshot berhasil disimpan ke Master Folder.');
+  return true;
 }
 
 async function shareSnapshot(target = 'generic') {

@@ -94,13 +94,14 @@
     return asciiMatch?.[1] || "";
   }
 
-  function triggerBrowserDownload(url, fileName) {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
+  async function saveOutputToMasterFolder(url, fileName) {
+    const result = await globalScope.teknisiHubMasterDownload.saveObjectUrl(url, fileName, "universal-dmi");
+    if (result.cancelled) {
+      notify(result.message || "Penyimpanan dibatalkan.", false);
+      return;
+    }
+
+    notify(result.message || "File hasil berhasil disimpan ke Master Folder.");
   }
 
   function createInitialValues() {
@@ -337,7 +338,8 @@
 
       mountedContainer.querySelector("#universalDmiDownloadButton")?.addEventListener("click", () => {
         if (state.downloadUrl && state.downloadFileName) {
-          triggerBrowserDownload(state.downloadUrl, state.downloadFileName);
+          void saveOutputToMasterFolder(state.downloadUrl, state.downloadFileName)
+            .catch((error) => notify(error.message || "File hasil gagal disimpan.", true));
         }
       });
     }

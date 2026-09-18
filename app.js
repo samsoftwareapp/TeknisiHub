@@ -84,6 +84,7 @@ const biosPasswordWorkbench = document.getElementById("biosPasswordWorkbench");
 const microscopeWorkbench = document.getElementById("microscopeWorkbench");
 const alienServerWorkbench = document.getElementById("alienServerWorkbench");
 const boardViewerWorkbench = document.getElementById("boardViewerWorkbench");
+const bbsTelegramWorkbench = document.getElementById("bbsTelegramWorkbench");
 const settingsWorkbench = document.getElementById("settingsWorkbench");
 const catalogSection = document.getElementById("catalogSection");
 const catalogCount = document.getElementById("catalogCount");
@@ -176,6 +177,7 @@ const helpControls = document.getElementById("helpControls");
 const helpExtraSections = document.getElementById("helpExtraSections");
 const navBios = document.getElementById("navBios");
 const navBoardview = document.getElementById("navBoardview");
+const navBbsTelegram = document.getElementById("navBbsTelegram");
 const navSchematics = document.getElementById("navSchematics");
 const navProblemSolving = document.getElementById("navProblemSolving");
 const navDatasheets = document.getElementById("navDatasheets");
@@ -414,6 +416,17 @@ const boardViewerPage = window.teknisiHubPages?.boardViewer || {
   eyebrow: "Boardviewer",
   title: "Boardviewer",
   subtitle: "Utility lokal untuk membuka file boardview lewat aplikasi lokal.",
+  items: [],
+  mount() {},
+  setVisible() {},
+  refresh() {}
+};
+
+const bbsTelegramPage = window.teknisiHubPages?.bbsTelegram || {
+  viewKey: "bbs_telegram",
+  eyebrow: "BIOS / BOARDVIEW TELEGRAM",
+  title: "BBS TELEGRAM",
+  subtitle: "Cari, download, extract, lalu buka wizard upload BIOS atau Boardview.",
   items: [],
   mount() {},
   setVisible() {},
@@ -716,6 +729,12 @@ boardViewerPage.mount?.({
   notify: (message) => setNotice(message)
 });
 
+bbsTelegramPage.mount?.({
+  container: bbsTelegramWorkbench,
+  notify: (message, tone) => setNotice(message, tone),
+  openUploadForm: openBbsTelegramUploadForm
+});
+
 microscopePage.mount?.({
   container: microscopeWorkbench,
   notify: (message) => setNotice(message)
@@ -913,6 +932,12 @@ const toolViewMap = {
     subtitle: boardViewerPage.subtitle,
     channelLink: null
   },
+  [bbsTelegramPage.viewKey]: {
+    eyebrow: bbsTelegramPage.eyebrow,
+    title: bbsTelegramPage.title,
+    subtitle: bbsTelegramPage.subtitle,
+    channelLink: null
+  },
   tool_microscope: {
     eyebrow: microscopePage.eyebrow,
     title: microscopePage.title,
@@ -956,6 +981,7 @@ const localWorkbenchViewKeys = new Set([
   microscopePage.viewKey,
   alienServerPage.viewKey,
   boardViewerPage.viewKey,
+  bbsTelegramPage.viewKey,
   settingsPage.viewKey
 ]);
 
@@ -997,6 +1023,7 @@ const documentTitleLabels = {
   Schematics: "Schematics",
   ProblemSolving: "Problem Solving",
   Datasheets: "Datasheets",
+  [bbsTelegramPage.viewKey]: "BBS TELEGRAM",
   [spiFlashPage.viewKey]: biosEcProgrammerDisplayName,
   [flashPhonePage.viewKey]: "Android Tools",
   [oscilloscopePage.viewKey]: "Oscilloscope",
@@ -1028,6 +1055,7 @@ const viewHashMap = {
   Schematics: "Schematics",
   ProblemSolving: "ProblemSolving",
   Datasheets: "Datasheets",
+  [bbsTelegramPage.viewKey]: "BbsTelegram",
   [spiFlashPage.viewKey]: "SpiFlash",
   [flashPhonePage.viewKey]: "AndroidTools",
   [oscilloscopePage.viewKey]: "Oscilloscope",
@@ -1061,6 +1089,7 @@ const hashRouteMap = {
   schematics: "Schematics",
   problemsolving: "ProblemSolving",
   datasheets: "Datasheets",
+  bbstelegram: bbsTelegramPage.viewKey,
   spiflash: spiFlashPage.viewKey,
   toolspiflash: spiFlashPage.viewKey,
   androidtools: flashPhonePage.viewKey,
@@ -1178,6 +1207,7 @@ function getViewButton(viewKey) {
     [productPage.viewKey]: navProduct,
     BIOS: navBios,
     Boardview: navBoardview,
+    [bbsTelegramPage.viewKey]: navBbsTelegram,
     Schematics: navSchematics,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
@@ -2208,6 +2238,7 @@ function showWorkbenchOnly(viewKey) {
   microscopePage.setVisible?.(viewKey === microscopePage.viewKey);
   alienServerPage.setVisible?.(viewKey === alienServerPage.viewKey);
   boardViewerPage.setVisible?.(viewKey === boardViewerPage.viewKey);
+  bbsTelegramPage.setVisible?.(viewKey === bbsTelegramPage.viewKey);
   settingsPage.setVisible?.(viewKey === settingsPage.viewKey);
   syncPremiumToolAccess();
 
@@ -2291,6 +2322,10 @@ function showWorkbenchOnly(viewKey) {
     boardViewerPage.refresh?.();
   }
 
+  if (viewKey === bbsTelegramPage.viewKey) {
+    bbsTelegramPage.refresh?.();
+  }
+
   if (viewKey === microscopePage.viewKey) {
     microscopePage.refresh?.();
   }
@@ -2327,6 +2362,7 @@ function hideWorkbench() {
   microscopePage.setVisible?.(false);
   alienServerPage.setVisible?.(false);
   boardViewerPage.setVisible?.(false);
+  bbsTelegramPage.setVisible?.(false);
   settingsPage.setVisible?.(false);
 }
 
@@ -2406,6 +2442,7 @@ function setActiveNav(targetKey) {
     [productPage.viewKey]: navProduct,
     BIOS: navBios,
     Boardview: navBoardview,
+    [bbsTelegramPage.viewKey]: navBbsTelegram,
     Schematics: navSchematics,
     ProblemSolving: navProblemSolving,
     Datasheets: navDatasheets,
@@ -2730,6 +2767,8 @@ function renderCatalog(items, viewKey = currentCatalogView) {
         ? "ALN UI"
         : viewKey === boardViewerPage.viewKey
         ? "BRD UI"
+        : viewKey === bbsTelegramPage.viewKey
+        ? "BBS UI"
         : "SET UI";
     }
     showWorkbenchOnly(viewKey);
@@ -3729,6 +3768,71 @@ function openCatalogEditor(mode, item = null) {
     : `<span class="material-symbols-outlined">upload_file</span><span>${escapeHtml(config.uploadLabel)}</span>`;
   catalogEditorSubmitButton.disabled = false;
   setCatalogEditorUploadProgress({ active: false });
+}
+
+async function openBbsTelegramUploadForm(preparedFile) {
+  const targetCategory = String(preparedFile?.targetCategory || "").trim().toLowerCase();
+  const targetView = targetCategory === "bios"
+    ? "BIOS"
+    : targetCategory === "boardview"
+    ? "Boardview"
+    : "";
+  const downloadUrl = String(preparedFile?.downloadUrl || "").trim();
+  const fileName = String(preparedFile?.fileName || "").trim();
+
+  if (!targetView || !fileName || !/^\/wtelegram-archive\/prepared\/[a-f0-9]{32}$/i.test(downloadUrl)) {
+    throw new Error("File BBS Telegram belum valid untuk wizard upload. Siapkan ulang dari hasil pencarian.");
+  }
+
+  if (typeof DataTransfer !== "function" || typeof File !== "function") {
+    throw new Error("Browser belum mendukung memasukkan file hasil BBS ke wizard upload.");
+  }
+
+  let response;
+  try {
+    response = await fetch(serviceBaseUrl + downloadUrl, {
+      cache: "no-store"
+    });
+  } catch (error) {
+    throw new Error("File sementara BBS tidak dapat diambil: " + (error?.message || "koneksi aplikasi lokal gagal"));
+  }
+
+  if (!response.ok) {
+    const rawText = await response.text().catch(() => "");
+    let payload = {};
+    try {
+      payload = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      payload = { message: rawText };
+    }
+    throw new Error(sanitizePublicMessage(
+      payload?.message || "File sementara BBS sudah tidak tersedia. Siapkan ulang dari hasil pencarian.",
+      { allowTelegram: true }
+    ));
+  }
+
+  const blob = await response.blob();
+  if (blob.size <= 0) {
+    throw new Error("File sementara BBS kosong. Siapkan ulang dari hasil pencarian.");
+  }
+
+  const file = new File([blob], fileName, {
+    type: "application/octet-stream",
+    lastModified: Date.now()
+  });
+
+  await navigateTelegramCatalog(targetView, getViewButton(targetView));
+  updateViewHash(targetView);
+  openCatalogEditor("upload");
+
+  if (!catalogEditorFile) {
+    throw new Error("Input file wizard upload tidak ditemukan.");
+  }
+
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  catalogEditorFile.files = transfer.files;
+  catalogEditorFile.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function closeCatalogEditor() {
@@ -8534,8 +8638,8 @@ async function openBoardviewCatalogItem(messageId, options = {}) {
   return result;
 }
 
-async function openBoardviewCacheLocation(messageId) {
-  const result = await fetchJson(`/catalog/boardview/${messageId}/open-cache-location`, {
+async function openBoardviewDownloadLocation(messageId) {
+  const result = await fetchJson(`/catalog/boardview/${messageId}/open-download-location`, {
     method: "POST",
     body: JSON.stringify({})
   });
@@ -8543,8 +8647,8 @@ async function openBoardviewCacheLocation(messageId) {
   return result;
 }
 
-async function openSchematicsCacheLocation(messageId) {
-  const result = await fetchJson(`/catalog/schematics/${messageId}/open-cache-location`, {
+async function openSchematicsDownloadLocation(messageId) {
+  const result = await fetchJson(`/catalog/schematics/${messageId}/open-download-location`, {
     method: "POST",
     body: JSON.stringify({})
   });
@@ -9097,11 +9201,11 @@ if (catalogList) {
         `;
 
         try {
-          setNotice(`Membuka lokasi cache lokal ${category} untuk ${fileName}.`);
+          setNotice(`Membuka lokasi file ${category} untuk ${fileName}.`);
           if (category === "Schematics") {
-            await openSchematicsCacheLocation(messageId);
+            await openSchematicsDownloadLocation(messageId);
           } else {
-            await openBoardviewCacheLocation(messageId);
+            await openBoardviewDownloadLocation(messageId);
           }
         } catch (error) {
           setNotice(error.message, true);
@@ -9706,6 +9810,17 @@ navBoardview?.addEventListener("click", (event) => {
 
   updateViewHash("Boardview");
   navigateTelegramCatalog("Boardview", navBoardview);
+});
+
+navBbsTelegram?.addEventListener("click", (event) => {
+  if (!shouldHandleSidebarNavigationClick(event)) {
+    return;
+  }
+
+  updateViewHash(bbsTelegramPage.viewKey);
+  currentCatalogView = bbsTelegramPage.viewKey;
+  catalogItems = catalogCache;
+  filterCatalogItems();
 });
 
 navSchematics?.addEventListener("click", (event) => {

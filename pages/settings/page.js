@@ -35,11 +35,14 @@
       loading: true,
       saving: false,
       cleaning: false,
+      selectingMasterFolder: false,
       membersLoading: false,
       startWithWindows: false,
       openWebUiOnStartup: true,
       minimizeToTrayOnClose: true,
       checkUpdateOnStartup: true,
+      masterDownloadFolder: "",
+      masterDownloadFolderAvailable: false,
       launchCommand: "-",
       members: [],
       message: "Memuat pengaturan aplikasi lokal..."
@@ -90,10 +93,17 @@
   }
 
   function createWorkbenchMarkup(state) {
-    const disabledAttr = state.loading || state.saving || state.cleaning ? " disabled" : "";
+    const disabledAttr = state.loading || state.saving || state.cleaning || state.selectingMasterFolder ? " disabled" : "";
     const actionLabel = state.saving ? "Menyimpan..." : "Simpan Pengaturan";
     const cleanupLabel = state.cleaning ? "Membersihkan..." : "Bersihkan Cache/File Temporary";
     const statusLabel = state.startWithWindows ? "Aktif" : "Nonaktif";
+    const masterFolderLabel = state.masterDownloadFolder || "Belum dipilih";
+    const masterFolderStatus = state.masterDownloadFolder
+      ? (state.masterDownloadFolderAvailable ? "Aktif" : "Perlu dipilih ulang")
+      : "Belum dipilih";
+    const masterFolderActionLabel = state.selectingMasterFolder
+      ? "Membuka Folder..."
+      : (state.masterDownloadFolder ? "Ganti Master Folder" : "Pilih Master Folder");
     const membersMarkup = state.members.length
       ? state.members.map((member) => `
           <article class="catalog-card">
@@ -178,6 +188,28 @@
         <section class="spi-card">
           <div class="spi-card-head">
             <div>
+              <p class="label">Lokasi File</p>
+              <h4>Master Folder</h4>
+            </div>
+            <span class="spi-mini-badge">${escapeHtml(masterFolderStatus)}</span>
+          </div>
+          <p class="settings-maintenance-copy">Semua file hasil download, export, backup, patch, dan snapshot TeknisiHub disimpan dalam folder ini menurut jenis file masing-masing.</p>
+          <div class="settings-inline-meta">
+            <span>Folder aktif</span>
+            <code>${escapeHtml(masterFolderLabel)}</code>
+          </div>
+          <div class="settings-actions">
+            <button id="settingsMasterFolderButton" type="button" class="ghost"${disabledAttr}>
+              <span class="material-symbols-outlined${state.selectingMasterFolder ? " is-spinning" : ""}">${state.selectingMasterFolder ? "progress_activity" : "folder_open"}</span>
+              <span>${escapeHtml(masterFolderActionLabel)}</span>
+            </button>
+          </div>
+          <p class="spi-note">Jika belum dipilih atau folder tidak tersedia, TeknisiHub akan meminta lokasi ini saat file pertama disimpan.</p>
+        </section>
+
+        <section class="spi-card">
+          <div class="spi-card-head">
+            <div>
               <p class="label">Maintenance</p>
               <h4>Bersihkan cache dan file temporary</h4>
             </div>
@@ -231,6 +263,8 @@
         state.openWebUiOnStartup = settings.openWebUiOnStartup !== false;
         state.minimizeToTrayOnClose = settings.minimizeToTrayOnClose !== false;
         state.checkUpdateOnStartup = settings.checkUpdateOnStartup !== false;
+        state.masterDownloadFolder = String(settings.masterDownloadFolder || "");
+        state.masterDownloadFolderAvailable = settings.masterDownloadFolderAvailable === true;
         state.launchCommand = settings.launchCommand || "-";
         state.message = state.startWithWindows
           ? "Startup otomatis aktif. Aplikasi lokal akan mengikuti startup Windows."
@@ -314,6 +348,36 @@
       }
     }
 
+    async function selectMasterDownloadFolder() {
+      if (state.loading || state.saving || state.cleaning || state.selectingMasterFolder) {
+        return;
+      }
+
+      state.selectingMasterFolder = true;
+      state.message = "Pilih Master Folder untuk semua file hasil TeknisiHub...";
+      render();
+
+      let resultMessage = "";
+
+      try {
+        const result = await fetchJson("/settings/master-download/select", {
+          method: "POST"
+        });
+        resultMessage = result.message || "Master Folder berhasil diperbarui.";
+        state.message = resultMessage;
+      } catch (error) {
+        resultMessage = error.message || "Master Folder belum dapat diperbarui.";
+        state.message = resultMessage;
+      } finally {
+        state.selectingMasterFolder = false;
+        await loadSettings();
+        if (resultMessage) {
+          state.message = resultMessage;
+          render();
+        }
+      }
+    }
+
     function render() {
       if (!mountedContainer) {
         return;
@@ -327,6 +391,7 @@
       const checkUpdateOnStartupCheckbox = mountedContainer.querySelector("#settingsCheckUpdateOnStartupCheckbox");
       const saveButton = mountedContainer.querySelector("#settingsSaveButton");
       const cleanupButton = mountedContainer.querySelector("#settingsCleanupButton");
+      const masterFolderButton = mountedContainer.querySelector("#settingsMasterFolderButton");
       const refreshMembersButton = mountedContainer.querySelector("#settingsRefreshMembersButton");
 
       startupCheckbox?.addEventListener("change", () => {
@@ -351,6 +416,10 @@
 
       cleanupButton?.addEventListener("click", () => {
         void cleanupTemporaryFiles();
+      });
+
+      masterFolderButton?.addEventListener("click", () => {
+        void selectMasterDownloadFolder();
       });
 
       refreshMembersButton?.addEventListener("click", () => {

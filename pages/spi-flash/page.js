@@ -1094,28 +1094,17 @@
   }
 
   async function saveBlobToDisk(blob, suggestedName) {
-    if (typeof window.showSaveFilePicker === "function") {
-      const extension = suggestedName.includes(".")
-        ? `.${suggestedName.split(".").pop()}`
-        : ".bin";
-      const fileHandle = await window.showSaveFilePicker({
-        suggestedName,
-        types: [
-          {
-            description: "Binary file",
-            accept: {
-              "application/octet-stream": [extension]
-            }
-          }
-        ]
-      });
-      const writable = await fileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return true;
+    const result = await window.teknisiHubMasterDownload.saveBlob(
+      blob,
+      suggestedName,
+      "bios-ec-programmer"
+    );
+    if (result.cancelled) {
+      notifyUser(result.message || "Penyimpanan file BIN dibatalkan.", "info");
+      return false;
     }
 
-    return false;
+    return true;
   }
 
   function notifyUser(message, tone = "success") {
@@ -2740,8 +2729,7 @@
     async function saveReadBufferToBin(options = {}) {
       const {
         showSuccessToast = true,
-        suppressEmptyWarning = false,
-        preferBrowserDownload = false
+        suppressEmptyWarning = false
       } = options;
 
       if (!state.hasReadBuffer) {
@@ -2764,9 +2752,7 @@
         response.headers.get("Content-Disposition"),
         state.fileName || "SPIFlash_TeknisiHub.bin"
       );
-      const savedDirectly = preferBrowserDownload
-        ? false
-        : await saveBlobToDisk(blob, resolvedFileName);
+      const savedDirectly = await saveBlobToDisk(blob, resolvedFileName);
 
       if (savedDirectly) {
         if (showSuccessToast) {
@@ -2776,17 +2762,7 @@
         return true;
       }
 
-      const objectUrl = URL.createObjectURL(blob);
-      const downloadLink = document.createElement("a");
-      downloadLink.href = objectUrl;
-      downloadLink.download = resolvedFileName;
-      downloadLink.rel = "noopener";
-      downloadLink.style.display = "none";
-      document.body.append(downloadLink);
-      downloadLink.click();
-      downloadLink.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      return true;
+      return false;
     }
 
     async function refreshSessionSilently(options = {}) {

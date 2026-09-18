@@ -71,13 +71,14 @@
     return asciiMatch?.[1] || "";
   }
 
-  function triggerBrowserDownload(url, fileName) {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
+  async function saveOutputToMasterFolder(url, fileName) {
+    const result = await globalScope.teknisiHubMasterDownload.saveObjectUrl(url, fileName, "dell-8fc8");
+    if (result.cancelled) {
+      notify(result.message || "Penyimpanan dibatalkan.", false);
+      return;
+    }
+
+    notify(result.message || "File hasil berhasil disimpan ke Master Folder.");
   }
 
   function createInitialState() {
@@ -247,7 +248,8 @@
           return;
         }
 
-        triggerBrowserDownload(downloadUrl, state.patchedFileName);
+        void saveOutputToMasterFolder(downloadUrl, state.patchedFileName)
+          .catch((error) => notify(error.message || "File hasil gagal disimpan.", true));
       });
     }
 

@@ -4657,7 +4657,7 @@
       notifyUser(`Backup selesai: ${rows.filter((row) => row.success).length}/${rows.length} item terbaca.`, "success");
     }
 
-    function exportDataBackup() {
+    async function exportDataBackup() {
       if (!state.dataBackup) {
         setState({ dataMessage: "Belum ada backup untuk export." });
         notifyUser("Belum ada backup untuk export.", "warning");
@@ -4665,16 +4665,24 @@
       }
       const fileName = formatBackupFileName(state.dataBackup);
       const blob = new Blob([JSON.stringify(state.dataBackup, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setState({ dataFileName: fileName, dataMessage: `Backup diexport: ${fileName}` });
-      notifyUser(`Backup diexport: ${fileName}`, "success");
+      try {
+        const result = await globalScope.teknisiHubMasterDownload.saveBlob(blob, fileName, "battery-unlock");
+        if (result.cancelled) {
+          setState({ dataMessage: result.message || "Export backup dibatalkan." });
+          notifyUser(result.message || "Export backup dibatalkan.", "info");
+          return;
+        }
+
+        setState({
+          dataFileName: result.fileName || fileName,
+          dataMessage: result.message || `Backup diexport: ${result.fileName || fileName}`
+        });
+        notifyUser(result.message || `Backup diexport: ${result.fileName || fileName}`, "success");
+      } catch (error) {
+        const message = error?.message || "Backup gagal diexport.";
+        setState({ dataMessage: message });
+        notifyUser(message, "error");
+      }
     }
 
     async function importDataBackupFile(file) {
@@ -6738,7 +6746,9 @@
       write?.addEventListener("change", () => setState({ writeConfirmed: write.checked }));
       container.querySelector("#batteryDataIdentifyButton")?.addEventListener("click", () => withBusy(runDataIdentify));
       container.querySelector("#batteryDataBackupButton")?.addEventListener("click", () => withBusy(runDataBackup));
-      container.querySelector("#batteryDataExportButton")?.addEventListener("click", exportDataBackup);
+      container.querySelector("#batteryDataExportButton")?.addEventListener("click", () => {
+        void exportDataBackup();
+      });
       container.querySelector("#batteryDataImportButton")?.addEventListener("click", () => importFile?.click());
       importFile?.addEventListener("change", () => {
         const file = importFile.files?.[0];

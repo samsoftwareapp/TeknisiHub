@@ -93,13 +93,14 @@
     return asciiMatch?.[1] || "";
   }
 
-  function triggerBrowserDownload(url, fileName) {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
+  async function saveOutputToMasterFolder(url, fileName) {
+    const result = await globalScope.teknisiHubMasterDownload.saveObjectUrl(url, fileName, "bios-memory-spd");
+    if (result.cancelled) {
+      notify(result.message || "Penyimpanan dibatalkan.", false);
+      return;
+    }
+
+    notify(result.message || "File hasil berhasil disimpan ke Master Folder.");
   }
 
   function createInitialState() {
@@ -459,13 +460,15 @@
 
       downloadExportButton?.addEventListener("click", () => {
         if (exportDownloadUrl && state.exportFileName) {
-          triggerBrowserDownload(exportDownloadUrl, state.exportFileName);
+          void saveOutputToMasterFolder(exportDownloadUrl, state.exportFileName)
+            .catch((error) => notify(error.message || "File hasil gagal disimpan.", true));
         }
       });
 
       downloadCleanButton?.addEventListener("click", () => {
         if (cleanDownloadUrl && state.cleanedFileName) {
-          triggerBrowserDownload(cleanDownloadUrl, state.cleanedFileName);
+          void saveOutputToMasterFolder(cleanDownloadUrl, state.cleanedFileName)
+            .catch((error) => notify(error.message || "File hasil gagal disimpan.", true));
         }
       });
     }

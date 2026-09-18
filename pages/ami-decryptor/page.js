@@ -93,13 +93,14 @@
     return asciiMatch?.[1] || "";
   }
 
-  function triggerBrowserDownload(url, fileName) {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
+  async function saveOutputToMasterFolder(url, fileName) {
+    const result = await globalScope.teknisiHubMasterDownload.saveObjectUrl(url, fileName, "ami-decryptor");
+    if (result.cancelled) {
+      notify(result.message || "Penyimpanan dibatalkan.", false);
+      return;
+    }
+
+    notify(result.message || "File hasil berhasil disimpan ke Master Folder.");
   }
 
   function createInitialState() {
@@ -286,7 +287,8 @@
           return;
         }
 
-        triggerBrowserDownload(unlockedDownloadUrl, state.unlockedFileName);
+        void saveOutputToMasterFolder(unlockedDownloadUrl, state.unlockedFileName)
+          .catch((error) => notify(error.message || "File hasil gagal disimpan.", true));
       });
 
       downloadDecryptButton?.addEventListener("click", () => {
@@ -294,7 +296,8 @@
           return;
         }
 
-        triggerBrowserDownload(decryptDownloadUrl, state.decryptFileName);
+        void saveOutputToMasterFolder(decryptDownloadUrl, state.decryptFileName)
+          .catch((error) => notify(error.message || "File hasil gagal disimpan.", true));
       });
     }
 

@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=202607310001">
+  <link rel="stylesheet" href="pages/bbs-telegram/page.css?v=202609180001">
 </head>
 <body>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -305,6 +306,10 @@
                   <span class="material-symbols-outlined">developer_board</span>
                   <span>Boardview</span>
                 </a>
+                <a id="navBbsTelegram" href="#BbsTelegram" class="sidebar-nav-button">
+                  <span class="material-symbols-outlined">hub</span>
+                  <span>BBS TELEGRAM</span>
+                </a>
                 <a id="navSchematics" href="#Schematics" class="sidebar-nav-button">
                   <span class="material-symbols-outlined">schema</span>
                   <span>Schematics</span>
@@ -487,6 +492,7 @@
             <section id="microscopeWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="alienServerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="boardViewerWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
+            <section id="bbsTelegramWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
             <section id="settingsWorkbench" class="spi-workbench hidden" aria-live="polite"></section>
 
             <section id="catalogSection" class="catalog hidden">
@@ -868,30 +874,32 @@
   </div>
 
   <script src="service-config.js?v=202606010001"></script>
-    <script src="pages/spi-flash/page.js?v=202609170001"></script>
+  <script src="master-download.js?v=202609180001"></script>
+    <script src="pages/spi-flash/page.js?v=202609180001"></script>
   <script src="pages/flash-phone/page.js?v=202606080008"></script>
     <script src="pages/oscilloscope/page.js?v=202606090002"></script>
   <script src="pages/logic-analyzer/page.js?v=202606090003"></script>
-    <script src="pages/battery-unlock/page.js?v=202607050003"></script>
+    <script src="pages/battery-unlock/page.js?v=202609180001"></script>
   <script src="pages/firmware-update/page.js?v=202606090002"></script>
   <script src="pages/me-analyzer/page.js?v=202605210016"></script>
   <script src="pages/uefi-tool/page.js?v=202605210016"></script>
-  <script src="pages/universal-dmi/page.js?v=202606030048"></script>
+  <script src="pages/universal-dmi/page.js?v=202609180001"></script>
   <script src="pages/bios-vendor-detect/page.js?v=202605210016"></script>
   <script src="pages/file-hash-compare/page.js?v=202605210016"></script>
   <script src="pages/resistor-calculator/page.js?v=202605210016"></script>
-  <script src="pages/lenovo-bios-patch/page.js?v=202606010001"></script>
-  <script src="pages/dell-8fc8/page.js?v=202606010001"></script>
-  <script src="pages/ami-decryptor/page.js?v=202605210016"></script>
-  <script src="pages/bios-memory-spd/page.js?v=202605240003"></script>
+  <script src="pages/lenovo-bios-patch/page.js?v=202609180001"></script>
+  <script src="pages/dell-8fc8/page.js?v=202609180001"></script>
+  <script src="pages/ami-decryptor/page.js?v=202609180001"></script>
+  <script src="pages/bios-memory-spd/page.js?v=202609180001"></script>
   <script src="pages/bios-password/page.js?v=202606010001"></script>
   <script src="pages/microscope/page.js?v=202606010001"></script>
   <script src="pages/alien-server/page.js?v=202605210016"></script>
   <script src="pages/boardviewer/page.js?v=202606010001"></script>
+    <script src="pages/bbs-telegram/page.js?v=202609180006"></script>
   <script src="pages/dashboard-home/page.js?v=202606080006"></script>
   <script src="pages/product/page.js?v=202606090002"></script>
-  <script src="pages/settings/page.js?v=202606080006"></script>
+  <script src="pages/settings/page.js?v=202609180001"></script>
   <script src="help-content.js?v=202606070001"></script>
-    <script src="app.js?v=202606090002"></script>
+  <script src="app.js?v=202609180005"></script>
 </body>
 </html>
