@@ -35,6 +35,10 @@
       loading: true,
       saving: false,
       cleaning: false,
+      boardViewerCacheLoading: false,
+      boardViewerCacheClearing: false,
+      boardViewerCache: null,
+      boardViewerCacheError: "",
       selectingMasterFolder: false,
       membersLoading: false,
       startWithWindows: false,
@@ -65,6 +69,29 @@
     }).format(date);
   }
 
+  function formatByteSize(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return "0 B";
+    }
+
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let amount = bytes;
+    let unitIndex = 0;
+    while (amount >= 1024 && unitIndex < units.length - 1) {
+      amount /= 1024;
+      unitIndex += 1;
+    }
+
+    return `${new Intl.NumberFormat("id-ID", {
+      maximumFractionDigits: unitIndex === 0 ? 0 : 1
+    }).format(amount)} ${units[unitIndex]}`;
+  }
+
+  function formatCount(value) {
+    return new Intl.NumberFormat("id-ID").format(Math.max(0, Number(value) || 0));
+  }
+
   function createMemberQuotaLabel(member) {
     const totalDownload = member.totalDownload || "0";
     if (member.totalDownloadLimit) {
@@ -93,7 +120,7 @@
   }
 
   function createWorkbenchMarkup(state) {
-    const disabledAttr = state.loading || state.saving || state.cleaning || state.selectingMasterFolder ? " disabled" : "";
+    const disabledAttr = state.loading || state.saving || state.cleaning || state.boardViewerCacheClearing || state.selectingMasterFolder ? " disabled" : "";
     const actionLabel = state.saving ? "Menyimpan..." : "Simpan Pengaturan";
     const cleanupLabel = state.cleaning ? "Membersihkan..." : "Bersihkan Cache/File Temporary";
     const statusLabel = state.startWithWindows ? "Aktif" : "Nonaktif";
@@ -104,6 +131,25 @@
     const masterFolderActionLabel = state.selectingMasterFolder
       ? "Membuka Folder..."
       : (state.masterDownloadFolder ? "Ganti Master Folder" : "Pilih Master Folder");
+    const boardViewerSessionCount = Math.max(0, Number(state.boardViewerCache?.sessionCount) || 0);
+    const boardViewerCacheSizeBytes = Math.max(0, Number(state.boardViewerCache?.totalSizeBytes) || 0);
+    const boardViewerCacheSummary = state.boardViewerCacheLoading
+      ? "Memuat cache..."
+      : state.boardViewerCacheError
+        ? "Status belum tersedia"
+        : `${formatCount(boardViewerSessionCount)} sesi · ${formatByteSize(boardViewerCacheSizeBytes)}`;
+    const boardViewerCacheActionLabel = state.boardViewerCacheClearing
+      ? "Menghapus Cache..."
+      : "Hapus Cache BoardViewer";
+    const boardViewerCacheDisabledAttr = state.loading ||
+      state.saving ||
+      state.cleaning ||
+      state.boardViewerCacheLoading ||
+      state.boardViewerCacheClearing ||
+      state.selectingMasterFolder ||
+      boardViewerSessionCount === 0
+      ? " disabled"
+      : "";
     const membersMarkup = state.members.length
       ? state.members.map((member) => `
           <article class="catalog-card">
@@ -225,6 +271,28 @@
         <section class="spi-card">
           <div class="spi-card-head">
             <div>
+              <p class="label">BoardViewer</p>
+              <h4>Cache sesi BoardViewer</h4>
+            </div>
+            <span class="spi-mini-badge">${escapeHtml(formatCount(boardViewerSessionCount))}</span>
+          </div>
+          <p class="settings-maintenance-copy">Hanya salinan sesi lokal BoardViewer yang dihapus. File asli yang sudah disimpan atau diunduh tidak ikut terhapus.</p>
+          <div class="settings-inline-meta">
+            <span>Cache tersimpan</span>
+            <code>${escapeHtml(boardViewerCacheSummary)}</code>
+          </div>
+          <div class="settings-actions">
+            <button id="settingsBoardViewerCacheClearButton" type="button" class="ghost"${boardViewerCacheDisabledAttr}>
+              <span class="material-symbols-outlined${state.boardViewerCacheClearing ? " is-spinning" : ""}">${state.boardViewerCacheClearing ? "progress_activity" : "delete_sweep"}</span>
+              <span>${escapeHtml(boardViewerCacheActionLabel)}</span>
+            </button>
+          </div>
+          <p class="spi-note">Boardview yang sedang terbuka perlu dibuka ulang setelah cache dihapus.${state.boardViewerCacheError ? ` ${escapeHtml(state.boardViewerCacheError)}` : ""}</p>
+        </section>
+
+        <section class="spi-card">
+          <div class="spi-card-head">
+            <div>
               <p class="label">Member Lokal</p>
               <h4>Daftar akun yang pernah login di PC ini</h4>
             </div>
@@ -296,6 +364,30 @@
       }
     }
 
+    async function loadBoardViewerCache() {
+      if (!mountedContainer) {
+        return;
+      }
+
+      state.boardViewerCacheLoading = true;
+      state.boardViewerCacheError = "";
+      render();
+
+      try {
+        const cache = await fetchJson("/settings/boardviewer-cache", { cache: "no-store" });
+        state.boardViewerCache = {
+          sessionCount: Math.max(0, Number(cache.sessionCount) || 0),
+          totalSizeBytes: Math.max(0, Number(cache.totalSizeBytes) || 0)
+        };
+      } catch (error) {
+        state.boardViewerCache = null;
+        state.boardViewerCacheError = error.message || "Status cache BoardViewer belum dapat dimuat.";
+      } finally {
+        state.boardViewerCacheLoading = false;
+        render();
+      }
+    }
+
     async function saveSettings() {
       if (state.loading || state.saving) {
         return;
@@ -348,6 +440,45 @@
       }
     }
 
+    async function clearBoardViewerCache() {
+      const sessionCount = Math.max(0, Number(state.boardViewerCache?.sessionCount) || 0);
+      const totalSizeBytes = Math.max(0, Number(state.boardViewerCache?.totalSizeBytes) || 0);
+      if (state.loading || state.saving || state.cleaning || state.boardViewerCacheLoading || state.boardViewerCacheClearing || sessionCount === 0) {
+        return;
+      }
+
+      const confirmed = window.confirm([
+        "Hapus cache BoardViewer?",
+        `${formatCount(sessionCount)} sesi (${formatByteSize(totalSizeBytes)}) akan dihapus dari aplikasi lokal.`,
+        "File asli yang disimpan atau diunduh tidak ikut terhapus.",
+        "Boardview yang sedang terbuka perlu dibuka ulang."
+      ].join("\n\n"));
+      if (!confirmed) {
+        return;
+      }
+
+      state.boardViewerCacheClearing = true;
+      state.message = "Menghapus cache sesi BoardViewer...";
+      render();
+
+      let resultMessage = "";
+      try {
+        const result = await fetchJson("/settings/boardviewer-cache/clear", {
+          method: "POST"
+        });
+        resultMessage = result.message || "Cache BoardViewer berhasil dihapus.";
+      } catch (error) {
+        resultMessage = error.message || "Cache BoardViewer belum dapat dihapus.";
+      } finally {
+        state.boardViewerCacheClearing = false;
+        await loadBoardViewerCache();
+        if (resultMessage) {
+          state.message = resultMessage;
+          render();
+        }
+      }
+    }
+
     async function selectMasterDownloadFolder() {
       if (state.loading || state.saving || state.cleaning || state.selectingMasterFolder) {
         return;
@@ -391,6 +522,7 @@
       const checkUpdateOnStartupCheckbox = mountedContainer.querySelector("#settingsCheckUpdateOnStartupCheckbox");
       const saveButton = mountedContainer.querySelector("#settingsSaveButton");
       const cleanupButton = mountedContainer.querySelector("#settingsCleanupButton");
+      const boardViewerCacheClearButton = mountedContainer.querySelector("#settingsBoardViewerCacheClearButton");
       const masterFolderButton = mountedContainer.querySelector("#settingsMasterFolderButton");
       const refreshMembersButton = mountedContainer.querySelector("#settingsRefreshMembersButton");
 
@@ -416,6 +548,10 @@
 
       cleanupButton?.addEventListener("click", () => {
         void cleanupTemporaryFiles();
+      });
+
+      boardViewerCacheClearButton?.addEventListener("click", () => {
+        void clearBoardViewerCache();
       });
 
       masterFolderButton?.addEventListener("click", () => {
@@ -447,6 +583,7 @@
       refresh() {
         void loadSettings();
         void loadMembers();
+        void loadBoardViewerCache();
       }
     };
   }

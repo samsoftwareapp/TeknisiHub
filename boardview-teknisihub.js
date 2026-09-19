@@ -1,6 +1,7 @@
 const SHARED_THEME_MODE_STORAGE_KEY = 'teknisihub_theme_mode';
 const SHARED_THEME_MODE_DATE_STORAGE_KEY = 'teknisihub_theme_mode_wib_date';
 const LEGACY_BOARDVIEW_THEME_STORAGE_KEY = 'boardview-theme';
+const BOARDVIEW_COMPONENT_SHAPES_STORAGE_KEY = 'teknisihub_boardview_component_shapes';
 const WIB_TIME_ZONE = 'Asia/Jakarta';
 const WIB_NIGHT_THEME_START_HOUR = 18;
 const WIB_NIGHT_THEME_END_HOUR = 6;
@@ -90,6 +91,29 @@ function persistSharedThemeMode(themeName) {
   }
 }
 
+function getBoardviewComponentShapesMode() {
+  try {
+    const stored = localStorage.getItem(BOARDVIEW_COMPONENT_SHAPES_STORAGE_KEY);
+    return ['auto', 'detail', 'minimal'].includes(stored) ? stored : 'auto';
+  } catch (_) {
+    return 'auto';
+  }
+}
+
+function persistBoardviewComponentShapesMode(mode) {
+  try {
+    localStorage.setItem(BOARDVIEW_COMPONENT_SHAPES_STORAGE_KEY, mode);
+  } catch (_) {
+    // Keep the current in-memory choice when storage is unavailable.
+  }
+}
+
+function getBoardviewComponentShapesModeLabel(mode) {
+  if (mode === 'detail') return 'Detail';
+  if (mode === 'minimal') return 'Min';
+  return 'Auto';
+}
+
 const state = {
   board: null,
   boardId: null,
@@ -99,6 +123,7 @@ const state = {
   showParts: true,
   showLabels: true,
   showNails: false,
+  componentShapesMode: getBoardviewComponentShapesMode(),
   netLinesMode: 'trace',
   routesMode: 'selected',
   visibleSide: 'top',
@@ -129,11 +154,16 @@ const state = {
     partOrder: new Map(),
     pinOrder: new Map(),
     netsByName: new Map(),
+    searchParts: [],
+    searchNets: [],
     routesByNet: new Map(),
     arcsByNet: new Map(),
     pinGrid: new Map(),
     partGrid: new Map(),
     partBoxes: new Map(),
+    componentOutlineFramesByPart: new Map(),
+    componentOutlineSegments: new Set(),
+    renderableOutlineSegmentCount: 0,
     unindexedParts: [],
     connectionCache: new Map(),
     cellSize: 50,
@@ -159,7 +189,13 @@ const state = {
     pointB: null,
     cursorWorld: null,
   },
-  searchMode: 'all',
+  quickSearch: {
+    items: [],
+    activeIndex: -1,
+    query: '',
+    timer: 0,
+    recents: [],
+  },
   searchFocusPulse: null,
   minimapCache: { board: null, key: '', canvas: null, layout: null },
 };
@@ -182,20 +218,20 @@ const THEMES = {
     legendBorder: 'rgba(148,163,184,0.2)',
   },
   light: {
-    bg: '#edf4ff',
-    bgTop: '#f5f8fe',
-    bgBottom: '#f5f8fe',
-    grid: 'rgba(15,23,42,0.05)',
-    outline: '#7b8da6',
-    top: '#4d9cff',
-    bottom: '#e86ab1',
-    selected: '#d97706',
-    hover: '#0f172a',
-    net: '#16a34a',
-    text: '#0f172a',
-    textMuted: '#516274',
-    legendBg: 'rgba(255,255,255,0.78)',
-    legendBorder: 'rgba(148,163,184,0.32)',
+    bg: '#dce7ea',
+    bgTop: '#e3ebee',
+    bgBottom: '#e3ebee',
+    grid: 'rgba(24, 47, 58, 0.042)',
+    outline: '#6c8390',
+    top: '#3f88b9',
+    bottom: '#bd6796',
+    selected: '#aa6800',
+    hover: '#1c2d35',
+    net: '#167a53',
+    text: '#18242c',
+    textMuted: '#53636c',
+    legendBg: 'rgba(234, 241, 243, 0.88)',
+    legendBorder: 'rgba(79, 106, 118, 0.32)',
   },
 };
 
@@ -233,12 +269,12 @@ const perfEl = document.getElementById('perf-badge');
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const resultsEl = document.getElementById('results');
 const netListEl = document.getElementById('net-list');
-const matchListEl = document.getElementById('match-list');
-const matchCountEl = document.getElementById('match-count');
 const searchInput = document.getElementById('search-input');
-const searchAllBtn = document.getElementById('search-all-btn');
-const searchPartBtn = document.getElementById('search-part-btn');
-const searchNetBtn = document.getElementById('search-net-btn');
+const searchClearBtn = document.getElementById('search-clear-btn');
+const searchResultsPopoverEl = document.getElementById('search-results-popover');
+const searchResultsTitleEl = document.getElementById('search-results-title');
+const searchResultCountEl = document.getElementById('search-result-count');
+const searchResultsListEl = document.getElementById('search-results-list');
 const partListEl = document.getElementById('part-list');
 const partCountEl = document.getElementById('part-count');
 const partFilterInput = document.getElementById('part-filter-input');
@@ -370,7 +406,7 @@ function drawCanvasWatermarkOverlay(width, height) {
   const tileX = 320;
   const tileY = 210;
   const textColor = state.theme === 'light'
-    ? 'rgba(15, 23, 42, 0.045)'
+    ? 'rgba(24, 47, 58, 0.032)'
     : 'rgba(241, 245, 249, 0.04)';
   ctx.translate(width / 2 + driftX, height / 2 + driftY);
   ctx.rotate(-Math.PI / 5.6);
@@ -792,8 +828,9 @@ function resetSearchFields() {
   searchInput.value = '';
   partFilterInput.value = '';
   netFilterInput.value = '';
-  matchListEl.innerHTML = '';
-  matchCountEl.textContent = '0';
+  state.quickSearch.recents = state.board ? loadQuickSearchRecents() : [];
+  hideQuickSearchResults();
+  searchClearBtn?.classList.add('is-hidden');
   state.hoverPart = null;
   state.hoverPin = null;
   state.hoverNet = null;
@@ -806,7 +843,6 @@ function resetSearchFields() {
   document.getElementById('part-side-bottom-btn').classList.remove('active');
   resultsEl.textContent = 'Nothing selected.';
   clearSelectedNetMembers();
-  setSearchMode('all');
 }
 
 async function buildUploadFailureMeta(file, detail) {
@@ -944,12 +980,7 @@ function updateInspectorNetTabLabel() {
 }
 
 function selectInspectorPinRow(pin, options = {}) {
-  if (!pin) return;
-  ensurePinSearchSideVisible([pin]);
-  selectPin(pin, options);
-  focusPinSelection(pin);
-  render();
-  onViewChanged();
+  activatePinLocation(pin, options);
 }
 
 function renderInspectorPartTable(part = state.selectedPart, selectedPin = state.selectedPin) {
@@ -1161,7 +1192,7 @@ function populateSelectedNetMembers(netName) {
       const partPins = getPartPins(part).filter((pin) => (pin.net || '').toLowerCase() === netName.toLowerCase());
       const pinPreview = partPins.slice(0, 4).map((pin) => pin.name || `#${pin.index}`).join(', ');
       btn.innerHTML = `${escapeHtml(part.name)} <small>${escapeHtml(part.mounting_side || 'unknown')} | ${partPins.length} pin${partPins.length === 1 ? '' : 's'}${pinPreview ? ` | ${escapeHtml(pinPreview)}` : ''}</small>`;
-      btn.addEventListener('click', () => selectPart(part));
+      btn.addEventListener('click', () => activatePartLocation(part));
       btn.addEventListener('mouseenter', () => {
         state.hoverPart = part;
         render();
@@ -1204,7 +1235,7 @@ function populateSelectedNetPins(netName) {
       btn.type = 'button';
       btn.className = `list-item ${pin.side === 'bottom' ? 'part-bottom' : 'part-top'}`;
       btn.innerHTML = `${escapeHtml(part?.name || 'Unknown part')} | ${escapeHtml(pin.name || `#${pin.index}`)} <small>${escapeHtml(pin.side || 'unknown')} | ${Number(pin.x).toFixed(2)}, ${Number(pin.y).toFixed(2)}${pin.probe ? ` | ${escapeHtml(pin.probe)}` : ''}</small>`;
-      btn.addEventListener('click', () => selectPin(pin));
+      btn.addEventListener('click', () => activatePinLocation(pin));
       return btn;
     }, LIST_LIMITS.netPinsInitial, LIST_LIMITS.netPinsStep);
   }
@@ -1409,6 +1440,108 @@ function getTvwSegmentType(segment) {
   return Number(segment?.segment_type ?? segment?.segmentType ?? segment?.type ?? 0) || 0;
 }
 
+function getOutlineSegmentPartId(segment) {
+  return String(segment?.part_id ?? segment?.partId ?? '').trim();
+}
+
+function isDesktopBoardViewerBoard(board = state.board) {
+  return getParserVariantInfo(board?.meta || {}).code === 'desktop-boardviewer';
+}
+
+function isDesktopComponentOutlineCandidate(segment, board = state.board) {
+  return isDesktopBoardViewerBoard(board) &&
+    getTvwSegmentType(segment) === 100 &&
+    Boolean(getOutlineSegmentPartId(segment));
+}
+
+function buildDesktopComponentOutlineFrame(segments) {
+  if (!Array.isArray(segments) || segments.length < 4) return null;
+
+  let xMin = Number.POSITIVE_INFINITY;
+  let xMax = Number.NEGATIVE_INFINITY;
+  let yMin = Number.POSITIVE_INFINITY;
+  let yMax = Number.NEGATIVE_INFINITY;
+  let centerXTotal = 0;
+  let centerYTotal = 0;
+  let endpointCount = 0;
+  let primary = null;
+  let secondary = null;
+
+  for (const segment of segments) {
+    const x1 = Number(segment?.x1);
+    const y1 = Number(segment?.y1);
+    const x2 = Number(segment?.x2);
+    const y2 = Number(segment?.y2);
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+    const length = Math.hypot(x2 - x1, y2 - y1);
+    if (length <= 1e-6) return null;
+    const edge = { x1, y1, x2, y2, length };
+    if (!primary || edge.length > primary.length) primary = edge;
+    if (!secondary || edge.length < secondary.length) secondary = edge;
+    xMin = Math.min(xMin, x1, x2);
+    xMax = Math.max(xMax, x1, x2);
+    yMin = Math.min(yMin, y1, y2);
+    yMax = Math.max(yMax, y1, y2);
+    centerXTotal += x1 + x2;
+    centerYTotal += y1 + y2;
+    endpointCount += 2;
+  }
+
+  if (!primary || !secondary || endpointCount < 8 || xMax - xMin <= 1e-6 || yMax - yMin <= 1e-6) return null;
+  return {
+    center: { x: centerXTotal / endpointCount, y: centerYTotal / endpointCount },
+    primary,
+    secondary,
+    // Preserve the exact native path as the visual footprint frame. The browser
+    // may draw a family silhouette inside it, but this is the one true border.
+    segments: segments.slice(),
+    bbox: { x_min: xMin, x_max: xMax, y_min: yMin, y_max: yMax },
+  };
+}
+
+function indexDesktopComponentOutlineFrames(board) {
+  const segments = Array.isArray(board?.outline_segments) ? board.outline_segments : [];
+  state.indexes.renderableOutlineSegmentCount = segments.length;
+  if (!isDesktopBoardViewerBoard(board) || !segments.length) return;
+
+  const groups = new Map();
+  for (const segment of segments) {
+    if (!isDesktopComponentOutlineCandidate(segment, board)) continue;
+    const owner = getOutlineSegmentPartId(segment);
+    const part = state.indexes.partsByName.get(owner.toLowerCase());
+    if (!part) continue;
+    const group = groups.get(part.index) || { part, segments: [] };
+    group.segments.push(segment);
+    groups.set(part.index, group);
+  }
+
+  for (const { part, segments: ownedSegments } of groups.values()) {
+    const frame = buildDesktopComponentOutlineFrame(ownedSegments);
+    // Keep the native linework if a future exporter sends an incomplete or invalid
+    // component frame. We only replace frames that were fully proven from data.
+    if (!frame) continue;
+    state.indexes.componentOutlineFramesByPart.set(part.index, frame);
+    for (const segment of ownedSegments) state.indexes.componentOutlineSegments.add(segment);
+  }
+  state.indexes.renderableOutlineSegmentCount = Math.max(0, segments.length - state.indexes.componentOutlineSegments.size);
+}
+
+function getComponentOutlineFrame(part) {
+  return part ? state.indexes.componentOutlineFramesByPart.get(part.index) || null : null;
+}
+
+function isIndexedComponentOutlineSegment(segment) {
+  return Boolean(state.indexes.componentOutlineSegments?.has(segment));
+}
+
+function getRenderableOutlineSegmentCount(board = state.board) {
+  const segments = Array.isArray(board?.outline_segments) ? board.outline_segments : [];
+  if (board !== state.board || !state.showParts || getDetailZoom() < 0.9) return segments.length;
+  return Number.isFinite(state.indexes.renderableOutlineSegmentCount)
+    ? state.indexes.renderableOutlineSegmentCount
+    : segments.length;
+}
+
 function isTvwV2FabBoard(board = state.board) {
   return false;
 }
@@ -1572,6 +1705,9 @@ function deriveTvwNativeFootprintBBox(part, pins, pinBox, board = state.board) {
 }
 
 function derivePartBBox(part, pins, board = state.board) {
+  const authoritativeFrame = getComponentOutlineFrame(part);
+  if (authoritativeFrame?.bbox) return authoritativeFrame.bbox;
+
   if (isTvwBoardData(board) && pins.length) {
     const pinBox = derivePinsBBox(pins);
     const footprintBox = deriveTvwNativeFootprintBBox(part, pins, pinBox, board);
@@ -1612,25 +1748,48 @@ function buildIndexes(board) {
     partOrder: new Map(),
     pinOrder: new Map(),
     netsByName: new Map(),
+    searchParts: [],
+    searchNets: [],
     routesByNet: new Map(),
     arcsByNet: new Map(),
     pinGrid: new Map(),
     partGrid: new Map(),
     partBoxes: new Map(),
+    componentOutlineFramesByPart: new Map(),
+    componentOutlineSegments: new Set(),
+    renderableOutlineSegmentCount: Array.isArray(board?.outline_segments) ? board.outline_segments.length : 0,
     unindexedParts: [],
     connectionCache: new Map(),
     cellSize: computeAutoCellSize(board),
   };
 
   for (const [partOrder, part] of board.parts.entries()) {
-    state.indexes.partsByName.set(part.name.toLowerCase(), part);
+    const name = String(part.name || '');
+    state.indexes.partsByName.set(name.toLowerCase(), part);
     state.indexes.partsByIndex.set(part.index, part);
     state.indexes.partOrder.set(part.index, partOrder);
+    state.indexes.searchParts.push({
+      part,
+      nameLower: name.toLowerCase(),
+      nameNormalized: normalizeBoardviewSearchText(name),
+      deviceLower: String(part.device || '').toLowerCase(),
+      deviceNormalized: normalizeBoardviewSearchText(part.device || ''),
+    });
   }
 
+  indexDesktopComponentOutlineFrames(board);
+
   for (const net of board.nets || []) {
-    const key = String(net.name || '').toLowerCase();
-    if (key) state.indexes.netsByName.set(key, net);
+    const name = String(net.name || '');
+    const key = name.toLowerCase();
+    if (key) {
+      state.indexes.netsByName.set(key, net);
+      state.indexes.searchNets.push({
+        net,
+        nameLower: key,
+        nameNormalized: normalizeBoardviewSearchText(name),
+      });
+    }
   }
 
   for (const [pinOrder, pin] of board.pins.entries()) {
@@ -1908,17 +2067,17 @@ function buildMinimapBase(layout) {
   const baseCtx = baseCanvas.getContext('2d');
   if (!baseCtx) return null;
 
-  baseCtx.fillStyle = state.theme === 'light' ? '#f8fbff' : '#0b1220';
+  baseCtx.fillStyle = state.theme === 'light' ? '#e4edef' : '#0b1220';
   baseCtx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
-  baseCtx.strokeStyle = state.theme === 'light' ? '#94a3b8' : '#334155';
+  baseCtx.strokeStyle = state.theme === 'light' ? '#8aa0aa' : '#334155';
   baseCtx.lineWidth = 1;
   baseCtx.strokeRect(layout.offsetX, layout.offsetY, layout.bounds.width * layout.scale, layout.bounds.height * layout.scale);
 
   const parts = state.board.parts || [];
   const isLight = state.theme === 'light';
-  const colorTop = isLight ? 'rgba(37, 99, 235, 0.40)' : 'rgba(96, 165, 250, 0.50)';
-  const colorBottom = isLight ? 'rgba(190, 24, 93, 0.38)' : 'rgba(244, 114, 182, 0.50)';
-  const colorBoth = isLight ? 'rgba(71, 85, 105, 0.30)' : 'rgba(148, 163, 184, 0.35)';
+  const colorTop = isLight ? 'rgba(38, 116, 157, 0.38)' : 'rgba(96, 165, 250, 0.50)';
+  const colorBottom = isLight ? 'rgba(165, 72, 123, 0.36)' : 'rgba(244, 114, 182, 0.50)';
+  const colorBoth = isLight ? 'rgba(75, 94, 104, 0.28)' : 'rgba(148, 163, 184, 0.35)';
   for (const part of parts) {
     if (!isSideVisible(part.mounting_side || 'both')) continue;
     const box = getPartBox(part);
@@ -1976,8 +2135,8 @@ function drawMinimap() {
     (canvas.clientHeight - state.camera.offsetY) / state.camera.scale,
     cachedLayout,
   );
-  minimapCtx.fillStyle = state.theme === 'light' ? 'rgba(14, 165, 233, 0.15)' : 'rgba(56, 189, 248, 0.18)';
-  minimapCtx.strokeStyle = state.theme === 'light' ? '#0284c7' : '#38bdf8';
+  minimapCtx.fillStyle = state.theme === 'light' ? 'rgba(38, 126, 170, 0.14)' : 'rgba(56, 189, 248, 0.18)';
+  minimapCtx.strokeStyle = state.theme === 'light' ? '#267eaa' : '#38bdf8';
   minimapCtx.lineWidth = 1.25;
   minimapCtx.fillRect(Math.min(vp1.x, vp2.x), Math.min(vp1.y, vp2.y), Math.abs(vp2.x - vp1.x), Math.abs(vp2.y - vp1.y));
   minimapCtx.strokeRect(Math.min(vp1.x, vp2.x), Math.min(vp1.y, vp2.y), Math.abs(vp2.x - vp1.x), Math.abs(vp2.y - vp1.y));
@@ -2022,9 +2181,11 @@ function autoFitBoard() {
 }
 
 function centerOnPoint(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   const t = transformWorld(x, y);
   state.camera.offsetX = canvas.clientWidth / 2 - t.x * state.camera.scale;
   state.camera.offsetY = canvas.clientHeight / 2 - t.y * state.camera.scale;
+  return true;
 }
 
 function triggerSearchFocusPulse(x, y) {
@@ -2037,17 +2198,95 @@ function triggerSearchFocusPulse(x, y) {
   };
 }
 
+function triggerPartLocationPulse(part) {
+  if (!part) return false;
+  const center = getWorldBoundsCenter(getPartBox(part)) || part.center;
+  if (!center || !Number.isFinite(center.x) || !Number.isFinite(center.y)) return false;
+  triggerSearchFocusPulse(center.x, center.y);
+  return true;
+}
+
+function triggerPinLocationPulse(pin) {
+  if (!pin || !Number.isFinite(pin.x) || !Number.isFinite(pin.y)) return false;
+  triggerSearchFocusPulse(pin.x, pin.y);
+  return true;
+}
+
+function getWorldBoundsCenter(bounds) {
+  if (!bounds) return null;
+  const xMin = Number(bounds.x_min ?? bounds.xMin);
+  const xMax = Number(bounds.x_max ?? bounds.xMax);
+  const yMin = Number(bounds.y_min ?? bounds.yMin);
+  const yMax = Number(bounds.y_max ?? bounds.yMax);
+  if (![xMin, xMax, yMin, yMax].every(Number.isFinite)) return null;
+  return { x: (xMin + xMax) / 2, y: (yMin + yMax) / 2 };
+}
+
+function getNearestPinToWorldPoint(pins, target, options = {}) {
+  if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.y)) return null;
+  const allPins = (pins || []).filter((pin) => Number.isFinite(pin?.x) && Number.isFinite(pin?.y));
+  const visiblePins = options.preferVisible === false ? [] : allPins.filter((pin) => isSideVisible(pin.side));
+  const candidates = visiblePins.length ? visiblePins : allPins;
+  let nearest = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const pin of candidates) {
+    const distance = distanceSq(pin, target);
+    if (distance < nearestDistance ||
+        (distance === nearestDistance && Number(pin.index) < Number(nearest?.index))) {
+      nearest = pin;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
+function getPinsWorldBounds(pins) {
+  const validPins = (pins || []).filter((pin) => Number.isFinite(pin?.x) && Number.isFinite(pin?.y));
+  if (!validPins.length) return null;
+  return validPins.reduce((bounds, pin) => ({
+    x_min: Math.min(bounds.x_min, pin.x),
+    x_max: Math.max(bounds.x_max, pin.x),
+    y_min: Math.min(bounds.y_min, pin.y),
+    y_max: Math.max(bounds.y_max, pin.y),
+  }), {
+    x_min: Number.POSITIVE_INFINITY,
+    x_max: Number.NEGATIVE_INFINITY,
+    y_min: Number.POSITIVE_INFINITY,
+    y_max: Number.NEGATIVE_INFINITY,
+  });
+}
+
+function getNetFocusAnchor(pins) {
+  const bounds = getPinsWorldBounds(pins);
+  return getNearestPinToWorldPoint(pins, getWorldBoundsCenter(bounds), { preferVisible: false });
+}
+
+function getSymmetricFocusBounds(bounds, anchor) {
+  const center = getWorldBoundsCenter(bounds);
+  if (!center || !anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return bounds;
+  const xSpan = Math.max(Math.abs(bounds.x_min - anchor.x), Math.abs(bounds.x_max - anchor.x));
+  const ySpan = Math.max(Math.abs(bounds.y_min - anchor.y), Math.abs(bounds.y_max - anchor.y));
+  if (!Number.isFinite(xSpan) || !Number.isFinite(ySpan)) return bounds;
+  return {
+    x_min: anchor.x - xSpan,
+    x_max: anchor.x + xSpan,
+    y_min: anchor.y - ySpan,
+    y_max: anchor.y + ySpan,
+  };
+}
+
 function zoomToBounds(bounds, options = {}) {
   if (!bounds) return;
   const xMin = bounds.x_min ?? bounds.xMin ?? 0;
   const xMax = bounds.x_max ?? bounds.xMax ?? 0;
   const yMin = bounds.y_min ?? bounds.yMin ?? 0;
   const yMax = bounds.y_max ?? bounds.yMax ?? 0;
+  if (![xMin, xMax, yMin, yMax].every(Number.isFinite)) return;
   const transformedBounds = getTransformedRectBounds({ x_min: xMin, x_max: xMax, y_min: yMin, y_max: yMax });
   const width = Math.max(1, transformedBounds ? Math.abs(transformedBounds.width) : Math.abs(xMax - xMin));
   const height = Math.max(1, transformedBounds ? Math.abs(transformedBounds.height) : Math.abs(yMax - yMin));
-  const centerX = (xMin + xMax) / 2;
-  const centerY = (yMin + yMax) / 2;
+  const center = getWorldBoundsCenter({ x_min: xMin, x_max: xMax, y_min: yMin, y_max: yMax });
+  if (!center) return;
   const padding = options.padding ?? 0.42;
   const maxScaleMultiplier = options.maxScaleMultiplier ?? 18;
   const minScaleMultiplier = options.minScaleMultiplier ?? 1.8;
@@ -2057,8 +2296,7 @@ function zoomToBounds(bounds, options = {}) {
   );
   const base = state.camera.baseScale || 1;
   state.camera.scale = Math.max(base * minScaleMultiplier, Math.min(base * maxScaleMultiplier, fitScale));
-  centerOnPoint(centerX, centerY);
-  triggerSearchFocusPulse(centerX, centerY);
+  if (centerOnPoint(center.x, center.y)) triggerSearchFocusPulse(center.x, center.y);
 }
 
 function focusPartSelection(part) {
@@ -2069,34 +2307,29 @@ function focusPartSelection(part) {
   }
   if (part?.center) {
     centerOnPoint(part.center.x, part.center.y);
-    triggerSearchFocusPulse(part.center.x, part.center.y);
+    triggerPartLocationPulse(part);
   }
 }
 
 function focusPinSelection(pin) {
-  if (!pin) return;
+  if (!pin || !Number.isFinite(pin.x) || !Number.isFinite(pin.y)) return;
   const base = state.camera.baseScale || 1;
   state.camera.scale = Math.max(state.camera.scale, base * 5);
-  centerOnPoint(pin.x, pin.y);
-  triggerSearchFocusPulse(pin.x, pin.y);
+  if (centerOnPoint(pin.x, pin.y)) triggerPinLocationPulse(pin);
 }
 
-function focusNetSelection(netName) {
+function focusNetSelection(netName, options = {}) {
   const pins = state.indexes.pinsByNet.get(String(netName || '').toLowerCase()) || [];
   if (!pins.length) return;
-  const bounds = {
-    x_min: Number.POSITIVE_INFINITY,
-    x_max: Number.NEGATIVE_INFINITY,
-    y_min: Number.POSITIVE_INFINITY,
-    y_max: Number.NEGATIVE_INFINITY,
-  };
-  for (const pin of pins) {
-    bounds.x_min = Math.min(bounds.x_min, pin.x);
-    bounds.x_max = Math.max(bounds.x_max, pin.x);
-    bounds.y_min = Math.min(bounds.y_min, pin.y);
-    bounds.y_max = Math.max(bounds.y_max, pin.y);
-  }
-  zoomToBounds(bounds, { minScaleMultiplier: 1.3, maxScaleMultiplier: 8 });
+  const bounds = getPinsWorldBounds(pins);
+  if (!bounds) return;
+  const anchorPin = options.anchorPin && pins.includes(options.anchorPin)
+    ? options.anchorPin
+    : getNetFocusAnchor(pins);
+  // A net spans multiple physical points, so its geometric center is often empty board space.
+  // Keep the net context in view, but center the navigation and water pulse on a real visible pad.
+  const focusBounds = anchorPin ? getSymmetricFocusBounds(bounds, anchorPin) : bounds;
+  zoomToBounds(focusBounds, { minScaleMultiplier: 1.3, maxScaleMultiplier: 8 });
 }
 
 function applyVisibleSide(side) {
@@ -2135,31 +2368,322 @@ function ensurePinSearchSideVisible(pins) {
   return true;
 }
 
-function setSearchMode(mode) {
-  state.searchMode = mode === 'part' || mode === 'net' ? mode : 'all';
-  searchAllBtn?.classList.toggle('active', state.searchMode === 'all');
-  searchPartBtn?.classList.toggle('active', state.searchMode === 'part');
-  searchNetBtn?.classList.toggle('active', state.searchMode === 'net');
+function activatePartLocation(part, options = {}) {
+  if (!part) return false;
+  ensurePartSearchSideVisible(part);
+  selectPart(part, options);
+  focusPartSelection(part);
+  render();
+  onViewChanged();
+  return true;
 }
 
-function getSearchQueryOrNotify() {
-  const raw = String(searchInput?.value || '').trim();
-  if (raw) return raw.toLowerCase();
-  setStatus('Isi kata kunci dulu untuk mencari part atau net.', true);
-  searchInput?.focus();
-  return '';
+function activatePinLocation(pin, options = {}) {
+  if (!pin) return false;
+  ensurePinSearchSideVisible([pin]);
+  selectPin(pin, options);
+  focusPinSelection(pin);
+  render();
+  onViewChanged();
+  return true;
 }
 
-function runActiveSearch() {
-  if (state.searchMode === 'part') {
-    searchPart();
+function activateNetLocation(netName, options = {}) {
+  const pins = state.indexes.pinsByNet.get(String(netName || '').toLowerCase()) || [];
+  const anchorPin = getNetFocusAnchor(pins);
+  ensurePinSearchSideVisible(anchorPin ? [anchorPin] : pins);
+  selectNet(netName, options);
+  focusNetSelection(netName, { anchorPin });
+  render();
+  onViewChanged();
+  return true;
+}
+
+const QUICK_SEARCH_RESULT_LIMIT = 12;
+const QUICK_SEARCH_RECENT_LIMIT = 5;
+
+function normalizeBoardviewSearchText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_.\-/]+/g, '');
+}
+
+function getQuickSearchQuery() {
+  return String(searchInput?.value || '').trim();
+}
+
+function parseBoardviewPinQuery(rawQuery) {
+  const match = String(rawQuery || '').trim().match(/^\s*([a-z]+\d+[a-z0-9_-]*)\s*(?:[.:/#]|\bpin\s*)\s*([a-z0-9_+-]+)\s*$/i);
+  if (!match) return null;
+  return { partName: match[1], pinName: match[2] };
+}
+
+function scoreQuickSearchText(query, rawText, normalizedText) {
+  const source = String(rawText || '').toLowerCase();
+  const compact = normalizeBoardviewSearchText(query);
+  if (!source || !compact) return -1;
+  const raw = String(query || '').trim().toLowerCase();
+  if (source === raw) return 0;
+  if (normalizeBoardviewSearchText(rawText) === compact) return 1;
+  if (source.startsWith(raw)) return 2;
+  if (normalizedText.startsWith(compact)) return 3;
+  const rawIndex = source.indexOf(raw);
+  if (rawIndex >= 0) return 10 + rawIndex;
+  const compactIndex = normalizedText.indexOf(compact);
+  return compactIndex >= 0 ? 30 + compactIndex : -1;
+}
+
+function compareQuickSearchItems(left, right) {
+  if (left.score !== right.score) return left.score - right.score;
+  if (left.kind !== right.kind) return left.kind === 'pin' ? -1 : left.kind === 'part' ? -1 : 1;
+  return compareTeknisiHubNatural(left.label, right.label);
+}
+
+function getQuickSearchItems(rawQuery) {
+  if (!state.board) return [];
+  const query = String(rawQuery || '').trim();
+  if (!query) return [];
+  const items = [];
+  const pinQuery = parseBoardviewPinQuery(query);
+
+  if (pinQuery) {
+    const part = state.indexes.partsByName.get(pinQuery.partName.toLowerCase());
+    if (part) {
+      const wanted = normalizeBoardviewSearchText(pinQuery.pinName);
+      for (const pin of state.indexes.pinsByPart.get(part.index) || []) {
+        const name = String(pin.name || pin.index || '');
+        const score = scoreQuickSearchText(pinQuery.pinName, name, normalizeBoardviewSearchText(name));
+        if (score < 0) continue;
+        items.push({
+          kind: 'pin',
+          pin,
+          part,
+          score,
+          label: `${part.name}.${name}`,
+          meta: `${part.mounting_side || pin.side || 'unknown'} · ${pin.net || 'tanpa net'}`,
+        });
+      }
+      if (items.length) return items.sort(compareQuickSearchItems).slice(0, QUICK_SEARCH_RESULT_LIMIT);
+      if (wanted) {
+        return [{
+          kind: 'empty',
+          score: 0,
+          label: query,
+          meta: `Pin ${pinQuery.pinName} tidak ditemukan pada ${part.name}`,
+        }];
+      }
+    }
+  }
+
+  for (const entry of state.indexes.searchParts) {
+    const nameScore = scoreQuickSearchText(query, entry.part.name, entry.nameNormalized);
+    const rawDeviceScore = entry.deviceLower
+      ? scoreQuickSearchText(query, entry.part.device, entry.deviceNormalized)
+      : -1;
+    const deviceScore = rawDeviceScore >= 0 ? rawDeviceScore + 16 : -1;
+    const score = [nameScore, deviceScore].filter((value) => value >= 0).sort((a, b) => a - b)[0];
+    if (score === undefined) continue;
+    const pins = state.indexes.pinsByPart.get(entry.part.index) || [];
+    items.push({
+      kind: 'part',
+      part: entry.part,
+      score,
+      label: entry.part.name,
+      meta: `${entry.part.mounting_side || 'unknown'} · ${pins.length} pin${pins.length === 1 ? '' : 's'}${entry.part.device ? ` · ${entry.part.device}` : ''}`,
+    });
+  }
+
+  for (const entry of state.indexes.searchNets) {
+    const score = scoreQuickSearchText(query, entry.net.name, entry.nameNormalized);
+    if (score < 0) continue;
+    const pinCount = entry.net.pin_count ?? (state.indexes.pinsByNet.get(entry.nameLower) || []).length;
+    items.push({
+      kind: 'net',
+      net: entry.net,
+      score,
+      label: entry.net.name,
+      meta: `${pinCount} pin${pinCount === 1 ? '' : 's'}${entry.net.route_count ? ` · ${entry.net.route_count} jalur` : ''}`,
+    });
+  }
+
+  return items.sort(compareQuickSearchItems).slice(0, QUICK_SEARCH_RESULT_LIMIT);
+}
+
+function getQuickSearchRecentItems() {
+  if (!state.board) return [];
+  return state.quickSearch.recents
+    .map((recent) => {
+      if (recent.kind === 'part') {
+        const part = state.indexes.partsByName.get(recent.key);
+        if (!part) return null;
+        const pins = state.indexes.pinsByPart.get(part.index) || [];
+        return { kind: 'part', part, score: 0, label: part.name, meta: `${part.mounting_side || 'unknown'} · ${pins.length} pin${pins.length === 1 ? '' : 's'}` };
+      }
+      if (recent.kind === 'net') {
+        const net = state.indexes.netsByName.get(recent.key);
+        if (!net) return null;
+        const pinCount = net.pin_count ?? (state.indexes.pinsByNet.get(recent.key) || []).length;
+        return { kind: 'net', net, score: 0, label: net.name, meta: `${pinCount} pin${pinCount === 1 ? '' : 's'}` };
+      }
+      if (recent.kind === 'pin') {
+        const pin = state.board.pins.find((candidate) => String(candidate.index) === recent.key);
+        const part = pin ? state.board.parts[pin.part - 1] : null;
+        if (!pin || !part) return null;
+        return { kind: 'pin', pin, part, score: 0, label: `${part.name}.${pin.name || pin.index}`, meta: `${part.mounting_side || pin.side || 'unknown'} · ${pin.net || 'tanpa net'}` };
+      }
+      return null;
+    })
+    .filter(Boolean)
+    .slice(0, QUICK_SEARCH_RECENT_LIMIT);
+}
+
+function getQuickSearchRecentsStorageKey() {
+  const sessionKey = getActiveTeknisiHubSessionId() || state.board?.filename || 'manual';
+  return `bvt-quick-search-recents-${String(sessionKey).toLowerCase().replace(/[^a-z0-9._-]/g, '_')}`;
+}
+
+function loadQuickSearchRecents() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(getQuickSearchRecentsStorageKey()) || '[]');
+    return Array.isArray(parsed)
+      ? parsed.filter((entry) => entry && ['part', 'net', 'pin'].includes(entry.kind) && entry.key).slice(0, QUICK_SEARCH_RECENT_LIMIT)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveQuickSearchRecents() {
+  try {
+    sessionStorage.setItem(getQuickSearchRecentsStorageKey(), JSON.stringify(state.quickSearch.recents));
+  } catch {
+    // Search history is a convenience only; a blocked browser store must not affect board work.
+  }
+}
+
+function setQuickSearchActiveIndex(nextIndex) {
+  const items = state.quickSearch.items;
+  if (!items.length) {
+    state.quickSearch.activeIndex = -1;
     return;
   }
-  if (state.searchMode === 'net') {
-    searchNet();
+  state.quickSearch.activeIndex = Math.max(0, Math.min(items.length - 1, nextIndex));
+  for (const [index, element] of [...searchResultsListEl.children].entries()) {
+    element.classList.toggle('is-active', index === state.quickSearch.activeIndex);
+    if (element.getAttribute('role') === 'option') {
+      element.setAttribute('aria-selected', index === state.quickSearch.activeIndex ? 'true' : 'false');
+    }
+    if (index === state.quickSearch.activeIndex) element.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function renderQuickSearchResults(options = {}) {
+  if (!searchResultsPopoverEl || !searchResultsListEl) return;
+  const query = getQuickSearchQuery();
+  const isRecent = !query && options.showRecents;
+  const items = query ? getQuickSearchItems(query) : (isRecent ? getQuickSearchRecentItems() : []);
+  state.quickSearch.items = items;
+  state.quickSearch.query = query;
+  state.quickSearch.activeIndex = items.length ? 0 : -1;
+  searchResultsListEl.innerHTML = '';
+  searchClearBtn?.classList.toggle('is-hidden', !query);
+  searchInput?.setAttribute('aria-expanded', items.length ? 'true' : 'false');
+
+  if (!items.length) {
+    searchResultsPopoverEl.classList.toggle('is-hidden', !query);
+    if (query) {
+      searchResultsTitleEl.textContent = 'Tidak ditemukan';
+      searchResultCountEl.textContent = '';
+      const empty = document.createElement('div');
+      empty.className = 'sb-search-empty';
+      empty.textContent = 'Coba refdes, nama net, atau format U19.5.';
+      searchResultsListEl.appendChild(empty);
+    }
     return;
   }
-  searchAll();
+
+  searchResultsPopoverEl.classList.remove('is-hidden');
+  searchResultsTitleEl.textContent = isRecent ? 'Terakhir dibuka' : 'Hasil paling cocok';
+  searchResultCountEl.textContent = `${items.length}${items.length === QUICK_SEARCH_RESULT_LIMIT ? '+' : ''}`;
+  for (const [index, item] of items.entries()) {
+    if (item.kind === 'empty') {
+      const empty = document.createElement('div');
+      empty.className = 'sb-search-empty';
+      empty.textContent = item.meta;
+      searchResultsListEl.appendChild(empty);
+      continue;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `sb-search-result sb-search-result-${item.kind}${index === 0 ? ' is-active' : ''}`;
+    button.setAttribute('role', 'option');
+    button.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+    const kindLabel = item.kind === 'part' ? 'KOMP' : item.kind === 'net' ? 'NET' : 'PIN';
+    button.innerHTML = `<span class="sb-search-result-kind">${kindLabel}</span><span class="sb-search-result-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.meta)}</small></span>`;
+    button.addEventListener('mouseenter', () => setQuickSearchActiveIndex(index));
+    button.addEventListener('click', () => activateQuickSearchItem(item));
+    searchResultsListEl.appendChild(button);
+  }
+}
+
+function hideQuickSearchResults() {
+  if (state.quickSearch.timer) {
+    window.clearTimeout(state.quickSearch.timer);
+    state.quickSearch.timer = 0;
+  }
+  state.quickSearch.items = [];
+  state.quickSearch.activeIndex = -1;
+  searchResultsPopoverEl?.classList.add('is-hidden');
+  searchInput?.setAttribute('aria-expanded', 'false');
+}
+
+function rememberQuickSearchItem(item) {
+  if (!item || item.kind === 'empty') return;
+  const key = item.kind === 'part'
+    ? String(item.part.name || '').toLowerCase()
+    : item.kind === 'net'
+      ? String(item.net.name || '').toLowerCase()
+      : String(item.pin.index || '');
+  if (!key) return;
+  state.quickSearch.recents = [{ kind: item.kind, key }, ...state.quickSearch.recents.filter((entry) => !(entry.kind === item.kind && entry.key === key))]
+    .slice(0, QUICK_SEARCH_RECENT_LIMIT);
+  saveQuickSearchRecents();
+}
+
+function activateQuickSearchItem(item) {
+  if (!item || item.kind === 'empty') return;
+  rememberQuickSearchItem(item);
+  if (item.kind === 'part') {
+    activatePartLocation(item.part, { preferredMode: 'summary' });
+  } else if (item.kind === 'net') {
+    activateNetLocation(item.net.name, { openInspector: true, preferredMode: 'summary' });
+  } else {
+    activatePinLocation(item.pin, { preferredMode: 'summary', preferredPane: 'part' });
+  }
+  searchInput.value = item.label;
+  searchClearBtn?.classList.remove('is-hidden');
+  hideQuickSearchResults();
+}
+
+function scheduleQuickSearchResults() {
+  if (state.quickSearch.timer) window.clearTimeout(state.quickSearch.timer);
+  state.quickSearch.timer = window.setTimeout(() => {
+    state.quickSearch.timer = 0;
+    renderQuickSearchResults();
+  }, 70);
+}
+
+function clearQuickSearch(options = {}) {
+  const { clearSelection: shouldClearSelection = true, focus = true } = options;
+  if (searchInput) searchInput.value = '';
+  searchClearBtn?.classList.add('is-hidden');
+  hideQuickSearchResults();
+  if (shouldClearSelection) clearSelection();
+  if (focus) {
+    searchInput?.focus();
+    renderQuickSearchResults({ showRecents: true });
+  }
 }
 
 
@@ -2333,7 +2857,7 @@ function drawGrid() {
     ctx.lineTo(w, y);
     ctx.stroke();
   }
-  ctx.strokeStyle = state.theme === 'light' ? 'rgba(15,23,42,0.09)' : 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = state.theme === 'light' ? 'rgba(24,47,58,0.065)' : 'rgba(255,255,255,0.05)';
   for (let x = 0; x < w; x += majorStep) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
@@ -2351,11 +2875,16 @@ function drawGrid() {
 
 function drawOutline() {
   const segments = state.board.outline_segments || [];
+  // Desktop BoardViewer exports one generated rectangle per component. At work
+  // zoom the component renderer owns those rectangles, so do not stroke them a
+  // second time. At overview zoom (or when Parts is hidden), retain native lines.
+  const replaceOwnedComponentFrames = state.showParts && getDetailZoom() >= 0.9;
+  const renderableSegmentCount = getRenderableOutlineSegmentCount(state.board);
   // A dense native outline can contain thousands of fabricated-detail
   // segments. Replaying all of it during every wheel tick is the remaining
   // source of zoom stutter, so keep a stable board boundary while moving and
   // restore the exact outline after the interaction settles.
-  if (state.viewInteraction.active && segments.length >= 400) {
+  if (state.viewInteraction.active && renderableSegmentCount >= 400) {
     const bounds = getTransformedBoardBounds();
     if (!bounds) return;
     const topLeft = {
@@ -2371,6 +2900,11 @@ function drawOutline() {
     return;
   }
 
+  // A desktop-native session can consist entirely of generated component frames.
+  // Once those frames are replaced by the component renderer, avoid walking every
+  // segment again on each paint; this removes an otherwise invisible 12k-line pass.
+  if (segments.length && renderableSegmentCount === 0) return;
+
   const viewport = getViewportWorldBounds(40);
   if (segments.length) {
     ctx.save();
@@ -2384,6 +2918,7 @@ function drawOutline() {
     let pending = 0;
     for (const seg of segments) {
       if (!isSideVisible(seg.side || 'both')) continue;
+      if (replaceOwnedComponentFrames && isIndexedComponentOutlineSegment(seg)) continue;
       if (!shouldRenderTvwNativeSegment(seg, state.board, tvwV2Fab)) continue;
       const segBox = {
         x_min: Math.min(seg.x1, seg.x2),
@@ -2501,7 +3036,8 @@ function getScreenBoundsForPart(part, pins, partBox, options = {}) {
 }
 
 function classifyPartGeometry(part, pins, bounds) {
-  const name = String(part.name || '').toUpperCase();
+  const name = String(part.name || '').trim().toUpperCase();
+  const source = `${part.device || ''} ${part.shape || ''}`.toUpperCase();
   const count = pins.length;
   const width = bounds.width;
   const height = bounds.height;
@@ -2518,41 +3054,318 @@ function classifyPartGeometry(part, pins, bounds) {
   }
   const xSpan = count ? pinXMax - pinXMin : 0;
   const ySpan = count ? pinYMax - pinYMin : 0;
-  if (/^(J|CN|CON|PJP|XW)/.test(name) || (count >= 4 && aspect > 3.2)) return 'connector';
-  if (/^(TP|TEST|VIA)/.test(name)) return 'testpoint';
-  if (/^(D)/.test(name) && count <= 3) return 'diode';
-  if (/^(R|C|L|FB|F)/.test(name) && count <= 4) return 'passive';
-  if (/^(Q|U?Q)/.test(name) && count >= 3 && count <= 6) return 'sot';
+  // The visual family is deliberately conservative. A source footprint/device wins,
+  // then a conventional reference prefix, then geometry. It is only a drawing aid:
+  // do not infer pin function, polarity, package, value, or electrical behavior here.
+  if (/(?:^|_)(?:TP|TEST)\d/.test(name) || /TEST\s*(?:POINT|PAD)/.test(source)) return 'testpoint';
+  if (/^(?:MH|H)\d/.test(name) || /(?:MOUNT(?:ING)?|HOLE|STAND-?OFF)/.test(source)) return 'mount-hole';
+  if (/^(?:J[A-Z]*|CN|CON|PJP|PJ|XW)\d/.test(name) || /(?:CONNECTOR|HEADER|SOCKET|SLOT|FPC|FFC)/.test(source)) return 'connector';
+  if (/^(?:P?D[A-Z]*|LED)\d/.test(name) || /(?:DIODE|SCHOTTKY|ZENNER|SOD\d*|\bLED\b)/.test(source)) return count > 3 ? 'diode-array' : 'diode';
+  if (/^(?:FB|FL)\d/.test(name) || /(?:FERRITE|BEAD)/.test(source)) return 'ferrite';
+  if (/^(?:P?F[A-Z]*)\d/.test(name) || /\bFUSE\b/.test(source)) return 'fuse';
+  if (/^(?:P?L[A-Z]*)\d/.test(name) || /(?:INDUCTOR|CHOKE|COIL)/.test(source)) return count > 2 ? 'inductor-array' : 'inductor';
+  if (/^(?:P?R[A-Z]*|RN|RA)\d/.test(name) || /(?:RESISTOR|\bOHM\b)/.test(source)) return count > 2 ? 'resistor-array' : 'resistor';
+  if (/^(?:P?C[A-Z]*)\d/.test(name) || /(?:CAPACITOR|\bCAP\b)/.test(source)) return 'capacitor';
+  if (/^(?:P?Q[A-Z]*)\d/.test(name) || /(?:MOSFET|TRANSISTOR|\bSOT[- ]?\d+)/.test(source)) return 'sot';
   if (count >= 20 && Math.abs(xSpan - ySpan) < Math.max(xSpan, ySpan) * 0.35) return 'bga';
-  if (count >= 8) return 'ic';
+  if (/^(?:P?U[A-Z]*|IC)\d/.test(name) || /(?:QFN|QFP|BGA|TQFP|SOIC|SSOP|TSSOP|TSOP|CONTROLLER|\bIC\b)/.test(source) || count >= 8) return 'ic';
+  // Geometry is a final fallback, after a known prefix/device has claimed the part.
+  // That prevents a long resistor, diode, fuse, or IC body from becoming a connector.
+  if (count >= 4 && aspect > 3.2) return 'connector';
   if (count >= 3 && count <= 6) return 'small-ic';
   return 'generic';
 }
 
-function drawPartMarker(kind, bounds, strokeStyle) {
-  ctx.save();
-  ctx.strokeStyle = strokeStyle;
-  ctx.fillStyle = strokeStyle;
-  ctx.lineWidth = 1;
-  if (kind === 'diode') {
-    const midY = bounds.yMin + bounds.height / 2;
-    ctx.beginPath();
-    ctx.moveTo(bounds.xMin + 6, midY - 5);
-    ctx.lineTo(bounds.xMin + 6, midY + 5);
-    ctx.stroke();
-  } else if (kind === 'connector') {
-    ctx.beginPath();
-    ctx.moveTo(bounds.xMin + 6, bounds.yMin + bounds.height / 2);
-    ctx.lineTo(bounds.xMin + 14, bounds.yMin + bounds.height / 2 - 5);
-    ctx.lineTo(bounds.xMin + 14, bounds.yMin + bounds.height / 2 + 5);
-    ctx.closePath();
-    ctx.stroke();
-  } else {
-    ctx.beginPath();
-    ctx.arc(bounds.xMin + 7, bounds.yMin + 7, 2.4, 0, Math.PI * 2);
-    ctx.fill();
+function shouldDrawComponentSilhouettes(detailZoom, visiblePartCount = 0) {
+  if (state.componentShapesMode === 'minimal') return false;
+  if (state.componentShapesMode === 'detail') return detailZoom >= 0.8;
+  // In Auto, defer the extra paths while a whole dense board is visible. Once the
+  // technician is in a work area, the same shapes appear without a render spike.
+  return detailZoom >= (visiblePartCount > 900 ? 1.75 : 1.1);
+}
+
+function getScreenPadPoints(pins) {
+  const points = [];
+  for (const pin of pins) {
+    if (!Number.isFinite(pin?.x) || !Number.isFinite(pin?.y)) continue;
+    points.push(worldToScreen(pin.x, pin.y));
   }
+  return points;
+}
+
+function getFarthestScreenPadPair(points) {
+  if (points.length < 2) return null;
+  const candidates = points.length <= 12
+    ? points
+    : [
+        points.reduce((best, point) => point.x < best.x ? point : best, points[0]),
+        points.reduce((best, point) => point.x > best.x ? point : best, points[0]),
+        points.reduce((best, point) => point.y < best.y ? point : best, points[0]),
+        points.reduce((best, point) => point.y > best.y ? point : best, points[0]),
+      ];
+  let pair = null;
+  for (let left = 0; left < candidates.length; left += 1) {
+    for (let right = left + 1; right < candidates.length; right += 1) {
+      const dx = candidates[right].x - candidates[left].x;
+      const dy = candidates[right].y - candidates[left].y;
+      const distance = Math.hypot(dx, dy);
+      if (!pair || distance > pair.distance) pair = { first: candidates[left], second: candidates[right], distance };
+    }
+  }
+  return pair;
+}
+
+function getPartVisualFrame(part, pins, bounds) {
+  const authoritativeFrame = getComponentOutlineFrame(part);
+  const sourceCenter = authoritativeFrame?.center || part.native_center || part.center || pins[0] || null;
+  const center = sourceCenter && Number.isFinite(sourceCenter.x) && Number.isFinite(sourceCenter.y)
+    ? worldToScreen(sourceCenter.x, sourceCenter.y)
+    : { x: bounds.xMin + bounds.width / 2, y: bounds.yMin + bounds.height / 2 };
+  const nativeWidth = Math.max(0, Number(part.native_width || 0));
+  const nativeHeight = Math.max(0, Number(part.native_height || 0));
+  const points = getScreenPadPoints(pins);
+  const pair = getFarthestScreenPadPair(points);
+  let ux = 1;
+  let uy = 0;
+  let pixelsPerWorld = Math.max(state.camera.scale || 1, 1e-6);
+  let frameLength = 0;
+  let frameThickness = 0;
+
+  // The desktop exporter resolves its component rectangle from the actual pad fit.
+  // That resolved frame wins over raw placement rotation, which can be 90 degrees
+  // different on a subset of footprints. Transform its edge directly so rotate and
+  // mirror stay exact without inventing a second orientation in the browser.
+  if (authoritativeFrame?.primary && authoritativeFrame?.secondary) {
+    const primaryA = worldToScreen(authoritativeFrame.primary.x1, authoritativeFrame.primary.y1);
+    const primaryB = worldToScreen(authoritativeFrame.primary.x2, authoritativeFrame.primary.y2);
+    const secondaryA = worldToScreen(authoritativeFrame.secondary.x1, authoritativeFrame.secondary.y1);
+    const secondaryB = worldToScreen(authoritativeFrame.secondary.x2, authoritativeFrame.secondary.y2);
+    const dx = primaryB.x - primaryA.x;
+    const dy = primaryB.y - primaryA.y;
+    const length = Math.hypot(dx, dy);
+    if (length > 1e-6) {
+      ux = dx / length;
+      uy = dy / length;
+      frameLength = length;
+      frameThickness = Math.hypot(secondaryB.x - secondaryA.x, secondaryB.y - secondaryA.y);
+    }
+  } else if (sourceCenter && nativeWidth > 0 && nativeHeight > 0 && Number.isFinite(Number(part.rotation))) {
+    // Non-desktop and legacy data have no proven component frame. Raw placement
+    // rotation remains the fallback for those inputs.
+    const angle = Number(part.rotation) * Math.PI / 180;
+    const next = worldToScreen(sourceCenter.x + Math.cos(angle), sourceCenter.y + Math.sin(angle));
+    const dx = next.x - center.x;
+    const dy = next.y - center.y;
+    const length = Math.hypot(dx, dy);
+    if (length > 1e-6) {
+      ux = dx / length;
+      uy = dy / length;
+      pixelsPerWorld = length;
+    }
+  } else if (pair && pair.distance > 1e-6) {
+    ux = (pair.second.x - pair.first.x) / pair.distance;
+    uy = (pair.second.y - pair.first.y) / pair.distance;
+  } else if (bounds.height > bounds.width) {
+    ux = 0;
+    uy = 1;
+  }
+
+  const vx = -uy;
+  const vy = ux;
+  let minAlong = Number.POSITIVE_INFINITY;
+  let maxAlong = Number.NEGATIVE_INFINITY;
+  let minAcross = Number.POSITIVE_INFINITY;
+  let maxAcross = Number.NEGATIVE_INFINITY;
+  for (const point of points) {
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    const along = dx * ux + dy * uy;
+    const across = dx * vx + dy * vy;
+    minAlong = Math.min(minAlong, along);
+    maxAlong = Math.max(maxAlong, along);
+    minAcross = Math.min(minAcross, across);
+    maxAcross = Math.max(maxAcross, across);
+  }
+  return {
+    cx: center.x,
+    cy: center.y,
+    ux,
+    uy,
+    nativeLength: frameLength || nativeWidth * pixelsPerWorld,
+    nativeThickness: frameThickness || nativeHeight * pixelsPerWorld,
+    padSpan: Number.isFinite(minAlong) ? Math.max(0, maxAlong - minAlong) : 0,
+    padCrossSpan: Number.isFinite(minAcross) ? Math.max(0, maxAcross - minAcross) : 0,
+    boundsLength: Math.abs(bounds.width * ux) + Math.abs(bounds.height * uy),
+    boundsThickness: Math.abs(bounds.width * vx) + Math.abs(bounds.height * vy),
+  };
+}
+
+function getPartSilhouetteSize(kind, frame) {
+  const passiveLike = ['resistor', 'resistor-array', 'capacitor', 'inductor', 'inductor-array', 'ferrite', 'diode', 'diode-array', 'fuse'].includes(kind);
+  const defaultLength = Math.max(6, frame.boundsLength * 0.72);
+  const defaultThickness = Math.max(5, frame.boundsThickness * 0.62);
+  if (passiveLike) {
+    const padLimit = frame.padSpan > 0 ? Math.max(6, frame.padSpan * 0.78) : Number.POSITIVE_INFINITY;
+    return {
+      length: Math.max(6, Math.min(frame.nativeLength > 0 ? frame.nativeLength * 0.68 : defaultLength, padLimit)),
+      thickness: Math.max(5, Math.min(frame.nativeThickness > 0 ? frame.nativeThickness * 0.7 : defaultThickness, Math.max(5, frame.boundsThickness * 0.78))),
+    };
+  }
+  return {
+    length: Math.max(7, frame.nativeLength > 0 ? frame.nativeLength * 0.86 : defaultLength),
+    thickness: Math.max(6, frame.nativeThickness > 0 ? frame.nativeThickness * 0.86 : defaultThickness),
+  };
+}
+
+function drawLocalRoundedBody(length, thickness, radius = Math.min(length, thickness) * 0.2) {
+  roundRect(ctx, -length / 2, -thickness / 2, length, thickness, radius);
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawLocalLine(x1, y1, x2, y2, lineWidth = null) {
+  ctx.save();
+  if (lineWidth) ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
   ctx.restore();
+}
+
+function drawAuthoritativeComponentFrame(part) {
+  const frame = getComponentOutlineFrame(part);
+  const segments = frame?.segments;
+  if (!Array.isArray(segments) || !segments.length) return false;
+
+  ctx.beginPath();
+  for (const segment of segments) {
+    const a = worldToScreen(segment.x1, segment.y1);
+    const b = worldToScreen(segment.x2, segment.y2);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+  }
+  ctx.stroke();
+  return true;
+}
+
+function drawPartSilhouette(kind, part, pins, bounds, detailZoom) {
+  if (kind === 'generic') return false;
+  const frame = getPartVisualFrame(part, pins, bounds);
+  const size = getPartSilhouetteSize(kind, frame);
+  const length = size.length;
+  const thickness = size.thickness;
+  const detailed = detailZoom >= 1.7 && Math.min(length, thickness) >= 8;
+  ctx.save();
+  ctx.translate(frame.cx, frame.cy);
+  ctx.rotate(Math.atan2(frame.uy, frame.ux));
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  if (kind === 'resistor' || kind === 'resistor-array') {
+    drawLocalRoundedBody(length * 0.86, thickness * 0.68, thickness * 0.18);
+    if (detailed) {
+      const bands = kind === 'resistor-array' ? [-0.24, 0, 0.24] : [-0.22, 0.22];
+      for (const ratio of bands) drawLocalLine(length * ratio, -thickness * 0.25, length * ratio, thickness * 0.25);
+    }
+  } else if (kind === 'capacitor') {
+    const plateWidth = Math.max(1.4, Math.min(length * 0.13, thickness * 0.48));
+    const plateOffset = Math.max(plateWidth * 0.9, Math.min(length * 0.22, length / 2 - plateWidth / 2));
+    const plateHeight = thickness * 0.82;
+    roundRect(ctx, -plateOffset - plateWidth / 2, -plateHeight / 2, plateWidth, plateHeight, plateWidth / 2);
+    ctx.fill(); ctx.stroke();
+    roundRect(ctx, plateOffset - plateWidth / 2, -plateHeight / 2, plateWidth, plateHeight, plateWidth / 2);
+    ctx.fill(); ctx.stroke();
+    if (detailed) drawLocalLine(-plateOffset * 0.55, 0, plateOffset * 0.55, 0, Math.max(1, thickness * 0.12));
+  } else if (kind === 'inductor' || kind === 'inductor-array') {
+    const turns = kind === 'inductor-array' ? 4 : 3;
+    const start = -length * 0.46;
+    const step = (length * 0.92) / turns;
+    ctx.save();
+    ctx.lineWidth = Math.max(ctx.lineWidth, Math.min(3, thickness * 0.28));
+    ctx.beginPath();
+    ctx.moveTo(start, 0);
+    for (let turn = 0; turn < turns; turn += 1) {
+      const x0 = start + turn * step;
+      const x1 = x0 + step;
+      ctx.quadraticCurveTo((x0 + x1) / 2, turn % 2 === 0 ? -thickness * 0.34 : thickness * 0.34, x1, 0);
+    }
+    ctx.stroke();
+    ctx.restore();
+  } else if (kind === 'ferrite') {
+    drawLocalRoundedBody(length * 0.8, thickness * 0.8, thickness * 0.28);
+    drawLocalLine(0, -thickness * 0.31, 0, thickness * 0.31, Math.max(1.2, thickness * 0.14));
+  } else if (kind === 'diode' || kind === 'diode-array') {
+    const halfLength = length * 0.46;
+    const halfThickness = thickness * 0.34;
+    ctx.beginPath();
+    ctx.moveTo(-halfLength, -halfThickness);
+    ctx.lineTo(halfLength * 0.52, -halfThickness);
+    ctx.lineTo(halfLength, 0);
+    ctx.lineTo(halfLength * 0.52, halfThickness);
+    ctx.lineTo(-halfLength, halfThickness);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    const bands = kind === 'diode-array' ? [-0.18, 0.18] : [0];
+    for (const ratio of bands) drawLocalLine(length * ratio, -thickness * 0.27, length * ratio, thickness * 0.27, Math.max(1.1, thickness * 0.13));
+  } else if (kind === 'fuse') {
+    drawLocalRoundedBody(length * 0.82, thickness * 0.64, thickness * 0.28);
+    const left = -length * 0.25;
+    const right = length * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(left, 0);
+    ctx.lineTo(left * 0.35, -thickness * 0.19);
+    ctx.lineTo(right * 0.35, thickness * 0.19);
+    ctx.lineTo(right, 0);
+    ctx.stroke();
+  } else if (kind === 'testpoint') {
+    const radius = Math.max(3, Math.min(Math.max(length, thickness) * 0.34, thickness * 0.62));
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    if (detailed) drawLocalLine(-radius * 0.45, 0, radius * 0.45, 0);
+  } else if (kind === 'mount-hole') {
+    const radius = Math.max(3, Math.min(Math.max(length, thickness) * 0.36, thickness * 0.58));
+    ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, Math.max(1.5, radius * 0.44), 0, Math.PI * 2); ctx.stroke();
+  } else if (kind === 'sot') {
+    const halfLength = length * 0.43;
+    const halfThickness = thickness * 0.42;
+    ctx.beginPath();
+    ctx.moveTo(-halfLength * 0.66, -halfThickness);
+    ctx.lineTo(halfLength, -halfThickness);
+    ctx.lineTo(halfLength, halfThickness * 0.48);
+    ctx.lineTo(halfLength * 0.45, halfThickness);
+    ctx.lineTo(-halfLength, halfThickness);
+    ctx.lineTo(-halfLength, -halfThickness * 0.46);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  } else if (kind === 'connector') {
+    drawLocalRoundedBody(length * 0.9, thickness * 0.9, Math.min(length, thickness) * 0.12);
+    const teeth = Math.max(2, Math.min(9, pins.length || 2));
+    for (let tooth = 0; tooth < teeth; tooth += 1) {
+      const x = -length * 0.32 + (length * 0.64 * tooth / Math.max(1, teeth - 1));
+      drawLocalLine(x, -thickness * 0.24, x, thickness * 0.24, Math.max(1, thickness * 0.11));
+    }
+  } else if (kind === 'bga') {
+    drawLocalRoundedBody(length * 0.9, thickness * 0.9, Math.min(length, thickness) * 0.12);
+    if (detailed) {
+      const radius = Math.max(1, Math.min(2.2, thickness * 0.08));
+      for (const x of [-0.22, 0, 0.22]) {
+        for (const y of [-0.22, 0, 0.22]) {
+          ctx.beginPath(); ctx.arc(length * x, thickness * y, radius, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+  } else if (kind === 'ic' || kind === 'small-ic') {
+    drawLocalRoundedBody(length * 0.9, thickness * 0.9, Math.min(length, thickness) * 0.14);
+  } else {
+    ctx.restore();
+    return false;
+  }
+
+  ctx.restore();
+  return true;
 }
 
 function drawPartsDuringViewInteraction(viewport) {
@@ -2624,6 +3437,9 @@ function drawParts() {
     viewport,
     state.indexes.unindexedParts,
   );
+  const useComponentSilhouettes = shouldDrawComponentSilhouettes(detailZoom, renderParts.length);
+  const sessionNotes = sessionAnnotationLoad('notes');
+  const sessionMarks = sessionAnnotationLoad('marks');
   // Spatial label deconfliction. The old flat rectangle list made dense boards
   // compare every candidate label with every accepted label. Bucket labels in
   // screen space so the exact collision rule only checks nearby neighbours.
@@ -2674,14 +3490,14 @@ function drawParts() {
     const isSelectedPart = state.selectedPart && state.selectedPart.index === part.index;
     const isHoverPart = state.hoverPart && state.hoverPart.index === part.index;
     const partHasSelectedNet = selectedNetKey && (part.nets || []).some((n) => n.toLowerCase() === selectedNetKey);
-    const hasMark = state.board ? Boolean(markGet(part.name)) : false;
+    const mark = sessionMarks[part.name] || null;
+    const hasMark = Boolean(mark);
     const faded = (state.selectedPart || state.selectedNet || state.selectedPin) && !isSelectedPart && !partHasSelectedNet && !hasMark;
     if (!partBox && !pins.length && !part.center) continue;
     const bounds = getScreenBoundsForPart(part, pins, partBox, {
       active: Boolean(isSelectedPart || isHoverPart || partHasSelectedNet),
     });
     const kind = classifyPartGeometry(part, pins, bounds);
-    const mark = state.board ? markGet(part.name) : null;
     const markStyle = mark ? MARK_COLORS[mark] : null;
     const edgeColor = isSelectedPart ? COLORS.selected
       : markStyle && !faded ? markStyle.stroke
@@ -2696,31 +3512,59 @@ function drawParts() {
         ? (part.mounting_side === 'bottom' ? 'rgba(244,114,182,0.045)' : 'rgba(96,165,250,0.045)')
         : (part.mounting_side === 'bottom' ? 'rgba(244,114,182,0.05)' : 'rgba(96,165,250,0.05)');
 
+    // Keep the verified native footprint border visible in the work view. It is
+    // deliberately drawn here (only for visible components), not restored in the
+    // global outline pass, so the old 12k-segment duplicate/zoom cost cannot return.
+    const hasAuthoritativeFrame = Boolean(getComponentOutlineFrame(part));
+    // Below work zoom the native-outline layer retains the frame. At work zoom
+    // this viewport-culled draw replaces that global layer exactly once.
+    const drawFootprintFrame = state.showOutline && hasAuthoritativeFrame && detailZoom >= 0.9;
+    const frameEdgeColor = isSelectedPart ? COLORS.selected
+      : markStyle && !faded ? markStyle.stroke
+      : partHasSelectedNet ? COLORS.net
+      : isHoverPart ? 'rgba(248,250,252,0.88)'
+      : faded ? 'rgba(148,163,184,0.16)'
+      : state.theme === 'light' ? 'rgba(43,60,70,0.72)' : 'rgba(203,213,225,0.64)';
+    const frameLineWidth = isSelectedPart ? 2.15
+      : isHoverPart ? 1.7
+      : Math.max(0.85, Math.min(1.35, 0.8 + detailZoom * 0.08));
+
+    if (drawFootprintFrame) {
+      ctx.save();
+      ctx.strokeStyle = frameEdgeColor;
+      ctx.lineWidth = frameLineWidth;
+      drawAuthoritativeComponentFrame(part);
+      ctx.restore();
+    }
+
     ctx.strokeStyle = edgeColor;
     ctx.fillStyle = fillColor;
     ctx.lineWidth = tvwMode
       ? (isSelectedPart ? 2.4 : isHoverPart ? 2 : Math.max(1.35, Math.min(2.1, 1.2 + detailZoom * 0.22)))
       : (isSelectedPart ? 1.8 : isHoverPart ? 1.4 : 1);
 
-    const drawArtificialPartBody = true;
-    if (detailZoom >= 0.9 && drawArtificialPartBody) {
-      if (kind === 'passive') {
-        const longHorizontal = bounds.width >= bounds.height;
-        const padInset = Math.max(2, Math.min(7, longHorizontal ? bounds.width * 0.18 : bounds.height * 0.18));
-        if (longHorizontal) {
-          roundRect(ctx, bounds.xMin + padInset, bounds.yMin + 1.5, Math.max(4, bounds.width - padInset * 2), Math.max(4, bounds.height - 3), 4);
+    const needsFallbackBody = !drawFootprintFrame;
+    if (detailZoom >= 0.9) {
+      const drewSilhouette = useComponentSilhouettes && drawPartSilhouette(kind, part, pins, bounds, detailZoom);
+      if (!drewSilhouette && needsFallbackBody) {
+        if (['resistor', 'resistor-array', 'capacitor', 'inductor', 'inductor-array', 'ferrite', 'fuse'].includes(kind)) {
+          const longHorizontal = bounds.width >= bounds.height;
+          const padInset = Math.max(2, Math.min(7, longHorizontal ? bounds.width * 0.18 : bounds.height * 0.18));
+          if (longHorizontal) {
+            roundRect(ctx, bounds.xMin + padInset, bounds.yMin + 1.5, Math.max(4, bounds.width - padInset * 2), Math.max(4, bounds.height - 3), 4);
+          } else {
+            roundRect(ctx, bounds.xMin + 1.5, bounds.yMin + padInset, Math.max(4, bounds.width - 3), Math.max(4, bounds.height - padInset * 2), 4);
+          }
+        } else if (kind === 'connector') {
+          roundRect(ctx, bounds.xMin + 1.5, bounds.yMin + 1.5, Math.max(5, bounds.width - 3), Math.max(5, bounds.height - 3), 4);
         } else {
-          roundRect(ctx, bounds.xMin + 1.5, bounds.yMin + padInset, Math.max(4, bounds.width - 3), Math.max(4, bounds.height - padInset * 2), 4);
+          roundRect(ctx, bounds.xMin + 1.5, bounds.yMin + 1.5, Math.max(5, bounds.width - 3), Math.max(5, bounds.height - 3), kind === 'bga' ? 8 : 4);
         }
-      } else if (kind === 'connector') {
-        roundRect(ctx, bounds.xMin + 1.5, bounds.yMin + 1.5, Math.max(5, bounds.width - 3), Math.max(5, bounds.height - 3), 4);
-      } else if (kind === 'bga' || kind === 'ic' || kind === 'small-ic' || kind === 'sot' || kind === 'generic' || kind === 'diode') {
-        roundRect(ctx, bounds.xMin + 1.5, bounds.yMin + 1.5, Math.max(5, bounds.width - 3), Math.max(5, bounds.height - 3), kind === 'bga' ? 8 : 4);
+        ctx.fill();
+        ctx.stroke();
       }
-      ctx.fill();
-      ctx.stroke();
 
-      if (tvwMode && !tvwNativeSegments && !faded) {
+      if (tvwMode && !tvwNativeSegments && !faded && !drewSilhouette && needsFallbackBody) {
         const center = part.center || { x: pins[0]?.x || 0, y: pins[0]?.y || 0 };
         const c = worldToScreen(center.x, center.y);
         const dotRadius = Math.max(2.2, Math.min(4.5, 2.4 + detailZoom * 0.45));
@@ -2733,10 +3577,6 @@ function drawParts() {
         ctx.fill();
         ctx.stroke();
         ctx.restore();
-      }
-
-      if (detailZoom >= 1.8 && (kind === 'diode' || kind === 'connector')) {
-        drawPartMarker(kind, bounds, edgeColor);
       }
     }
 
@@ -2771,7 +3611,9 @@ function drawParts() {
     }
 
     if (detailZoom >= 1.5 && state.board) {
-      const hasMark = Boolean(mark); const hasNote = Boolean(notesGet(partNoteKey(part.name)));
+      const noteKey = partNoteKey(part.name);
+      const hasNote = Boolean(sessionNotes[noteKey] || sessionNotes[part.name]);
+      const hasMark = Boolean(mark);
       if (hasMark || hasNote) {
         ctx.save(); let dotX = bounds.xMax;
         if (hasMark) { const dr = Math.max(3, Math.min(5.5, zoom * 12)); dotX -= dr;
@@ -2845,6 +3687,7 @@ function drawPins() {
     state.indexes.pinOrder,
     viewport,
   );
+  const sessionNotes = sessionAnnotationLoad('notes');
 
   const dz = getDetailZoom();
   // Pin rendering mode: scales with zoom so pins don't dominate at overview
@@ -2864,7 +3707,7 @@ function drawPins() {
     const isHoverPin = hoverPinIndex && pin.index === hoverPinIndex;
     const isHoverNet = hoverNetKey && !isHoverPin && (pin.net || '').toLowerCase() === hoverNetKey;
     const isActive = isSelectedPin || isHoverPin || isHoverNet || isSelectedNet || isSelectedPart || isHoverPart;
-    const hasNote = notesGet(pinNoteKey(pin));
+    const hasNote = sessionNotes['pin:' + (pin.index || '')] || '';
     state.renderLoop.lastVisiblePins += 1;
 
     // Base size: starts tiny at overview, grows with zoom
@@ -3475,7 +4318,7 @@ function populateNetList() {
       state.hoverNet = null;
       render();
     });
-    item.addEventListener('click', () => selectNet(net.name));
+    item.addEventListener('click', () => activateNetLocation(net.name));
     netListEl.appendChild(item);
   }
 }
@@ -3516,41 +4359,9 @@ function populatePartList() {
         render();
       });
     }
-    btn.addEventListener('click', () => selectPart(part));
+    btn.addEventListener('click', () => activatePartLocation(part));
     return btn;
   }, LIST_LIMITS.componentsInitial, LIST_LIMITS.componentsStep, 'No components match the current filter.');
-}
-
-function populateMatches(items) {
-  matchListEl.innerHTML = '';
-  matchCountEl.textContent = String(items.length);
-  for (const item of items.slice(0, 200)) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'list-item';
-    if (item.kind === 'part') {
-      btn.innerHTML = `${escapeHtml(item.part.name)} <small>${item.part.mounting_side} | ${(item.part.nets || []).slice(0, 3).join(', ') || 'no nets'}</small>`;
-      btn.addEventListener('click', () => {
-        setSearchMode('part');
-        ensurePartSearchSideVisible(item.part);
-        selectPart(item.part);
-        focusPartSelection(item.part);
-        render();
-        onViewChanged();
-      });
-    } else {
-      btn.innerHTML = `${escapeHtml(item.net.name)} <small>${item.net.pin_count} pins${item.net.route_count ? ` | ${item.net.route_count} routes` : ''}</small>`;
-      btn.addEventListener('click', () => {
-        setSearchMode('net');
-        ensurePinSearchSideVisible(state.indexes.pinsByNet.get(item.net.name.toLowerCase()) || []);
-        selectNet(item.net.name);
-        focusNetSelection(item.net.name);
-        render();
-        onViewChanged();
-      });
-    }
-    matchListEl.appendChild(btn);
-  }
 }
 
 function showPartResult(part, pin = null) {
@@ -3658,15 +4469,20 @@ function selectPin(pin, options = {}) {
   onViewChanged();
 }
 
-function selectNet(netName) {
-  switchSidebarTab('nets');
-  document.getElementById('sb-net-detail')?.classList.remove('is-hidden');
+function selectNet(netName, options = {}) {
+  const {
+    openInspector = false,
+    preferredMode = null,
+    preferredPane = 'net',
+  } = options;
+  switchSidebarTab(openInspector ? 'inspector' : 'nets');
+  document.getElementById('sb-net-detail')?.classList.toggle('is-hidden', openInspector);
   state.selectedNet = netName;
   state.selectedPart = null;
   state.selectedPin = null;
   state.inspectorNet = netName;
-  setInspectorMode('tables');
-  setInspectorPane('net');
+  setInspectorMode(preferredMode || (openInspector ? 'summary' : 'tables'));
+  setInspectorPane(preferredPane);
   scheduleSessionAnnotationSync();
   const pins = state.indexes.pinsByNet.get(netName.toLowerCase()) || [];
   populateSelectedNetMembers(netName);
@@ -3691,8 +4507,6 @@ function clearSelection() {
   resultsEl.textContent = 'Nothing selected.';
   clearSelectedNetMembers();
   renderInspectorLinkedTables();
-  matchListEl.innerHTML = '';
-  matchCountEl.textContent = '0';
   setStatus(state.board ? `Loaded: ${state.board.filename}` : 'Waiting for a file...');
   render();
 }
@@ -4033,77 +4847,15 @@ function findPartByName(name) {
 }
 
 function searchPart() {
-  if (!state.board) return;
-  const q = getSearchQueryOrNotify();
-  if (!q) return;
-  setSearchMode('part');
-  const parts = state.board.parts.filter((p) => p.name.toLowerCase().includes(q));
-  if (!parts.length) {
-    populateMatches([]);
-    setStatus('Part not found.', true);
-    return;
-  }
-  populateMatches(parts.map((part) => ({ kind: 'part', part })));
-  setStatus(`Found ${parts.length} part match(es).`);
-  ensurePartSearchSideVisible(parts[0]);
-  selectPart(parts[0]);
-  focusPartSelection(parts[0]);
-  render();
-  onViewChanged();
+  renderQuickSearchResults();
 }
 
 function searchNet() {
-  if (!state.board) return;
-  const q = getSearchQueryOrNotify();
-  if (!q) return;
-  setSearchMode('net');
-  const nets = state.board.nets.filter((n) => n.name.toLowerCase().includes(q));
-  if (!nets.length) {
-    populateMatches([]);
-    setStatus('Net not found.', true);
-    return;
-  }
-  populateMatches(nets.map((net) => ({ kind: 'net', net })));
-  setStatus(`Found ${nets.length} net match(es).`);
-  ensurePinSearchSideVisible(state.indexes.pinsByNet.get(nets[0].name.toLowerCase()) || []);
-  selectNet(nets[0].name);
-  focusNetSelection(nets[0].name);
-  render();
-  onViewChanged();
+  renderQuickSearchResults();
 }
 
 function searchAll() {
-  if (!state.board) return;
-  const q = getSearchQueryOrNotify();
-  if (!q) return;
-  setSearchMode('all');
-  const parts = state.board.parts
-    .filter((p) => p.name.toLowerCase().includes(q))
-    .slice(0, 100)
-    .map((part) => ({ kind: 'part', part }));
-  const nets = state.board.nets
-    .filter((n) => n.name.toLowerCase().includes(q))
-    .slice(0, 100)
-    .map((net) => ({ kind: 'net', net }));
-  const matches = [...parts, ...nets];
-  populateMatches(matches);
-  if (!matches.length) {
-    setStatus('Nothing found.', true);
-    return;
-  }
-  const first = matches[0];
-  setStatus(`Found ${matches.length} match(es).`);
-  if (first.kind === 'part') {
-    ensurePartSearchSideVisible(first.part);
-    selectPart(first.part);
-    focusPartSelection(first.part);
-  } else {
-    ensurePinSearchSideVisible(state.indexes.pinsByNet.get(first.net.name.toLowerCase()) || []);
-    selectNet(first.net.name);
-    focusNetSelection(first.net.name);
-  }
-  render();
-  onViewChanged();
+  renderQuickSearchResults();
 }
 
 function findNearestPinInPartAtScreenPoint(part, screenX, screenY, maxDistancePx) {
@@ -4494,13 +5246,17 @@ function getBoardviewPromptContext() {
 }
 
 function buildBoardviewAiPrompt(sessionLink) {
-  return `Session Boardview:
+  return `TeknisiHub BoardViewer skill trigger: teknisihub-boardviewer-reader
+
+Session Boardview:
 ${sessionLink}
 
 Konteks aktif:
 ${getBoardviewPromptContext()}
 
 Prompt AI:
+Sesi ini berasal dari TeknisiHub BoardViewer lokal. Jika skill \`teknisihub-boardviewer-reader\` tersedia, gunakan skill itu langsung untuk membaca sesi secara selektif: ikuti fokus aktif atau identifier komponen/pin/net yang ditanya, sertakan Notes/mark terkait, dan jangan masukkan seluruh native-session ke konteks AI. Link localhost ini hanya dapat dibaca dari komputer yang sama dengan TeknisiHub dan sesi BoardViewer aktif.
+
 Kamu adalah asisten teknisi motherboard. Baca native-session boardview dari link di atas sebelum memberi arahan. Gunakan data boardview untuk lokasi komponen, sisi top/bottom, pin, net, koneksi, dan area ukur. Jangan mengarang nilai resistor, tegangan normal, pin IC, atau nama rail; kalau data itu tidak ada di boardview, minta session schematic/datasheet atau hasil ukur user.
 
 1. Cara Baca
@@ -4608,11 +5364,16 @@ function getTeknisiHubPadExtents(connection) {
   };
 }
 
+const teknisiHubNaturalCollator = typeof Intl !== 'undefined' && typeof Intl.Collator === 'function'
+  ? new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+  : null;
+
 function compareTeknisiHubNatural(left, right) {
-  return String(left || '').localeCompare(String(right || ''), undefined, {
-    numeric: true,
-    sensitivity: 'base',
-  });
+  const leftText = String(left || '');
+  const rightText = String(right || '');
+  return teknisiHubNaturalCollator
+    ? teknisiHubNaturalCollator.compare(leftText, rightText)
+    : leftText.localeCompare(rightText, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 function convertTeknisiHubSessionToLabBoard(session) {
@@ -4743,6 +5504,12 @@ function convertTeknisiHubSessionToLabBoard(session) {
         shape: seed.shape || '',
         mounting_side: seed.mounting_side,
         center,
+        native_center: Number.isFinite(seed.sourceX) && Number.isFinite(seed.sourceY)
+          ? { x: seed.sourceX, y: seed.sourceY }
+          : null,
+        native_width: Math.max(0, Number(seed.width) || 0),
+        native_height: Math.max(0, Number(seed.height) || 0),
+        rotation: Number.isFinite(seed.rotation) ? seed.rotation : 0,
         bbox,
         native_bbox: nativeBBox,
         nets: Array.from(seed.nets).sort(compareTeknisiHubNatural),
@@ -4818,6 +5585,7 @@ function convertTeknisiHubSessionToLabBoard(session) {
       x2: Number(segment.x2),
       y2: Number(segment.y2),
       segment_type: Number(segment.segmentType ?? segment.segment_type ?? 0),
+      part_id: String(segment.partId ?? segment.part_id ?? '').trim(),
       side: toTeknisiHubLabSide(segment.layer),
     })).filter((segment) => [segment.x1, segment.y1, segment.x2, segment.y2].every(Number.isFinite)),
     outline: [],
@@ -4858,10 +5626,18 @@ async function loadTeknisiHubNativeSessionFromQuery() {
           const pin = (state.indexes.pinsByPart.get(part.index) || []).find((candidate) =>
             String(candidate.name || '').trim().toLowerCase() === requestedPin.toLowerCase()
           );
-          if (pin) selectPin(pin);
-          else selectPart(part);
+          if (pin) {
+            // autoFitBoard settles over two frames; apply an explicit requested location after it
+            // so the matching side, camera, and pulse are never overwritten by initial layout.
+            window.requestAnimationFrame(() => window.requestAnimationFrame(() =>
+              activatePinLocation(pin, { preferredMode: 'summary', preferredPane: 'part' })));
+          } else {
+            window.requestAnimationFrame(() => window.requestAnimationFrame(() =>
+              activatePartLocation(part, { preferredMode: 'summary' })));
+          }
         } else {
-          selectPart(part);
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() =>
+            activatePartLocation(part, { preferredMode: 'summary' })));
         }
       }
     }
@@ -4918,6 +5694,16 @@ function cycleRoutesMode() {
   render();
 }
 
+function cycleComponentShapesMode() {
+  const order = ['auto', 'detail', 'minimal'];
+  const index = order.indexOf(state.componentShapesMode);
+  state.componentShapesMode = order[(index + 1) % order.length];
+  persistBoardviewComponentShapesMode(state.componentShapesMode);
+  refreshToolbarButtons();
+  setStatus(`Bentuk komponen: ${getBoardviewComponentShapesModeLabel(state.componentShapesMode)}`);
+  render();
+}
+
 function escapeHtml(text) {
   return String(text)
     .replaceAll('&', '&amp;')
@@ -4970,6 +5756,13 @@ function refreshToolbarButtons() {
     status: state.showParts ? 'On' : 'Off',
     title: `Parts: ${state.showParts ? 'on' : 'off'}`,
     pressed: state.showParts,
+  });
+  const componentShapesLabel = getBoardviewComponentShapesModeLabel(state.componentShapesMode);
+  setToolButtonState('toggle-shapes-btn', {
+    active: state.componentShapesMode !== 'minimal',
+    status: componentShapesLabel,
+    title: `Bentuk komponen: ${componentShapesLabel}. Klik untuk Auto -> Detail -> Minimal`,
+    pressed: state.componentShapesMode !== 'minimal',
   });
   setToolButtonState('toggle-pins-btn', {
     active: state.showPins,
@@ -5235,12 +6028,12 @@ resultsEl.addEventListener('click', (ev) => {
   const target = ev.target.closest('[data-net], [data-part]');
   if (!target || !state.board) return;
   if (target.dataset.net) {
-    selectNet(target.dataset.net);
+    activateNetLocation(target.dataset.net);
     return;
   }
   if (target.dataset.part) {
     const part = findPartByName(target.dataset.part);
-    if (part) selectPart(part);
+    if (part) activatePartLocation(part);
   }
 });
 
@@ -5250,10 +6043,7 @@ fileInputEl?.addEventListener('change', async (ev) => {
   await handleUpload();
 });
 reportIssueBtnEl?.addEventListener('click', reportUploadIssue);
-searchAllBtn?.addEventListener('click', searchAll);
-searchPartBtn?.addEventListener('click', searchPart);
-searchNetBtn?.addEventListener('click', searchNet);
-document.getElementById('clear-btn').addEventListener('click', clearAllQueries);
+searchClearBtn?.addEventListener('click', () => clearQuickSearch());
 document.getElementById('fit-btn').addEventListener('click', fitBoard);
 document.getElementById('side-both-btn').addEventListener('click', () => setSide('both'));
 document.getElementById('side-top-btn').addEventListener('click', () => setSide('top'));
@@ -5270,6 +6060,8 @@ document.getElementById('toggle-parts-btn').addEventListener('click', () => {
   refreshToolbarButtons();
   render();
 });
+
+document.getElementById('toggle-shapes-btn')?.addEventListener('click', cycleComponentShapesMode);
 
 document.getElementById('toggle-pins-btn').addEventListener('click', () => {
   state.showPins = !state.showPins;
@@ -5306,10 +6098,40 @@ document.getElementById('toggle-outline-btn').addEventListener('click', () => {
   render();
 });
 
-searchInput.addEventListener('keydown', (ev) => {
+searchInput?.addEventListener('input', () => scheduleQuickSearchResults());
+searchInput?.addEventListener('focus', () => {
+  if (state.quickSearch.timer) window.clearTimeout(state.quickSearch.timer);
+  renderQuickSearchResults({ showRecents: true });
+});
+searchInput?.addEventListener('blur', () => {
+  state.quickSearch.timer = window.setTimeout(() => hideQuickSearchResults(), 160);
+});
+searchInput?.addEventListener('keydown', (ev) => {
+  if (state.quickSearch.query !== getQuickSearchQuery()) {
+    renderQuickSearchResults({ showRecents: true });
+  }
+  const hasItems = state.quickSearch.items.length > 0;
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    if (!hasItems) renderQuickSearchResults({ showRecents: true });
+    const direction = ev.key === 'ArrowDown' ? 1 : -1;
+    setQuickSearchActiveIndex((state.quickSearch.activeIndex < 0 ? 0 : state.quickSearch.activeIndex) + direction);
+    return;
+  }
   if (ev.key === 'Enter') {
     ev.preventDefault();
-    runActiveSearch();
+    const item = state.quickSearch.items[state.quickSearch.activeIndex] || state.quickSearch.items[0];
+    if (item) activateQuickSearchItem(item);
+    else renderQuickSearchResults();
+    return;
+  }
+  if (ev.key === 'Escape') {
+    ev.preventDefault();
+    if (!searchResultsPopoverEl?.classList.contains('is-hidden')) {
+      hideQuickSearchResults();
+    } else if (getQuickSearchQuery()) {
+      clearQuickSearch({ clearSelection: false });
+    }
   }
 });
 
@@ -5341,8 +6163,15 @@ window.addEventListener('mouseup', (ev) => {
       render(); state.drag.active = false; canvas.classList.remove('dragging'); return;
     }
     const picked = pickAt(ev.clientX - rect.left, ev.clientY - rect.top);
-    if (picked?.kind === 'pin') selectPin(picked.value);
-    else if (picked?.kind === 'part') selectPart(picked.value);
+    if (picked?.kind === 'pin') {
+      selectPin(picked.value);
+      triggerPinLocationPulse(picked.value);
+      render();
+    } else if (picked?.kind === 'part') {
+      selectPart(picked.value);
+      triggerPartLocationPulse(picked.value);
+      render();
+    }
   }
   state.drag.active = false;
   canvas.classList.remove('dragging');
@@ -5582,7 +6411,6 @@ for (const modal of [metricsModalEl]) {
 }
 
 applyTheme(state.theme);
-setSearchMode(state.searchMode);
 setActionTab('share');
 refreshToolbarButtons();
 applySupportLinks();

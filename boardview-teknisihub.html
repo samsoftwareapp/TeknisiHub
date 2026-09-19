@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
   <link rel="icon" type="image/png" href="./assets/HubLogo.png">
-  <link rel="stylesheet" href="./boardview-teknisihub.css?v=202605210002">
+  <link rel="stylesheet" href="./boardview-teknisihub.css?v=202609180017">
 </head>
 <body data-theme="light" class="is-compact-viewer">
 
@@ -41,13 +41,25 @@
         <div id="login-required-note" class="login-note is-hidden">Sign in required to upload boards.</div>
         
 
-        <div class="sb-search-row">
-          <input id="search-input" type="text" placeholder="Cari R500, U19, GND, PPBUS_AON..." class="sb-search-input">
-          <div class="sb-search-btns">
-            <button id="search-all-btn" type="button">All</button>
-            <button id="search-part-btn" type="button">Parts</button>
-            <button id="search-net-btn" type="button">Nets</button>
-            <button id="clear-btn" type="button">Clear</button>
+        <div class="sb-search-row" role="search">
+          <label class="sr-only" for="search-input">Cari komponen, net, atau pin</label>
+          <div class="sb-search-field">
+            <span class="material-symbols-outlined sb-search-icon" aria-hidden="true">search</span>
+            <input id="search-input" type="text" placeholder="Cari R500, GND, U19.5…" class="sb-search-input" autocomplete="off" autocapitalize="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="search-results-list" aria-expanded="false" aria-describedby="search-help">
+            <button id="search-clear-btn" class="sb-search-clear is-hidden" type="button" aria-label="Bersihkan pencarian" title="Bersihkan pencarian">
+              <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
+          </div>
+          <div id="search-results-popover" class="sb-search-results is-hidden" role="region" aria-label="Hasil pencarian">
+            <div class="sb-search-results-head">
+              <span id="search-results-title">Hasil pencarian</span>
+              <span id="search-result-count" class="muted small">0</span>
+            </div>
+            <div id="search-results-list" class="sb-search-result-list" role="listbox"></div>
+          </div>
+          <div id="search-help" class="sb-search-help">
+            <span>Komponen, net, atau pin</span>
+            <span><kbd>Enter</kbd> buka</span>
           </div>
         </div>
 
@@ -78,13 +90,6 @@
 
           <div id="inspector-summary-pane" class="inspector-mode-pane">
             <div id="results" class="results">Nothing selected.</div>
-            <section class="sb-match-section">
-              <div class="sb-section-head">
-                <span>Matches</span>
-                <span id="match-count" class="muted small">0</span>
-              </div>
-              <div id="match-list" class="scroll-list"></div>
-            </section>
           </div>
 
           <section id="inspector-linked-data" class="inspector-linked-data inspector-mode-pane is-hidden">
@@ -220,6 +225,7 @@
 
         <div class="tool-cluster" role="group" aria-label="Viewer tools">
           <button id="toggle-parts-btn" class="tool-btn icon-only active" type="button" title="Parts: on" aria-label="Parts: on" data-state="On" aria-pressed="true"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">developer_board</span><span class="sr-only">Parts</span></button>
+          <button id="toggle-shapes-btn" class="tool-btn icon-only active" type="button" title="Bentuk komponen: Auto" aria-label="Bentuk komponen: Auto" data-state="Auto" aria-pressed="true"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">category</span><span class="sr-only">Bentuk komponen</span></button>
           <button id="toggle-pins-btn" class="tool-btn icon-only active" type="button" title="Pins: on" aria-label="Pins: on" data-state="On" aria-pressed="true"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">radio_button_checked</span><span class="sr-only">Pins</span></button>
           <button id="toggle-labels-btn" class="tool-btn icon-only active" type="button" title="Labels: on" aria-label="Labels: on" data-state="On" aria-pressed="true"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">label</span><span class="sr-only">Labels</span></button>
           <button id="toggle-routes-btn" class="tool-btn icon-only active" type="button" title="Routes: selected" aria-label="Routes: selected" data-state="Sel" aria-pressed="true"><span class="tool-svg-icon material-symbols-outlined" aria-hidden="true">route</span><span class="sr-only">Routes</span></button>
@@ -386,7 +392,7 @@
 
   <script src="./service-config.js?v=202609180003"></script>
   <script src="./master-download.js?v=202609180001"></script>
-  <script src="./boardview-teknisihub.js?v=202609180003"></script>
+  <script src="./boardview-teknisihub.js?v=202609180017"></script>
 
 </body></html>
 

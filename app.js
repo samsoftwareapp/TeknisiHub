@@ -7568,7 +7568,7 @@ function updateBoardviewOpenActionAvailability(target) {
 
 function buildBoardviewTeknisiHubUrl(sessionId) {
   const targetUrl = new URL("boardview-teknisihub.html", window.location.href);
-  targetUrl.searchParams.set("v", "202609180003");
+  targetUrl.searchParams.set("v", "202609180017");
   if (sessionId) {
     targetUrl.searchParams.set("sessionId", sessionId);
   }
