@@ -6741,6 +6741,185 @@ body.is-dark-mode .component-equivalent-ai-badge {
   cursor: progress;
 }
 
+.spi-read-save-dialog {
+  width: min(430px, calc(100vw - 32px));
+  margin: auto;
+  padding: 0;
+  border: 1px solid rgba(118, 151, 169, 0.32);
+  border-radius: 4px;
+  background: #0b1c28;
+  color: #edf9ff;
+  box-shadow: 0 24px 64px rgba(2, 12, 20, 0.5);
+}
+
+.spi-read-save-dialog::backdrop {
+  background: rgba(2, 12, 20, 0.68);
+  backdrop-filter: blur(5px);
+}
+
+.spi-read-save-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.spi-read-save-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spi-read-save-dialog-head > .material-symbols-outlined {
+  color: #82efd3;
+  font-size: 1.5rem;
+}
+
+.spi-read-save-dialog-head .label {
+  margin: 0;
+  color: #83a6bd;
+}
+
+.spi-read-save-dialog-head h4 {
+  margin: 2px 0 0;
+  color: #f4fbff;
+  font-size: 1.05rem;
+}
+
+.spi-read-save-dialog-description,
+.spi-read-save-dialog-warning {
+  margin: 0;
+  color: #b8ccda;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.spi-read-save-dialog-warning {
+  padding: 9px 10px;
+  border-left: 3px solid #f5bb58;
+  background: rgba(245, 187, 88, 0.1);
+  color: #ffe2ad;
+}
+
+.spi-read-save-input-label {
+  display: grid;
+  gap: 7px;
+  color: #c4d7e4;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.spi-read-save-input-label input {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid rgba(118, 151, 169, 0.32);
+  border-radius: 3px;
+  outline: none;
+  background: #07111a;
+  color: #f4fbff;
+}
+
+.spi-read-save-input-label input:focus {
+  border-color: rgba(45, 228, 193, 0.6);
+  box-shadow: 0 0 0 3px rgba(45, 228, 193, 0.12);
+}
+
+.spi-read-save-preview {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid rgba(118, 151, 169, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.spi-read-save-preview span {
+  color: #89a9bd;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.spi-read-save-preview strong {
+  overflow-wrap: anywhere;
+  color: #82efd3;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.84rem;
+}
+
+.spi-read-save-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.spi-read-save-actions button {
+  min-height: 40px;
+  border-radius: 3px;
+  padding: 9px 13px;
+}
+
+.spi-read-save-actions .ghost {
+  border-color: rgba(118, 151, 169, 0.28);
+  background: transparent;
+  color: #d9e8f0;
+}
+
+body:not(.is-dark-mode) .spi-read-save-dialog {
+  border-color: rgba(31, 97, 139, 0.22);
+  background: #f5fbfd;
+  color: #163e5c;
+  box-shadow: 0 24px 64px rgba(19, 66, 98, 0.24);
+}
+
+body:not(.is-dark-mode) .spi-read-save-dialog-head h4 {
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-read-save-dialog-head .label,
+body:not(.is-dark-mode) .spi-read-save-dialog-description {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-read-save-input-label {
+  color: #315f82;
+}
+
+body:not(.is-dark-mode) .spi-read-save-input-label input {
+  border-color: rgba(31, 97, 139, 0.24);
+  background: #ffffff;
+  color: #123a60;
+}
+
+body:not(.is-dark-mode) .spi-read-save-preview {
+  border-color: rgba(31, 97, 139, 0.16);
+  background: rgba(31, 137, 174, 0.06);
+}
+
+body:not(.is-dark-mode) .spi-read-save-preview span {
+  color: #537490;
+}
+
+body:not(.is-dark-mode) .spi-read-save-preview strong {
+  color: #0b7b69;
+}
+
+body:not(.is-dark-mode) .spi-read-save-actions .ghost {
+  border-color: rgba(31, 97, 139, 0.22);
+  color: #164e7d;
+}
+
+@media (max-width: 460px) {
+  .spi-read-save-dialog {
+    width: min(100vw - 20px, 430px);
+  }
+
+  .spi-read-save-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .spi-bottom-grid {
   margin-top: 16px;
 }

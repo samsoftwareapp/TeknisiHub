@@ -2729,7 +2729,8 @@
     async function saveReadBufferToBin(options = {}) {
       const {
         showSuccessToast = true,
-        suppressEmptyWarning = false
+        suppressEmptyWarning = false,
+        fileName = ""
       } = options;
 
       if (!state.hasReadBuffer) {
@@ -2748,10 +2749,11 @@
       }
 
       const blob = await response.blob();
-      const resolvedFileName = resolveDownloadFileName(
+      const downloadedFileName = resolveDownloadFileName(
         response.headers.get("Content-Disposition"),
         state.fileName || "SPIFlash_TeknisiHub.bin"
       );
+      const resolvedFileName = normalizeReadSaveFileName(fileName, downloadedFileName);
       const savedDirectly = await saveBlobToDisk(blob, resolvedFileName);
 
       if (savedDirectly) {
@@ -2763,6 +2765,157 @@
       }
 
       return false;
+    }
+
+    function sanitizeReadSaveNamePart(value) {
+      return String(value ?? "")
+        .trim()
+        .replace(/[\u0000-\u001F<>:"\/\\|?*]/g, "_")
+        .replace(/\s+/g, " ")
+        .replace(/[. ]+$/g, "")
+        .trim();
+    }
+
+    function normalizeReadSaveFileName(value, fallbackName = "SPIFlash_TeknisiHub.bin") {
+      const fallback = sanitizeReadSaveNamePart(fallbackName).replace(/\.bin$/i, "") || "SPIFlash_TeknisiHub";
+      const normalized = sanitizeReadSaveNamePart(value).replace(/\.bin$/i, "");
+      return `${normalized || fallback}.bin`;
+    }
+
+    function buildReadSaveFileName(namePrefix, currentFileName) {
+      const defaultFileName = normalizeReadSaveFileName(currentFileName);
+      const prefix = sanitizeReadSaveNamePart(namePrefix).replace(/\.bin$/i, "");
+      return prefix ? `${prefix}_${defaultFileName}` : defaultFileName;
+    }
+
+    function requestReadSaveFileName(currentFileName) {
+      const defaultFileName = normalizeReadSaveFileName(currentFileName);
+
+      return new Promise((resolve) => {
+        const dialog = document.createElement("dialog");
+        dialog.className = "spi-read-save-dialog";
+        dialog.setAttribute("aria-labelledby", "spiReadSaveDialogTitle");
+        dialog.setAttribute("aria-describedby", "spiReadSaveDialogDescription");
+        dialog.innerHTML = `
+          <form class="spi-read-save-form" method="dialog" novalidate>
+            <div class="spi-read-save-dialog-head">
+              <span class="material-symbols-outlined" aria-hidden="true">save</span>
+              <div>
+                <p class="label">Hasil Read siap</p>
+                <h4 id="spiReadSaveDialogTitle">Simpan hasil Read</h4>
+              </div>
+            </div>
+            <p id="spiReadSaveDialogDescription" class="spi-read-save-dialog-description">
+              Tambahkan nama bila perlu. Kosongkan untuk memakai nama file saat ini.
+            </p>
+            ${state.readBufferIsAllFf ? `
+              <p class="spi-read-save-dialog-warning">
+                Hasil Read masih FF semua. Periksa koneksi target sebelum menyimpan.
+              </p>
+            ` : ""}
+            <label class="spi-read-save-input-label" for="spiReadSaveNameInput">
+              Tambahkan nama file (opsional)
+              <input
+                id="spiReadSaveNameInput"
+                type="text"
+                maxlength="80"
+                autocomplete="off"
+                placeholder="Contoh: ASUS-X441"
+              >
+            </label>
+            <div class="spi-read-save-preview" aria-live="polite">
+              <span>Nama file</span>
+              <strong data-spi-read-save-preview>${escapeHtml(defaultFileName)}</strong>
+            </div>
+            <div class="spi-read-save-actions">
+              <button type="button" class="ghost" data-spi-read-save-cancel>Batal</button>
+              <button type="submit">
+                <span class="material-symbols-outlined" aria-hidden="true">save</span>
+                <span>Simpan BIN</span>
+              </button>
+            </div>
+          </form>
+        `;
+
+        let settled = false;
+        const finish = (fileName = "") => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          if (dialog.open) {
+            dialog.close();
+          }
+          dialog.remove();
+          resolve(fileName || "");
+        };
+
+        const input = dialog.querySelector("#spiReadSaveNameInput");
+        const preview = dialog.querySelector("[data-spi-read-save-preview]");
+        const updatePreview = () => {
+          if (preview) {
+            preview.textContent = buildReadSaveFileName(input?.value || "", defaultFileName);
+          }
+        };
+
+        input?.addEventListener("input", updatePreview);
+        dialog.querySelector("form")?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          finish(buildReadSaveFileName(input?.value || "", defaultFileName));
+        });
+        dialog.querySelector("[data-spi-read-save-cancel]")?.addEventListener("click", () => finish());
+        dialog.addEventListener("cancel", (event) => {
+          event.preventDefault();
+          finish();
+        });
+        dialog.addEventListener("click", (event) => {
+          if (event.target === dialog) {
+            finish();
+          }
+        });
+
+        document.body.append(dialog);
+        if (typeof dialog.showModal !== "function") {
+          const namePrefix = window.prompt(
+            `Tambahkan nama file (opsional). Kosongkan untuk memakai ${defaultFileName}.`,
+            ""
+          );
+          finish(namePrefix === null ? "" : buildReadSaveFileName(namePrefix, defaultFileName));
+          return;
+        }
+
+        dialog.showModal();
+        window.requestAnimationFrame(() => input?.focus());
+      });
+    }
+
+    async function promptAndSaveReadBuffer(options = {}) {
+      const {
+        showSuccessToast = true,
+        notifyCancelled = true
+      } = options;
+
+      if (!state.hasReadBuffer) {
+        notifyUser("Belum ada hasil read chip yang bisa disimpan.", "info");
+        return false;
+      }
+
+      const selectedFileName = await requestReadSaveFileName(
+        state.fileName || "SPIFlash_TeknisiHub.bin"
+      );
+      if (!selectedFileName) {
+        if (notifyCancelled) {
+          notifyUser("Penyimpanan dibatalkan. Hasil Read tetap tersedia untuk disimpan nanti.", "info");
+        }
+        return false;
+      }
+
+      return saveReadBufferToBin({
+        showSuccessToast,
+        suppressEmptyWarning: true,
+        fileName: selectedFileName
+      });
     }
 
     async function refreshSessionSilently(options = {}) {
@@ -3034,6 +3187,7 @@
             render();
           }
 
+          let shouldPromptForReadSave = false;
           void withBusy(async () => {
             if (action === "reset") {
               speedHzUserOverride = false;
@@ -3056,21 +3210,21 @@
               notifyUser("Chip kosong, isi buffer masih FF semua.", "warning");
             }
 
-            if (isReadAction && state.autoProcess !== false && state.hasReadBuffer) {
-              try {
-                await saveReadBufferToBin({
-                  showSuccessToast: false,
-                  suppressEmptyWarning: true,
-                  preferBrowserDownload: true
-                });
-              } catch (error) {
-                if (error?.name !== "AbortError") {
-                  notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
-                }
-              }
-            }
+            shouldPromptForReadSave = isReadAction && state.autoProcess !== false && state.hasReadBuffer;
           }, {
             activeOperation: resolveActionTaskLabel(action, state.autoProcess !== false, state.selectedDevice)
+          }).then(async () => {
+            if (!shouldPromptForReadSave || !state.hasReadBuffer) {
+              return;
+            }
+
+            try {
+              await promptAndSaveReadBuffer({ showSuccessToast: true });
+            } catch (error) {
+              if (error?.name !== "AbortError") {
+                notifyUser(error?.message || "Gagal menyiapkan file BIN.", "warning");
+              }
+            }
           });
         });
       });
@@ -3149,10 +3303,7 @@
       if (saveBinButton) {
         saveBinButton.addEventListener("click", async () => {
           try {
-            await saveReadBufferToBin({
-              showSuccessToast: true,
-              suppressEmptyWarning: false
-            });
+            await promptAndSaveReadBuffer({ showSuccessToast: true });
           } catch (error) {
             if (error?.name === "AbortError") {
               return;
